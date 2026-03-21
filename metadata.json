@@ -1,0 +1,8 @@
+{
+  "name": "Createrin v1",
+  "description": "AI-powered caption generator and image editor for short-form video creators. Features trending Gemini image-editing templates.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
