@@ -107,7 +107,7 @@ const App: React.FC = () => {
   const [playbackRate, setPlaybackRate] = useState(1);
 
   // CUSTOM DESIGN OVERRIDES
-  const [currentStyle, setCurrentStyle] = useState<CaptionStyle>(CaptionStyle.DEFAULT);
+  const [currentStyle, setCurrentStyle] = useState<CaptionStyle>(CaptionStyle.CLEAN_WHITE);
   const [fontFamily, setFontFamily] = useState('Inter, sans-serif');
   const [fontWeight, setFontWeight] = useState<string | number>(800);
   const [fontScale, setFontScale] = useState(0.85);
@@ -143,7 +143,8 @@ const App: React.FC = () => {
   const [isStickerPanelOpen, setIsStickerPanelOpen] = useState(false);
   const [isShortcutPanelOpen, setIsShortcutPanelOpen] = useState(false);
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<Record<string, string>>({});
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('9:16');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('ORIGINAL');
+  const [videoIntrinsicRatio, setVideoIntrinsicRatio] = useState<number | null>(null);
   const [aspectRatioMenuOpen, setAspectRatioMenuOpen] = useState(false);
   // Stores the detected language from the last generation (e.g. 'Hindi', 'Telugu') used to filter language options
   const [detectedLanguage, setDetectedLanguage] = useState<string | undefined>(undefined);
@@ -302,7 +303,7 @@ const App: React.FC = () => {
 
   // Memoized Active Configuration (Preset + Overrides)
   const activeConfig = useMemo(() => {
-    const preset = STYLES_CONFIG[currentStyle] || STYLES_CONFIG[CaptionStyle.DEFAULT];
+    const preset = STYLES_CONFIG[currentStyle] || STYLES_CONFIG[CaptionStyle.CLEAN_WHITE];
     // If not in AUTO ADJUST mode, we prioritize user overrides
     if (!autoAdjustEnabled || currentStyle === CaptionStyle.CUSTOM) {
       return {
@@ -355,12 +356,13 @@ const App: React.FC = () => {
       resetCaptionsHistory([]); setStatus('IDLE'); setStats(null);
       setExportProgress(0);
       setPlaybackRate(1);
+      setAspectRatio('ORIGINAL'); // Automatically match the video
 
       // Reset defaults on new video
       setFontScale(1);
       setVerticalPos(82);
       setHorizontalPos(50);
-      setCurrentStyle(CaptionStyle.DEFAULT);
+      setCurrentStyle(CaptionStyle.CLEAN_WHITE);
     }
   };
 
@@ -874,8 +876,9 @@ const App: React.FC = () => {
                 {aspectRatioMenuOpen && (
                   <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-gray-700 rounded-xl shadow-lg z-20">
                     {[
-                      ['9:16', 'Portrait'],
-                      ['16:9', 'Landscape'],
+                      ['ORIGINAL', 'Original (Detected)'],
+                      ['9:16', 'Portrait / Shorts'],
+                      ['16:9', 'Landscape / YouTube'],
                       ['1:1', 'Square'],
                       ['4:5', 'Portrait Tall']
                     ].map(([value, label]) => (
@@ -936,6 +939,8 @@ const App: React.FC = () => {
                   showSafeZones={showSafeZones}
                   safeZonePlatform={safeZonePlatform}
                   aspectRatio={aspectRatio}
+                  videoIntrinsicRatio={videoIntrinsicRatio}
+                  setVideoIntrinsicRatio={setVideoIntrinsicRatio}
                   stickers={stickers}
                   updateSticker={updateSticker}
                   activeTool={activeTool}
@@ -1027,7 +1032,6 @@ const App: React.FC = () => {
                       { id: 'PRESETS', label: 'Templates' },
                       { id: 'DESIGN', label: 'Customize' },
                       { id: 'ANIMATE', label: 'Animate' },
-                      { id: 'THEMES', label: 'Themes' },
                       { id: 'TRANSCRIPT', label: 'Transcript' },
                     ].map(tab => (
                       <button
@@ -1068,7 +1072,7 @@ const App: React.FC = () => {
                       kineticMode={kineticMode}
                       setKineticMode={setKineticMode}
                     />
-                  ) : activeTab === 'THEMES' ? (
+                  ) : activeTab === 'THEMES' || activeTab === 'PRESETS' ? (
                     <ThemePresetsPanel
                       captions={captions}
                       onApplyTheme={(preset: ThemePreset) => {

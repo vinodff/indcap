@@ -104,14 +104,14 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
               <Play size={16} className="fill-white" /> Live Preview Mode
             </button>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {['ALL', 'TRENDING', 'BOLD', 'VIRAL', 'NEON', 'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC', 'CUSTOM'].map(cat => (
+              {['ALL', 'TRENDING', 'BOLD', 'VIRAL', 'NEON', 'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC', 'EMOJI', 'TYPOGRAPHIC', 'CUSTOM'].map(cat => (
                 <button key={cat} onClick={() => setFilterCategory(cat)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all whitespace-nowrap ${filterCategory === cat ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-500 border-gray-700 hover:border-gray-500'}`}>{cat}</button>
               ))}
             </div>
 
             {/* Style Grid */}
             <div className="space-y-6">
-              {['TRENDING', 'BOLD', 'VIRAL', 'NEON', 'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC', 'CUSTOM']
+              {['TRENDING', 'BOLD', 'VIRAL', 'NEON', 'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC', 'EMOJI', 'TYPOGRAPHIC', 'CUSTOM']
                 .filter(cat => filterCategory === 'ALL' || filterCategory === cat)
                 .map(cat => {
                   const templatesCat = Object.entries(STYLES_CONFIG).filter(([_, config]) => config.category === cat);
@@ -134,7 +134,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                           const categoryColors: Record<string, string> = {
                             VIRAL: '#FF4500', TRENDING: '#1A5BFF', BOLD: '#FF0000', NEON: '#00FFFF',
                             MINIMAL: '#888', ART: '#C084FC', GLOW: '#FFD700', KINETIC: '#FF6B00',
-                            HIGHLIGHT: '#22C55E', CUSTOM: '#6B7280'
+                            HIGHLIGHT: '#22C55E', EMOJI: '#FF69B4', TYPOGRAPHIC: '#E8B84B', CUSTOM: '#6B7280'
                           };
                           const catColor = categoryColors[config.category] || '#888';
                           const animationClass = config.displayMode === 'WORD' ? 'group-hover:animate-pulse' : 'group-hover:scale-110';

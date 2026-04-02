@@ -64,18 +64,18 @@ export const generateCaptionsFromVideo = async (
   autoAdjust: boolean,
   smartCompression: boolean,
   languageMode: LanguageMode = 'AUTO',
-  captionStyle: CaptionStyle = CaptionStyle.DEFAULT
+  captionStyle: CaptionStyle = CaptionStyle.CLEAN_WHITE
 ): Promise<{ captions: Caption[], language: string }> => {
   const apiKey = getApiKey();
   const ai = new GoogleGenAI({ apiKey });
 
-  // The prompt is minimal because the heavy lifting is done in SYSTEM_INSTRUCTION
-  const prompt = "Transcribe audio. Adhere strictly to the JSON schema.";
+  // The prompt reinforces verbatim transcription — no word skipping
+  const prompt = "Transcribe the audio VERBATIM — include EVERY single word spoken, do NOT skip or summarize any words. Split into caption segments but keep ALL words. Adhere strictly to the JSON schema.";
 
   // Combine base instruction with language mode
   let finalInstruction = SYSTEM_INSTRUCTION;
 
-  if (captionStyle === CaptionStyle.TRENDING) {
+  if (captionStyle === CaptionStyle.VIRAL_SLAM) {
     finalInstruction += `\n\n${TRENDING_INSTRUCTION}`;
   }
 
@@ -104,9 +104,29 @@ export const generateCaptionsFromVideo = async (
     case 'HINGLISH':
       finalInstruction += `\n\n${HINGLISH_INSTRUCTION}`;
       break;
-    default:
+    case 'AUTO':
       finalInstruction += `\n\n${AUTO_LANGUAGE_INSTRUCTION}`;
       break;
+    default: {
+      // Handle dynamic language modes: NATIVE_XX, MIX_XX
+      const { LANGUAGES, generateLanguageInstruction } = await import('../components/InitialGenerationState');
+      const nativeMatch = languageMode.match(/^NATIVE_(.+)$/);
+      const mixMatch = languageMode.match(/^MIX_(.+)$/);
+      if (nativeMatch) {
+        const code = nativeMatch[1].toLowerCase();
+        const instruction = generateLanguageInstruction({ primaryCode: code, outputMode: 'NATIVE' });
+        if (instruction) finalInstruction += `\n\n${instruction}`;
+        else finalInstruction += `\n\n${AUTO_LANGUAGE_INSTRUCTION}`;
+      } else if (mixMatch) {
+        const code = mixMatch[1].toLowerCase();
+        const instruction = generateLanguageInstruction({ primaryCode: code, outputMode: 'ROMANIZED_MIX' });
+        if (instruction) finalInstruction += `\n\n${instruction}`;
+        else finalInstruction += `\n\n${AUTO_LANGUAGE_INSTRUCTION}`;
+      } else {
+        finalInstruction += `\n\n${AUTO_LANGUAGE_INSTRUCTION}`;
+      }
+      break;
+    }
   }
 
   if (autoAdjust) {
@@ -210,7 +230,7 @@ export const generateCaptionsFromVideo = async (
       let primaryText = item.primary_text;
       let accentText = item.accent_text;
 
-      if (captionStyle === CaptionStyle.TRENDING) {
+      if (captionStyle === CaptionStyle.VIRAL_SLAM) {
         const words = item.text.trim().split(/\s+/);
         if (words.length === 1) {
           secondaryText = "";
@@ -274,12 +294,21 @@ export const generateCaptionsFromVideo = async (
 
     // Format display name
     const langMap: Record<string, string> = {
-      'en': 'English',
-      'hi': 'Hindi',
-      'te': 'Telugu',
-      'ta': 'Tamil',
-      'hinglish': 'Hinglish',
-      'tanglish': 'Tanglish'
+      'en': 'English', 'hi': 'Hindi', 'te': 'Telugu', 'ta': 'Tamil',
+      'kn': 'Kannada', 'mr': 'Marathi', 'ml': 'Malayalam', 'bn': 'Bengali',
+      'gu': 'Gujarati', 'pa': 'Punjabi', 'or': 'Odia', 'as': 'Assamese',
+      'ur': 'Urdu', 'ne': 'Nepali', 'si': 'Sinhala',
+      'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean',
+      'th': 'Thai', 'vi': 'Vietnamese', 'id': 'Indonesian', 'ms': 'Malay', 'fil': 'Filipino',
+      'ar': 'Arabic', 'fa': 'Persian', 'tr': 'Turkish', 'he': 'Hebrew',
+      'es': 'Spanish', 'fr': 'French', 'de': 'German', 'pt': 'Portuguese',
+      'it': 'Italian', 'ru': 'Russian', 'pl': 'Polish', 'uk': 'Ukrainian',
+      'nl': 'Dutch', 'sv': 'Swedish', 'da': 'Danish', 'no': 'Norwegian',
+      'fi': 'Finnish', 'el': 'Greek', 'ro': 'Romanian', 'cs': 'Czech',
+      'hu': 'Hungarian', 'bg': 'Bulgarian', 'hr': 'Croatian', 'sr': 'Serbian',
+      'sw': 'Swahili', 'am': 'Amharic', 'ha': 'Hausa', 'yo': 'Yoruba',
+      'af': 'Afrikaans', 'ka': 'Georgian', 'hy': 'Armenian',
+      'hinglish': 'Hinglish', 'tanglish': 'Tanglish', 'telglish': 'Telglish',
     };
 
     return {

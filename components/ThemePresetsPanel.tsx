@@ -1,20 +1,60 @@
-import React, { useState } from 'react';
-import { Sparkles, Wand2, Lightbulb, Check, Loader2, Save, Trash2, FolderOpen } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Sparkles, Wand2, Lightbulb, Loader2, Save, Trash2, FolderOpen, Play, Pause, Check, Eye } from 'lucide-react';
 import { THEME_PRESETS, ThemePreset, generateAIStyleSuggestion, generateHookSuggestions, AIStyleSuggestion } from '../services/aiStyleService';
 import { TemplateManager, CaptionTemplate } from '../services/TemplateManager';
-import { Caption, CaptionStyle, EntryAnimation, ExitAnimation, WordHighlightMode, TextAlign } from '../types';
+import { Caption, CaptionStyle, EntryAnimation } from '../types';
 
 interface ThemePresetsPanelProps {
   captions: Caption[];
-  // Current style setters
   onApplyTheme: (preset: ThemePreset) => void;
-  // AI auto-style
   onApplyAIStyle: (suggestion: AIStyleSuggestion) => void;
-  // Template system
   currentConfig: Omit<CaptionTemplate, 'id' | 'name' | 'createdAt'>;
   onApplyTemplate: (template: CaptionTemplate) => void;
 }
 
+// ─── Category filter data ───
+const CATEGORIES = [
+  { id: 'ALL', label: 'All', icon: '✦' },
+  { id: 'Trending', label: 'Trending', icon: '🔥' },
+  { id: 'Professional', label: 'Minimal', icon: '✨' },
+  { id: 'Dynamic', label: 'Viral', icon: '⚡' },
+  { id: 'Fun', label: 'Fun', icon: '🎨' },
+  { id: 'Unique', label: 'Unique', icon: '💎' },
+];
+
+
+
+// ─── Preview Card Thumbnail ───
+const TemplateThumbnail: React.FC<{ preset: ThemePreset }> = ({ preset }) => {
+  const bgGradient = preset.gradientColors
+    ? `linear-gradient(135deg, ${preset.gradientColors.join(', ')})`
+    : `linear-gradient(135deg, ${preset.textColor}22, ${preset.textColor}44)`;
+
+  return (
+    <div
+      className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black shrink-0 relative overflow-hidden"
+      style={{
+        background: bgGradient,
+        fontFamily: preset.fontFamily,
+        color: preset.textColor,
+        textShadow: preset.strokeWidth > 0
+          ? `0 0 ${preset.strokeWidth}px ${preset.strokeColor}`
+          : 'none',
+      }}
+    >
+      <span className="relative z-10 text-lg">{preset.icon}</span>
+      {/* Tiny glow */}
+      <div
+        className="absolute inset-0 opacity-30"
+        style={{
+          background: `radial-gradient(circle at center, ${preset.textColor}40, transparent 70%)`,
+        }}
+      />
+    </div>
+  );
+};
+
+// ─── Main Component ───
 const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
   captions,
   onApplyTheme,
@@ -23,19 +63,39 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
   onApplyTemplate,
 }) => {
   const [activeThemeId, setActiveThemeId] = useState<string | null>(null);
+  const [hoveredPreset, setHoveredPreset] = useState<ThemePreset | null>(null);
+  const [activeCategory, setActiveCategory] = useState('ALL');
+
+  // AI section
   const [isAISuggesting, setIsAISuggesting] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AIStyleSuggestion | null>(null);
   const [hookTexts, setHookTexts] = useState<string[]>([]);
   const [isLoadingHooks, setIsLoadingHooks] = useState(false);
+
+  // Template saving
   const [templates, setTemplates] = useState<CaptionTemplate[]>(TemplateManager.loadTemplates());
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
-  const [activeSection, setActiveSection] = useState<'themes' | 'ai' | 'templates'>('themes');
 
-  const handleApplyTheme = (preset: ThemePreset) => {
+  // Active section toggle
+  const [activeSection, setActiveSection] = useState<'browse' | 'ai' | 'saved'>('browse');
+
+
+
+  // Filter presets
+  const filteredPresets = useMemo(() => {
+    if (activeCategory === 'ALL') return THEME_PRESETS;
+    return THEME_PRESETS.filter(p => p.category === activeCategory);
+  }, [activeCategory]);
+
+  const handleHover = useCallback((preset: ThemePreset) => {
+    setHoveredPreset(preset);
+  }, []);
+
+  const handleSelect = useCallback((preset: ThemePreset) => {
     setActiveThemeId(preset.id);
     onApplyTheme(preset);
-  };
+  }, [onApplyTheme]);
 
   const handleAIStyle = async () => {
     if (captions.length === 0) return;
@@ -79,73 +139,141 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
   };
 
   return (
-    <div className="space-y-4 p-4">
-      {/* Section Switcher */}
-      <div className="flex bg-gray-900 rounded-xl p-1 gap-1">
+    <div className="flex flex-col h-full">
+      {/* Section Tabs */}
+      <div className="flex bg-[#0d0d0d] border-b border-gray-800/60 px-2 pt-2 gap-1 shrink-0">
         {([
-          { id: 'themes', label: '🎭 Themes', },
-          { id: 'ai', label: '🤖 AI Style' },
-          { id: 'templates', label: '💾 Templates' },
+          { id: 'browse', label: 'Browse', icon: <Sparkles size={12} /> },
+          { id: 'ai', label: 'AI Style', icon: <Wand2 size={12} /> },
+          { id: 'saved', label: 'Saved', icon: <FolderOpen size={12} /> },
         ] as const).map(sec => (
           <button
             key={sec.id}
             onClick={() => setActiveSection(sec.id)}
-            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-wider transition-all ${
               activeSection === sec.id
-                ? 'bg-gray-700 text-white shadow-md'
-                : 'text-gray-500 hover:text-gray-300'
+                ? 'bg-[#1a1a2e] text-white border-t border-x border-blue-500/30'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
             }`}
           >
+            {sec.icon}
             {sec.label}
           </button>
         ))}
       </div>
 
-      {/* THEMES SECTION */}
-      {activeSection === 'themes' && (
-        <div className="space-y-3">
-          <p className="text-[10px] text-gray-500 text-center">
-            One-click theme presets for instant style transformation
-          </p>
-          <div className="space-y-2">
-            {THEME_PRESETS.map(preset => (
+      {/* ─── BROWSE SECTION (Split layout) ─── */}
+      {activeSection === 'browse' && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Category filter chips */}
+          <div className="flex gap-1.5 px-3 py-2.5 overflow-x-auto custom-scrollbar shrink-0 bg-[#0e0e16]/80 border-b border-gray-800/40">
+            {CATEGORIES.map(cat => (
               <button
-                key={preset.id}
-                onClick={() => handleApplyTheme(preset)}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all group ${
-                  activeThemeId === preset.id
-                    ? 'bg-blue-600/15 border-blue-500/50 shadow-lg shadow-blue-500/10'
-                    : 'bg-gray-900 border-gray-800 hover:border-gray-600 hover:bg-gray-800/50'
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all shrink-0 ${
+                  activeCategory === cat.id
+                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/10'
+                    : 'bg-gray-800/40 text-gray-500 border border-gray-700/40 hover:bg-gray-700/50 hover:text-gray-300'
                 }`}
               >
-                <span className="text-2xl flex-shrink-0">{preset.icon}</span>
-                <div className="text-left flex-1 min-w-0">
-                  <div className={`text-sm font-black ${
-                    activeThemeId === preset.id ? 'text-blue-300' : 'text-gray-300'
-                  }`}>
-                    {preset.name}
-                  </div>
-                  <div className="text-[10px] text-gray-500 truncate">{preset.description}</div>
-                </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-black/40 text-gray-600 font-bold uppercase">
-                    {preset.entryAnimation.replace('_', ' ')}
-                  </span>
-                </div>
-                {activeThemeId === preset.id && (
-                  <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                    <Check size={12} className="text-white" />
-                  </div>
-                )}
+                <span className="text-xs">{cat.icon}</span>
+                {cat.label}
               </button>
             ))}
+          </div>
+
+          {/* Template Cards */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-1.5" onMouseLeave={() => setHoveredPreset(null)}>
+              {filteredPresets.length === 0 && (
+                <div className="text-center py-8 text-gray-600 text-xs">
+                  No templates in this category
+                </div>
+              )}
+              {filteredPresets.map(preset => {
+                const isSelected = activeThemeId === preset.id;
+                const isHovered = hoveredPreset?.id === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onMouseEnter={() => handleHover(preset)}
+                    onClick={() => handleSelect(preset)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 group relative overflow-hidden ${
+                      isSelected
+                        ? 'bg-blue-600/15 border-blue-500/50 shadow-lg shadow-blue-500/10'
+                        : isHovered
+                        ? 'bg-gray-800/60 border-gray-600/60 shadow-md shadow-black/30 scale-[1.01]'
+                        : 'bg-[#111118]/80 border-gray-800/50 hover:bg-gray-800/50 hover:border-gray-600/50'
+                    }`}
+                    style={{
+                      transform: isHovered && !isSelected ? 'scale(1.01)' : undefined,
+                      transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+                    }}
+                  >
+                    {/* Hover glow overlay */}
+                    {isHovered && (
+                      <div
+                        className="absolute inset-0 opacity-[0.06] pointer-events-none"
+                        style={{
+                          background: `radial-gradient(ellipse at 30% 50%, ${preset.textColor}, transparent 70%)`,
+                        }}
+                      />
+                    )}
+
+                    {/* Thumbnail */}
+                    <TemplateThumbnail preset={preset} />
+
+                    {/* Info */}
+                    <div className="text-left flex-1 min-w-0 relative z-10">
+                      <div className={`text-[12px] font-black leading-tight ${
+                        isSelected ? 'text-blue-300' : 'text-gray-200'
+                      }`}>
+                        {preset.name}
+                      </div>
+                      <div className="text-[9px] text-gray-500 truncate mt-0.5 leading-tight">
+                        {preset.description}
+                      </div>
+                    </div>
+
+                    {/* Tags */}
+                    <div className="flex flex-col items-end gap-1 relative z-10 shrink-0">
+                      <span
+                        className="text-[7px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide"
+                        style={{
+                          backgroundColor: `${preset.textColor}15`,
+                          color: `${preset.textColor}99`,
+                        }}
+                      >
+                        {preset.entryAnimation.replace(/_/g, ' ')}
+                      </span>
+                      {preset.wordHighlight !== 'NONE' && (
+                        <span className="text-[7px] px-1.5 py-0.5 rounded bg-white/5 text-gray-600 font-bold uppercase tracking-wide">
+                          {preset.wordHighlight}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Selected checkmark */}
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center shrink-0 relative z-10">
+                        <Check size={11} className="text-white" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Bottom spacer */}
+              <div className="h-4" />
+            </div>
           </div>
         </div>
       )}
 
-      {/* AI SECTION */}
+      {/* ─── AI SECTION ─── */}
       {activeSection === 'ai' && (
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
           {/* AI Auto-Style */}
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
@@ -157,29 +285,35 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 active:scale-95 shadow-lg shadow-purple-500/20"
             >
               {isAISuggesting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> Analyzing...
-                </>
+                <><Loader2 size={16} className="animate-spin" /> Analyzing...</>
               ) : (
-                <>
-                  <Sparkles size={16} /> Auto-Style with AI
-                </>
+                <><Sparkles size={16} /> Auto-Style with AI</>
               )}
             </button>
             {captions.length === 0 && (
-              <p className="text-[10px] text-gray-600 text-center">Generate captions first to use AI styling</p>
+              <p className="text-[10px] text-gray-600 text-center">
+                Generate captions first to use AI styling
+              </p>
             )}
             {aiSuggestion && (
               <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Sparkles size={12} className="text-purple-400" />
-                  <span className="text-[10px] font-black text-purple-300 uppercase">AI Recommendation</span>
+                  <span className="text-[10px] font-black text-purple-300 uppercase">
+                    AI Recommendation
+                  </span>
                 </div>
                 <p className="text-[11px] text-gray-300">{aiSuggestion.reasoning}</p>
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">{aiSuggestion.theme}</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">{aiSuggestion.entryAnimation}</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">{aiSuggestion.wordHighlight}</span>
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">
+                    {aiSuggestion.theme}
+                  </span>
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">
+                    {aiSuggestion.entryAnimation}
+                  </span>
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">
+                    {aiSuggestion.wordHighlight}
+                  </span>
                 </div>
               </div>
             )}
@@ -204,8 +338,13 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
             {hookTexts.length > 0 && (
               <div className="space-y-1.5">
                 {hookTexts.map((hook, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2.5 bg-gray-900 rounded-lg border border-gray-800 group hover:border-yellow-500/30 transition-colors">
-                    <span className="text-yellow-400 text-xs font-bold flex-shrink-0">{i + 1}.</span>
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2.5 bg-gray-900 rounded-lg border border-gray-800 group hover:border-yellow-500/30 transition-colors"
+                  >
+                    <span className="text-yellow-400 text-xs font-bold flex-shrink-0">
+                      {i + 1}.
+                    </span>
                     <span className="text-xs text-gray-300 flex-1">{hook}</span>
                   </div>
                 ))}
@@ -215,9 +354,9 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
         </div>
       )}
 
-      {/* TEMPLATES SECTION */}
-      {activeSection === 'templates' && (
-        <div className="space-y-4">
+      {/* ─── SAVED SECTION ─── */}
+      {activeSection === 'saved' && (
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
           {/* Save Current */}
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
@@ -234,10 +373,16 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
                   className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500"
                   autoFocus
                 />
-                <button onClick={handleSaveTemplate} className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-500 transition-colors">
+                <button
+                  onClick={handleSaveTemplate}
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-500 transition-colors"
+                >
                   Save
                 </button>
-                <button onClick={() => setShowSaveDialog(false)} className="px-3 py-2 bg-gray-800 text-gray-400 rounded-lg text-xs font-bold hover:bg-gray-700 transition-colors">
+                <button
+                  onClick={() => setShowSaveDialog(false)}
+                  className="px-3 py-2 bg-gray-800 text-gray-400 rounded-lg text-xs font-bold hover:bg-gray-700 transition-colors"
+                >
                   ✕
                 </button>
               </div>
@@ -254,7 +399,8 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
           {/* Saved Templates */}
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
-              <FolderOpen size={13} className="text-blue-400" /> Saved Templates ({templates.length})
+              <FolderOpen size={13} className="text-blue-400" /> Saved Templates (
+              {templates.length})
             </div>
             {templates.length === 0 ? (
               <p className="text-[10px] text-gray-600 text-center py-4">
@@ -263,11 +409,17 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
             ) : (
               <div className="space-y-2">
                 {templates.map(tmpl => (
-                  <div key={tmpl.id} className="flex items-center gap-3 p-3 bg-gray-900 rounded-xl border border-gray-800 group hover:border-blue-500/30 transition-colors">
+                  <div
+                    key={tmpl.id}
+                    className="flex items-center gap-3 p-3 bg-gray-900 rounded-xl border border-gray-800 group hover:border-blue-500/30 transition-colors"
+                  >
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold text-gray-300 truncate">{tmpl.name}</div>
+                      <div className="text-xs font-bold text-gray-300 truncate">
+                        {tmpl.name}
+                      </div>
                       <div className="text-[9px] text-gray-600 mt-0.5">
-                        {new Date(tmpl.createdAt).toLocaleDateString()} · {tmpl.fontFamily.split(',')[0].replace(/'/g, '')}
+                        {new Date(tmpl.createdAt).toLocaleDateString()} ·{' '}
+                        {tmpl.fontFamily.split(',')[0].replace(/'/g, '')}
                       </div>
                     </div>
                     <button

@@ -91,6 +91,8 @@ interface VideoPreviewAreaProps {
   stickers?: StickerItem[];
   updateSticker?: (id: string, updates: Partial<StickerItem>) => void;
   activeTool?: any; // ActiveTool type
+  videoIntrinsicRatio?: number | null;
+  setVideoIntrinsicRatio?: (ratio: number) => void;
 }
 
 // Map aspect ratio enum to CSS class
@@ -122,6 +124,8 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   stickers = [],
   updateSticker,
   activeTool,
+  videoIntrinsicRatio = null,
+  setVideoIntrinsicRatio,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedCaptionId, setDraggedCaptionId] = useState<string | null>(null);
@@ -198,7 +202,8 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
     }
   };
 
-  const aspectClass = ASPECT_RATIO_CLASS[aspectRatio] || 'aspect-[9/16]';
+  const aspectClass = aspectRatio === 'ORIGINAL' ? '' : (ASPECT_RATIO_CLASS[aspectRatio] || 'aspect-[9/16]');
+  const inlineStyle = aspectRatio === 'ORIGINAL' && videoIntrinsicRatio ? { aspectRatio: videoIntrinsicRatio } : {};
 
   return (
     <>
@@ -255,8 +260,11 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
         </div>
       ) : (
         /* Bug 6 Fix: Add `group` class so group-hover:opacity-100 on controls works.
-           Bug 16 Fix: Apply dynamically chosen aspect ratio class. */
-        <div className={`group relative h-full max-h-[85vh] ${aspectClass} bg-black rounded-[2rem] shadow-2xl overflow-hidden border-[6px] border-[#222] ring-1 ring-white/10 z-20`}>
+           Bug 16 Fix: Apply dynamically chosen aspect ratio class or inline style. */
+        <div 
+          className={`group relative h-full max-h-[85vh] max-w-full ${aspectClass} bg-black rounded-[2rem] shadow-2xl overflow-hidden border-[6px] border-[#222] ring-1 ring-white/10 z-20 transition-all duration-300`}
+          style={inlineStyle}
+        >
           {/* Bug 5 Fix: use onLoadedMetadata (fires after dimensions are confirmed) instead
               of onLoadedData. Also removed forced seek to 0.1 (Bug 15). */}
           <video 
@@ -271,6 +279,7 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
                 if (vw > 0 && vh > 0) {
                   canvasRef.current.width = vw;
                   canvasRef.current.height = vh;
+                  if (setVideoIntrinsicRatio) setVideoIntrinsicRatio(vw / vh);
                 }
               }
             }}

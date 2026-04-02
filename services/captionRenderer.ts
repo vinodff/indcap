@@ -35,6 +35,32 @@ const easeOutQuint = (t: number): number => {
   return 1 - Math.pow(1 - t, 5);
 };
 
+// ─── Emoji / Noto Animated GIF utilities ────────────────────────────────────
+// Detects if a string is a single emoji (one or more codepoints forming a grapheme)
+const EMOJI_REGEX = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/gu;
+export const isEmojiWord = (word: string): boolean => {
+  const clean = word.trim();
+  if (!clean) return false;
+  // Check if removing all emojis from the string leaves it empty
+  const stripped = clean.replace(EMOJI_REGEX, '');
+  // Also strip any remaining ZWJ (200D) or variation selectors
+  const fullyStripped = stripped.replace(/[\uFE0F\u200D]/g, '');
+  return fullyStripped.length === 0;
+};
+
+// Convert an emoji character to its Noto animation CDN URL
+// e.g. '❤️' → 'https://fonts.gstatic.com/s/e/notoemoji/latest/2764/512.gif'
+export const emojiToNotoUrl = (emoji: string): string => {
+  // Get the base codepoint, skipping variation selectors (FE0F) and ZWJ (200D)
+  const codepoints = [...emoji]
+    .map(c => c.codePointAt(0)!)
+    .filter(cp => cp !== 0xFE0F) // strip variation selector-16
+    .map(cp => cp.toString(16).toLowerCase());
+  // For multi-codepoint (ZWJ sequences), join with underscore
+  return `https://fonts.gstatic.com/s/e/notoemoji/latest/${codepoints.join('_')}/512.gif`;
+};
+
+
 export interface RendererState {
   captions: Caption[];
   activeConfig: StyleConfig;
@@ -63,6 +89,71 @@ export class CaptionRenderer {
   private currentZoom = 1.0;
   private lastCaptionId: string | null = null;
   private cachedFont: string = '';
+  // Cache of loaded HTMLImageElement instances — keyed by gifUrl
+  // Allows canvas to call drawImage() every frame without re-fetching
+  private imageCache = new Map<string, HTMLImageElement>();
+
+  private getMixedTextWidth(ctx: CanvasRenderingContext2D, text: string, fontSize: number): number {
+    const parts = text.split(EMOJI_REGEX).filter(Boolean);
+    let width = 0;
+    parts.forEach(p => {
+      if (isEmojiWord(p)) width += fontSize * 1.4;
+      else width += ctx.measureText(p).width;
+    });
+    return width;
+  }
+
+  private drawMixedText(
+    ctx: CanvasRenderingContext2D, 
+    text: string, 
+    fontSize: number, 
+    fill: string | CanvasGradient,
+    x: number,
+    y: number,
+    isStroke: boolean = false
+  ): void {
+    const parts = text.split(EMOJI_REGEX).filter(Boolean);
+    const totalW = this.getMixedTextWidth(ctx, text, fontSize);
+    
+    let curX = x;
+    if (ctx.textAlign === 'center') {
+      curX = x - totalW / 2;
+    } else if (ctx.textAlign === 'right') {
+      curX = x - totalW;
+    }
+    
+    ctx.save();
+    ctx.textAlign = 'left';
+    parts.forEach(p => {
+      if (isEmojiWord(p)) {
+        const gifSize = fontSize * 1.4;
+        if (!isStroke) {
+          const gifUrl = emojiToNotoUrl(p.trim());
+          const img = this.getOrLoadImage(gifUrl);
+          if (img && img.naturalWidth > 0) {
+            let imgY = y - gifSize / 2;
+            if (ctx.textBaseline === 'top') imgY = y;
+            else if (ctx.textBaseline === 'bottom') imgY = y - gifSize;
+            
+            ctx.drawImage(img, curX, imgY, gifSize, gifSize);
+          } else {
+            ctx.fillStyle = fill;
+            ctx.fillText(p, curX, y);
+          }
+        }
+        curX += gifSize;
+      } else {
+        if (isStroke) {
+          ctx.strokeText(p, curX, y);
+        } else {
+          ctx.fillStyle = fill;
+          ctx.fillText(p, curX, y);
+        }
+        curX += ctx.measureText(p).width;
+      }
+    });
+    ctx.restore();
+  }
 
   /**
    * Main render method. Draws video frame + captions onto canvas.
@@ -316,21 +407,12 @@ export class CaptionRenderer {
       ctx.translate(-anchorX, -anchorY);
     }
 
-    // Route to style-specific renderers
-    switch (state.currentStyle) {
-      case CaptionStyle.INSTAGRAM_TEMPLATE:
-        this.drawInstagramTemplate(ctx, canvas, caption, scaleFactor, anchorX, anchorY, renderTime);
-        break;
-      case CaptionStyle.TRENDING:
-        this.drawTrending(ctx, canvas, caption, scaleFactor, anchorX, anchorY, renderTime);
-        break;
-      case CaptionStyle.NEON_IMPACT:
-      case CaptionStyle.VIRAL_CREATOR:
-        this.drawNeonOrViralCreator(ctx, canvas, caption, scaleFactor, anchorX, anchorY, renderTime, state.currentStyle);
-        break;
-      default:
-        this.drawGeneric(ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime, state);
-        break;
+    // TYPOGRAPH style uses its own specialised renderer
+    if (state.currentStyle === CaptionStyle.TYPOGRAPH) {
+      this.drawTypograph(ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime);
+    } else {
+      // All other styles route through the unified drawGeneric renderer
+      this.drawGeneric(ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime, state);
     }
 
     if (hasEntryExit) {
@@ -360,29 +442,36 @@ export class CaptionRenderer {
     ctx.textAlign = style.textAlign || 'center';
     ctx.textBaseline = 'middle';
 
-    const rawText = style.uppercase ? caption.text.toUpperCase() : caption.text;
+    let rawText = style.uppercase ? caption.text.toUpperCase() : caption.text;
+    // Inject optional animated emoji decorations from the style config
+    if (style.emojiPrefix) rawText = style.emojiPrefix + ' ' + rawText;
+    if (style.emojiSuffix) rawText = rawText + ' ' + style.emojiSuffix;
     const words = rawText.split(' ');
     const wordCount = words.length;
     const captionProgress = Math.max(0, Math.min((renderTime - caption.startTime) / (caption.endTime - caption.startTime), 1));
 
     // Determine active word using precise word timings if available, else fallback to interpolation
+    // When emojiPrefix/emojiSuffix inject extra display words, offset the activeWordIndex
+    const emojiPrefixOffset = style.emojiPrefix ? 1 : 0;
+    const originalWordCount = wordCount - emojiPrefixOffset - (style.emojiSuffix ? 1 : 0);
     let activeWordIndex = -1;
     let wordProgress = 1;
 
-    if (caption.words && caption.words.length === wordCount) {
+    if (caption.words && caption.words.length === originalWordCount) {
       // ±60ms boundary buffer compensates for API timing imprecision
       const TIMING_BUFFER = 0.06;
-      activeWordIndex = caption.words.findIndex(
+      let timingIndex = caption.words.findIndex(
         w => renderTime >= w.start - TIMING_BUFFER && renderTime <= w.end + TIMING_BUFFER
       );
-      if (activeWordIndex !== -1) {
-        const activeW = caption.words[activeWordIndex];
+      if (timingIndex !== -1) {
+        activeWordIndex = timingIndex + emojiPrefixOffset;
+        const activeW = caption.words[timingIndex];
         // Smooth ease-out progress within the word's lifetime
         wordProgress = Math.max(0, Math.min((renderTime - activeW.start) / Math.max(activeW.end - activeW.start, 0.05), 1));
       } else {
         // Not inside any word window — use the most recently passed word
         for (let i = caption.words.length - 1; i >= 0; i--) {
-          if (renderTime > caption.words[i].end) { activeWordIndex = i; break; }
+          if (renderTime > caption.words[i].end) { activeWordIndex = i + emojiPrefixOffset; break; }
         }
         wordProgress = 1;
       }
@@ -413,8 +502,22 @@ export class CaptionRenderer {
         ctx.rotate(rot);
       }
 
-      // Animation: POP / SCALE_UP
-      if (active && style.animation === 'POP') {
+      // Animation: POP / SCALE_UP / FIRE_POP
+      if (active && style.animation === 'FIRE_POP') {
+        // ── Phase 1: Explosive slam-in (first 35% of word duration) ──
+        const slamT = Math.min(wordProgress / 0.35, 1);
+        // Slams in from 3x size, overshoots to 1.12x, settles at 1.0
+        const slamScale = slamT < 1 ? lerp(3.0, 1.12, backEaseOut(slamT)) : lerp(1.12, 1.0, easeOutQuint((wordProgress - 0.35) / 0.65));
+        ctx.scale(slamScale, slamScale);
+
+        // ── Heat shake: sub-pixel vibration on entry ──
+        if (slamT < 1) {
+          const shakeAmt = (1 - slamT) * 6;
+          const shakeX = Math.sin(renderTime * 87.3 + idx * 3.7) * shakeAmt;
+          const shakeY = Math.cos(renderTime * 63.1 + idx * 5.1) * shakeAmt * 0.5;
+          ctx.translate(shakeX, shakeY);
+        }
+      } else if (active && style.animation === 'POP') {
         const scale = lerp(0.5, 1.15, backEaseOut(wordProgress));
         ctx.scale(scale, scale);
       } else if (active && style.animation === 'SCALE_UP') {
@@ -439,13 +542,74 @@ export class CaptionRenderer {
         : style.backgroundColor;
 
       if (bgColor) {
-        const w = ctx.measureText(word).width;
+        const w = this.getMixedTextWidth(ctx, word, fontSize);
         const p = (style.backgroundPadding || 12) * scaleFactor;
         const r = (style.backgroundBorderRadius || 0) * scaleFactor;
         ctx.fillStyle = bgColor;
         ctx.beginPath();
         ctx.roundRect(-w / 2 - p, -fontSize / 2 - p, w + p * 2, fontSize + p * 2, r);
         ctx.fill();
+      }
+
+      // FIRE_POP realistic particle fire background
+      if (active && style.animation === 'FIRE_POP') {
+        const wMeasure = this.getMixedTextWidth(ctx, word, fontSize);
+        ctx.save();
+        
+        ctx.globalCompositeOperation = 'screen';
+        const flameCount = 35; 
+        
+        for (let i = 0; i < flameCount; i++) {
+          const isEmber = i > flameCount * 0.7; // last 30% are embers
+          
+          // Deterministic psuedo-random values
+          const seed1 = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1; 
+          const seed2 = Math.abs(Math.cos(i * 78.233) * 43758.5453) % 1;
+          const seed3 = Math.abs(Math.sin(i * 39.816) * 43758.5453) % 1;
+          
+          // Lifecycle phase loops indefinitely based on time
+          const speed = isEmber ? 2.5 + seed1 : 1.5 + seed1 * 0.5;
+          const phase = (renderTime * speed + i * 0.37) % 1.0;
+          
+          // X spread matches word width
+          const spreadX = (seed2 * 2 - 1) * (wMeasure * 0.6);
+          
+          // Y path rises up from behind the text
+          const startY = fontSize * 0.4;
+          const endY = -fontSize * (isEmber ? 1.8 + seed3 : 1.1 + seed3 * 0.4);
+          const currentY = lerp(startY, endY, Math.pow(phase, 0.8)); // Decelerate upward
+          
+          // Sway horizontally as it rises
+          const sway = Math.sin(renderTime * (3 + seed1) + i) * (15 + seed2 * 10) * scaleFactor;
+          const currentX = spreadX + sway * phase;
+          
+          // Size shrinks over lifetime
+          const baseSize = isEmber ? (fontSize * 0.08) : (fontSize * 0.35 + seed1 * fontSize * 0.15);
+          const shrinkCurve = isEmber ? (1 - phase) : (1 - Math.pow(phase, 1.2));
+          const currentSize = Math.max(0.1, baseSize * shrinkCurve);
+          
+          // Color transition: White-Hot -> Yellow -> Orange -> Deep Red -> Transparent
+          let r = 255;
+          let g = Math.max(0, Math.floor(lerp(240, 0, phase * 1.5)));
+          let b = Math.max(0, Math.floor(lerp(100, 0, Math.min(1, phase * 4))));
+          let a = Math.max(0, 1 - Math.pow(phase, 1.5));
+          
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a * (isEmber ? 0.9 : 0.6)})`;
+          ctx.shadowColor = `rgba(${r}, ${Math.max(0, g-50)}, 0, ${a})`;
+          ctx.shadowBlur = (isEmber ? 8 : 15) * scaleFactor;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+          
+          if (isEmber) {
+             ctx.arc(currentX, currentY, currentSize, 0, Math.PI * 2);
+          } else {
+             // Tall flame shape
+             ctx.ellipse(currentX, currentY, currentSize * 0.7, currentSize * 1.4, 0, 0, Math.PI * 2);
+          }
+          ctx.fill();
+        }
+        ctx.restore();
       }
 
       // Shadow
@@ -461,7 +625,7 @@ export class CaptionRenderer {
         ctx.strokeStyle = style.strokeColor || '#000000';
         ctx.lineWidth = style.strokeWidth * scaleFactor;
         ctx.lineJoin = 'round';
-        ctx.strokeText(word, 0, 0);
+        this.drawMixedText(ctx, word, fontSize, ctx.strokeStyle, 0, 0, true);
       }
 
       // --- FILL LOGIC: governed by colorBehavior ---
@@ -470,7 +634,7 @@ export class CaptionRenderer {
       if (colorBehavior === 'FIXED') {
         // FIXED: always use the style's static color or gradient — never transform per word
         if (style.gradientColors && style.gradientColors.length >= 2) {
-          const wGrad = ctx.measureText(word).width;
+          const wGrad = this.getMixedTextWidth(ctx, word, fontSize);
           const gradient = ctx.createLinearGradient(-wGrad / 2, 0, wGrad / 2, 0);
           style.gradientColors.forEach((color, i) => {
             gradient.addColorStop(i / (style.gradientColors!.length - 1), color);
@@ -501,7 +665,7 @@ export class CaptionRenderer {
         if (active && style.activeTextColor) {
           fill = style.activeTextColor;
         } else if (style.gradientColors && style.gradientColors.length >= 2) {
-          const wGrad = ctx.measureText(word).width;
+          const wGrad = this.getMixedTextWidth(ctx, word, fontSize);
           const gradient = ctx.createLinearGradient(-wGrad / 2, 0, wGrad / 2, 0);
           style.gradientColors.forEach((color, i) => {
             gradient.addColorStop(i / (style.gradientColors!.length - 1), color);
@@ -543,7 +707,7 @@ export class CaptionRenderer {
 
       // Word Highlight Mode: BOX — draw colored background box for active word
       if (wHighlight === 'BOX' && active) {
-        const wMeasure = ctx.measureText(word).width;
+        const wMeasure = this.getMixedTextWidth(ctx, word, fontSize);
         const boxPad = 6 * scaleFactor;
         ctx.fillStyle = 'rgba(250, 204, 21, 0.85)';
         ctx.beginPath();
@@ -552,26 +716,25 @@ export class CaptionRenderer {
         fill = '#000000'; // Black text on yellow box
       }
 
-      ctx.fillStyle = fill as string;
-      ctx.fillText(word, 0, 0);
+      // Draw text (with inline animated emojis)
+      this.drawMixedText(ctx, word, fontSize, fill as string | CanvasGradient, 0, 0, false);
 
       // KARAOKE dynamic highlight filling (style-level)
       if (active && style.animation === 'KARAOKE' && style.activeTextColor) {
         ctx.save();
-        const wordWidth = ctx.measureText(word).width;
+        const wordWidth = this.getMixedTextWidth(ctx, word, fontSize);
         // Clip to the percentage of wordProgress
         ctx.beginPath();
         ctx.rect(-wordWidth / 2 - 2, -fontSize, (wordWidth + 4) * wordProgress, fontSize * 2);
         ctx.clip();
 
-        ctx.fillStyle = style.activeTextColor;
-        ctx.fillText(word, 0, 0);
+        this.drawMixedText(ctx, word, fontSize, style.activeTextColor, 0, 0, false);
         ctx.restore();
       }
 
       // Word Highlight Mode: UNDERLINE — animated underline under active word
       if (wHighlight === 'UNDERLINE' && active) {
-        const wMeasure = ctx.measureText(word).width;
+        const wMeasure = this.getMixedTextWidth(ctx, word, fontSize);
         const underlineY = fontSize * 0.65;
         const underlineWidth = wMeasure * wordProgress;
         ctx.save();
@@ -586,25 +749,14 @@ export class CaptionRenderer {
         ctx.restore();
       }
 
-      // Word Highlight Mode: FIRE — radial fire glow around active word
+      // Word Highlight Mode: FIRE — realistic fire colors for active word without the oval background
       if (wHighlight === 'FIRE' && active) {
-        const wMeasure = ctx.measureText(word).width;
         const fireFlicker = 0.85 + Math.sin(renderTime * 18.3 + idx * 2.1) * 0.15;
         ctx.save();
-        ctx.shadowBlur = 0;
-        const fireGrad = ctx.createRadialGradient(0, 0, wMeasure * 0.1, 0, 0, wMeasure * 0.9 * fireFlicker);
-        fireGrad.addColorStop(0, 'rgba(255,220,0,0.7)');
-        fireGrad.addColorStop(0.4, 'rgba(255,100,0,0.5)');
-        fireGrad.addColorStop(1, 'rgba(255,30,0,0)');
-        ctx.fillStyle = fireGrad;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, wMeasure * 0.8 * fireFlicker, fontSize * 1.2 * fireFlicker, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Re-draw text on top with fire color
+        // Re-draw text on top with fire color and shadow glow (excluding the hardcoded oval shape)
         ctx.shadowColor = '#FF6B00';
         ctx.shadowBlur = 20 * scaleFactor * fireFlicker;
-        ctx.fillStyle = '#FFEE00';
-        ctx.fillText(word, 0, 0);
+        this.drawMixedText(ctx, word, fontSize, '#FFEE00', 0, 0, false);
         ctx.restore();
       }
 
@@ -615,22 +767,20 @@ export class CaptionRenderer {
           ctx.save();
           ctx.shadowColor = `hsl(${hue},100%,60%)`;
           ctx.shadowBlur = 18 * scaleFactor;
-          ctx.fillStyle = `hsl(${hue},100%,65%)`;
-          ctx.fillText(word, 0, 0);
+          this.drawMixedText(ctx, word, fontSize, `hsl(${hue},100%,65%)`, 0, 0, false);
           ctx.restore();
         } else {
           // Inactive words get a soft hue tint
           ctx.save();
           ctx.globalAlpha = Math.min(ctx.globalAlpha, 0.6);
-          ctx.fillStyle = `hsl(${(hue + 120) % 360},80%,60%)`;
-          ctx.fillText(word, 0, 0);
+          this.drawMixedText(ctx, word, fontSize, `hsl(${(hue + 120) % 360},80%,60%)`, 0, 0, false);
           ctx.restore();
         }
       }
 
       // Word Highlight Mode: SPARKLE — glowing star dots around active word
       if (wHighlight === 'SPARKLE' && active) {
-        const wMeasure = ctx.measureText(word).width;
+        const wMeasure = this.getMixedTextWidth(ctx, word, fontSize);
         ctx.save();
         ctx.shadowBlur = 0;
         const sparkleCount = 6;
@@ -656,36 +806,10 @@ export class CaptionRenderer {
     };
 
     if (style.displayMode === 'WORD') {
-      // Single-word mode: display the active word centered and large, with adjacent words transparently on the sides.
+      // Single-word mode: display only the active word centered.
       if (activeWordIndex >= 0 && activeWordIndex < words.length) {
-        const prevWord = activeWordIndex > 0 ? words[activeWordIndex - 1] : '';
         const currWord = words[activeWordIndex];
-        const nextWord = activeWordIndex < words.length - 1 ? words[activeWordIndex + 1] : '';
-        
-        const pad = spaceWidth * 1.5;
-        const wPrev = prevWord ? ctx.measureText(prevWord).width : 0;
-        const wCurr = ctx.measureText(currWord).width;
-        const wNext = nextWord ? ctx.measureText(nextWord).width : 0;
-        
-        const originalOpacity = style.opacityInactive;
-        const targetOpacity = originalOpacity ?? 0.3;
-
-        if (prevWord) {
-          style.opacityInactive = targetOpacity;
-          // Position relative to current word's bounding box to prevent overlap when scaled
-          const scaleOffset = style.animation === 'POP' || style.animation === 'SCALE_UP' ? wCurr * 0.1 : 0;
-          drawWord(prevWord, anchorX - wCurr/2 - pad - wPrev/2 - scaleOffset, anchorY, false, activeWordIndex - 1);
-        }
-        
-        style.opacityInactive = originalOpacity; // restore for current word just in case
         drawWord(currWord, anchorX, anchorY, true, activeWordIndex);
-        
-        if (nextWord) {
-          style.opacityInactive = targetOpacity;
-          const scaleOffset = style.animation === 'POP' || style.animation === 'SCALE_UP' ? wCurr * 0.1 : 0;
-          drawWord(nextWord, anchorX + wCurr/2 + pad + wNext/2 + scaleOffset, anchorY, false, activeWordIndex + 1);
-        }
-        style.opacityInactive = originalOpacity;
       }
     } else {
       // BLOCK mode — wrap text into lines
@@ -696,7 +820,7 @@ export class CaptionRenderer {
       let currentLineStartIndex = 0;
 
       words.forEach((word, index) => {
-        const wWidth = ctx.measureText(word).width;
+        const wWidth = this.getMixedTextWidth(ctx, word, fontSize);
         const newWidth = currentLineWidth + wWidth + (currentLineWords.length > 0 ? spaceWidth : 0);
 
         if (newWidth > maxWidth && currentLineWords.length > 0) {
@@ -725,12 +849,12 @@ export class CaptionRenderer {
       let startY = effectiveY - totalHeight / 2 + lineHeight / 2;
 
       lines.forEach((line) => {
-        const lineWidth = ctx.measureText(line.text).width;
+        const lineWidth = this.getMixedTextWidth(ctx, line.text, fontSize);
         let curX = anchorX - (style.textAlign === 'center' ? lineWidth / 2 : style.textAlign === 'right' ? lineWidth : 0);
 
         line.words.forEach((w, i) => {
           const globalIndex = line.startIndex + i;
-          const wWidth = ctx.measureText(w).width;
+          const wWidth = this.getMixedTextWidth(ctx, w, fontSize);
           drawWord(w, curX + wWidth / 2, startY, globalIndex === activeWordIndex, globalIndex);
           curX += wWidth + spaceWidth;
         });
@@ -776,7 +900,7 @@ export class CaptionRenderer {
     // Measure and auto-scale
     let totalWidth = 0;
     words.forEach(word => {
-      totalWidth += ctx.measureText(word.toUpperCase() + " ").width;
+      totalWidth += this.getMixedTextWidth(ctx, word.toUpperCase() + " ", baseFontSize);
     });
 
     const maxWidth = canvas.width * 0.90;
@@ -788,7 +912,7 @@ export class CaptionRenderer {
 
     totalWidth = 0;
     const finalWordWidths = words.map(word => {
-      const w = ctx.measureText(word.toUpperCase() + " ").width;
+      const w = this.getMixedTextWidth(ctx, word.toUpperCase() + " ", finalFontSize);
       totalWidth += w;
       return w;
     });
@@ -829,7 +953,7 @@ export class CaptionRenderer {
         ctx.fillStyle = "#091E5E";
         const depth = 8 * scaleFactor * finalScaleFactor;
         for (let i = depth; i > 0; i -= 1) {
-          ctx.fillText(textToDraw, currentX + i, anchorY + i);
+          this.drawMixedText(ctx, textToDraw, finalFontSize, "#091E5E", currentX + i, anchorY + i, false);
         }
         // Gradient fill
         const gradient = ctx.createLinearGradient(currentX, anchorY - finalFontSize / 2, currentX, anchorY + finalFontSize / 2);
@@ -850,10 +974,11 @@ export class CaptionRenderer {
         ctx.shadowOffsetY = 2 * scaleFactor;
       }
 
+      let fillStyle = ctx.fillStyle;
       if (caption.wordColors && caption.wordColors[index] && caption.wordColors[index] !== 'default') {
-        ctx.fillStyle = caption.wordColors[index];
+        fillStyle = caption.wordColors[index];
       }
-      ctx.fillText(textToDraw, currentX, anchorY);
+      this.drawMixedText(ctx, textToDraw, finalFontSize, fillStyle, currentX, anchorY, false);
       ctx.restore();
       currentX += finalWordWidths[index];
     });
@@ -873,7 +998,7 @@ export class CaptionRenderer {
     currentStyle: CaptionStyle
   ): void {
     if (!caption.text) return;
-    const isNeon = currentStyle === CaptionStyle.NEON_IMPACT;
+    const isNeon = false; // Legacy: this renderer is no longer called
     const elapsed = renderTime - caption.startTime;
 
     const words = caption.text.trim().split(/\s+/);
@@ -1096,7 +1221,7 @@ export class CaptionRenderer {
       const ls = lineStyles[line.lineIndex];
       ctx.font = `${ls.font} ${baseFontSize * ls.sizeMult}px Montserrat, sans-serif`;
       let lineWidth = 0;
-      line.words.forEach(w => { lineWidth += ctx.measureText(w.toUpperCase() + " ").width; });
+      line.words.forEach(w => { lineWidth += this.getMixedTextWidth(ctx, w.toUpperCase() + " ", baseFontSize * ls.sizeMult); });
       if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
     });
 
@@ -1111,7 +1236,7 @@ export class CaptionRenderer {
       ctx.font = `${ls.font} ${fSize}px Montserrat, sans-serif`;
       let lineWidth = 0;
       const wordWidths = line.words.map(w => {
-        const ww = ctx.measureText(w.toUpperCase() + " ").width;
+        const ww = this.getMixedTextWidth(ctx, w.toUpperCase() + " ", fSize);
         lineWidth += ww;
         return ww;
       });
@@ -1166,20 +1291,20 @@ export class CaptionRenderer {
         const shadowDepth = ls.shadowDepth * scaleFactor;
         ctx.fillStyle = ls.shadow;
         for (let i = shadowDepth; i > 0; i -= 1) {
-          ctx.fillText(textToDraw, currentX + i, currentLineCenterY + i);
+          this.drawMixedText(ctx, textToDraw, metrics.fontSize, ls.shadow, currentX + i, currentLineCenterY + i, false);
           ctx.lineWidth = ls.strokeWidth * scaleFactor;
           ctx.strokeStyle = ls.shadow;
-          ctx.strokeText(textToDraw, currentX + i, currentLineCenterY + i);
+          this.drawMixedText(ctx, textToDraw, metrics.fontSize, ls.shadow, currentX + i, currentLineCenterY + i, true);
         }
 
         // Stroke
         ctx.lineWidth = ls.strokeWidth * scaleFactor;
         ctx.strokeStyle = ls.stroke;
-        ctx.strokeText(textToDraw, currentX, currentLineCenterY);
+        this.drawMixedText(ctx, textToDraw, metrics.fontSize, ls.stroke, currentX, currentLineCenterY, true);
 
         // Fill
         ctx.fillStyle = ls.defaultColor;
-        ctx.fillText(textToDraw, currentX, currentLineCenterY);
+        this.drawMixedText(ctx, textToDraw, metrics.fontSize, ls.defaultColor, currentX, currentLineCenterY, false);
 
         ctx.restore();
         currentX += metrics.wordWidths[wIdx];
@@ -1189,13 +1314,216 @@ export class CaptionRenderer {
     });
   }
 
+  // ─────────────────────────────────────────────────────────
+  // TYPOGRAPH RENDERER — editorial magazine typographic style
+  // ─────────────────────────────────────────────────────────
+  private drawTypograph(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    caption: Caption,
+    style: StyleConfig,
+    scaleFactor: number,
+    anchorX: number,
+    anchorY: number,
+    renderTime: number
+  ): void {
+    if (!caption.text) return;
+
+    const elapsed = renderTime - caption.startTime;
+    const duration = caption.endTime - caption.startTime;
+    const captionProgress = Math.max(0, Math.min(elapsed / duration, 1));
+
+    // ── Font & measurement setup ──
+    const fontSize = style.fontSize * scaleFactor;
+    const tracking = 6 * scaleFactor; // extra letter-spacing between chars
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
+
+    const rawWords = (style.uppercase ? caption.text.toUpperCase() : caption.text).trim().split(/\s+/);
+    const wordCount = rawWords.length;
+
+    // ── Determine active word ──
+    let activeWordIndex = -1;
+    let wordProgress = 1;
+    if (caption.words && caption.words.length === wordCount) {
+      const BUFFER = 0.06;
+      const found = caption.words.findIndex(w => renderTime >= w.start - BUFFER && renderTime <= w.end + BUFFER);
+      if (found !== -1) {
+        activeWordIndex = found;
+        const w = caption.words[found];
+        wordProgress = Math.max(0, Math.min((renderTime - w.start) / Math.max(w.end - w.start, 0.05), 1));
+      } else {
+        for (let i = wordCount - 1; i >= 0; i--) {
+          if (renderTime > caption.words[i].end) { activeWordIndex = i; break; }
+        }
+        wordProgress = 1;
+      }
+    } else {
+      activeWordIndex = Math.min(Math.floor(captionProgress * wordCount), wordCount - 1);
+      const wd = duration / wordCount;
+      const ws = caption.startTime + activeWordIndex * wd;
+      wordProgress = Math.max(0, Math.min((renderTime - ws) / wd, 1));
+    }
+
+    // Helper: measure word with tracking
+    const measureWord = (word: string): number => {
+      const chars = Array.from(word);
+      return chars.reduce((sum, c) => sum + ctx.measureText(c).width, 0) + Math.max(0, chars.length - 1) * tracking;
+    };
+
+    // ── Measure all words to find the widest (strip width is max of all) ──
+    const wordWidths = rawWords.map(w => measureWord(w));
+    const maxWordWidth = Math.max(...wordWidths);
+    const padH = (style.backgroundPadding || 26) * scaleFactor;
+    const padV = padH * 0.55;
+    const stripW = Math.min(maxWordWidth + padH * 2, canvas.width * 0.92);
+    const stripH = fontSize + padV * 2;
+    const accentBarW = 7 * scaleFactor; // left accent bar width
+    const stripX = anchorX - stripW / 2;
+    const stripY = anchorY - stripH / 2;
+
+    // ── Entry animation: slide-up + fade ──
+    const entryDur = Math.min(duration * 0.18, 0.25);
+    const entryT = easeOutQuint(Math.min(elapsed / entryDur, 1));
+    const entryOffsetY = (1 - entryT) * 30 * scaleFactor;
+    const entryAlpha = Math.max(0.01, entryT);
+
+    ctx.save();
+    ctx.globalAlpha = entryAlpha;
+    ctx.translate(0, entryOffsetY);
+
+    // ── Draw full-width dark strip background ──
+    ctx.fillStyle = style.backgroundColor || 'rgba(12,12,12,0.88)';
+    ctx.beginPath();
+    ctx.rect(stripX, stripY, stripW, stripH);
+    ctx.fill();
+
+    // ── Left accent bar (animated fill from bottom) ──
+    const accentFill = easeOutQuint(Math.min(elapsed / Math.max(duration * 0.35, 0.001), 1));
+    const accentBarH = stripH * accentFill;
+    const accentGrad = ctx.createLinearGradient(0, stripY + stripH, 0, stripY);
+    accentGrad.addColorStop(0, '#E8B84B'); // warm gold
+    accentGrad.addColorStop(1, '#F5D78E');
+    ctx.fillStyle = accentGrad;
+    ctx.beginPath();
+    ctx.rect(stripX, stripY + stripH - accentBarH, accentBarW, accentBarH);
+    ctx.fill();
+
+    // ── Draw active word with tracked characters ──
+    const activeWord = activeWordIndex >= 0 && activeWordIndex < rawWords.length
+      ? rawWords[activeWordIndex]
+      : (rawWords[wordCount - 1] || '');
+    const activeWordW = wordWidths[activeWordIndex >= 0 ? activeWordIndex : wordCount - 1] || 0;
+
+    // Pop scale on word reveal
+    const popScale = backEaseOut(Math.min(wordProgress / 0.4, 1));
+    const wordCenterX = anchorX;
+    const wordCenterY = anchorY;
+
+    ctx.save();
+    ctx.translate(wordCenterX, wordCenterY);
+    ctx.scale(lerp(0.88, 1, popScale), lerp(0.88, 1, popScale));
+
+    // Draw tracked characters (letter-spaced)
+    const chars = Array.from(activeWord);
+    let totalCharW = measureWord(activeWord);
+    let charX = -totalCharW / 2;
+
+    // Subtle shadow for depth
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 6 * scaleFactor;
+    ctx.shadowOffsetY = 3 * scaleFactor;
+
+    chars.forEach((c) => {
+      const cw = ctx.measureText(c).width;
+      ctx.fillStyle = style.activeTextColor || '#F5F0E8';
+      ctx.fillText(c, charX, 0);
+      charX += cw + tracking;
+    });
+
+    ctx.restore();
+
+    // ── Animated underline bar on active word ──
+    const underlineY = anchorY + fontSize * 0.58;
+    const underlineMaxW = activeWordW;
+    const underlineProgress = easeOutQuint(Math.min(wordProgress / 0.55, 1));
+    const underlineW = underlineMaxW * underlineProgress;
+    const underlineH = 3.5 * scaleFactor;
+
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    const ulGrad = ctx.createLinearGradient(anchorX - underlineW / 2, 0, anchorX + underlineW / 2, 0);
+    ulGrad.addColorStop(0, '#E8B84B');
+    ulGrad.addColorStop(1, '#F5D78E');
+    ctx.fillStyle = ulGrad;
+    ctx.beginPath();
+    ctx.rect(anchorX - underlineW / 2, underlineY, underlineW, underlineH);
+    ctx.fill();
+    ctx.restore();
+
+    // ── Word counter dots (tiny editorial page markers) ──
+    const dotRadius = 2.5 * scaleFactor;
+    const dotSpacing = 10 * scaleFactor;
+    const dotsW = (wordCount - 1) * dotSpacing;
+    const dotsStartX = anchorX - dotsW / 2;
+    const dotsY = stripY - 10 * scaleFactor;
+
+    for (let i = 0; i < wordCount; i++) {
+      const dotX = dotsStartX + i * dotSpacing;
+      ctx.beginPath();
+      ctx.arc(dotX, dotsY, dotRadius, 0, Math.PI * 2);
+      if (i < activeWordIndex) {
+        ctx.fillStyle = '#E8B84B';
+        ctx.globalAlpha = entryAlpha;
+      } else if (i === activeWordIndex) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.globalAlpha = entryAlpha;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.globalAlpha = entryAlpha * 0.6;
+      }
+      ctx.fill();
+    }
+
+    ctx.restore(); // restore entry animation translate
+  }
+
   resetZoom(): void {
     this.currentZoom = 1.0;
   }
 
   // ─────────────────────────────────────────────────────────
-  // STICKER RENDERING (Phase 5)
+  // STICKER RENDERING — Real Noto animated GIFs via drawImage
   // ─────────────────────────────────────────────────────────
+  private getOrLoadImage(url: string): HTMLImageElement {
+    if (this.imageCache.has(url)) {
+      return this.imageCache.get(url)!;
+    }
+    // Create image and append to a hidden DOM element to force browser to
+    // decode and animate the GIF continuously so drawImage() captures it.
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    let container = document.getElementById('createrin-gif-cache');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'createrin-gif-cache';
+      container.style.position = 'absolute';
+      container.style.width = '0px';
+      container.style.height = '0px';
+      container.style.overflow = 'hidden';
+      container.style.opacity = '0.01'; // Not display:none (forces paint)
+      document.body.appendChild(container);
+    }
+    container.appendChild(img);
+
+    img.src = url;
+    this.imageCache.set(url, img);
+    return img;
+  }
+
   private renderStickers(
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
@@ -1207,37 +1535,115 @@ export class CaptionRenderer {
 
       const x = sticker.x * canvas.width;
       const y = sticker.y * canvas.height;
-      const fontSize = 48 * sticker.scale;
-
-      ctx.save();
-      ctx.globalAlpha = sticker.opacity;
-      ctx.translate(x, y);
-
-      // Sticker animation
+      const baseFontSize = 56 * sticker.scale;
       const elapsed = renderTime - sticker.startTime;
-      let stickerScale = 1;
+      const totalDuration = sticker.endTime - sticker.startTime;
+
+      // --- Smooth fade in/out (first/last 0.2s) ---
+      const fadeMs = 0.2;
+      let opacity = sticker.opacity;
+      if (elapsed < fadeMs) opacity *= elapsed / fadeMs;
+      else if (elapsed > totalDuration - fadeMs) opacity *= (totalDuration - elapsed) / fadeMs;
+      opacity = Math.max(0, Math.min(1, opacity));
+
+      // --- Motion transform (applied to BOTH gif and fallback text) ---
+      let offsetX = 0;
+      let offsetY = 0;
+      let scale = 1;
+      let rotation = sticker.rotation * (Math.PI / 180);
+      let scaleX = 1;
+      let scaleY = 1;
+
       switch (sticker.animation) {
-        case 'BOUNCE':
-          stickerScale = 1 + 0.1 * Math.sin(elapsed * 6);
+        case 'BOUNCE': {
+          const bounceT = Math.abs(Math.sin(elapsed * Math.PI * 1.6));
+          offsetY = -baseFontSize * 0.35 * bounceT;
+          if (bounceT < 0.15) {
+            scaleX = 1 + 0.15 * (1 - bounceT / 0.15);
+            scaleY = 1 - 0.12 * (1 - bounceT / 0.15);
+          }
           break;
-        case 'SPIN':
-          ctx.rotate(elapsed * 2);
+        }
+        case 'SPIN': {
+          rotation += elapsed * 3.5;
           break;
-        case 'PULSE':
-          stickerScale = 1 + 0.15 * Math.sin(elapsed * 4);
+        }
+        case 'PULSE': {
+          const beatCycle = elapsed % 1.0;
+          if (beatCycle < 0.15) scale = 1 + 0.3 * Math.sin(beatCycle / 0.15 * Math.PI);
+          else if (beatCycle < 0.35) scale = 1 + 0.15 * Math.sin((beatCycle - 0.15) / 0.20 * Math.PI);
+          else scale = 1;
           break;
-        case 'SHAKE':
-          ctx.translate(Math.sin(elapsed * 20) * 3, 0);
+        }
+        case 'SHAKE': {
+          const shakeDecay = Math.max(0, 1 - elapsed / Math.max(totalDuration, 0.1));
+          offsetX = Math.sin(elapsed * 35) * 8 * sticker.scale * shakeDecay;
+          offsetY = Math.cos(elapsed * 28) * 3 * sticker.scale * shakeDecay;
+          break;
+        }
+        case 'FLOAT': {
+          offsetY = -Math.sin(elapsed * 1.8) * baseFontSize * 0.18;
+          offsetX = Math.sin(elapsed * 0.9) * baseFontSize * 0.06;
+          rotation += Math.sin(elapsed * 1.2) * 0.05;
+          break;
+        }
+        case 'WOBBLE': {
+          rotation += Math.sin(elapsed * 6) * 0.25;
+          offsetY = Math.sin(elapsed * 6) * baseFontSize * 0.04;
+          break;
+        }
+        case 'POP_IN': {
+          const popDuration = 0.45;
+          if (elapsed < popDuration) {
+            scale = elasticOut(elapsed / popDuration) * 1.05;
+          } else {
+            scale = 1 + 0.04 * Math.sin((elapsed - popDuration) * 3.5);
+          }
+          break;
+        }
+        case 'ORBIT': {
+          const orbitRadius = baseFontSize * 0.28;
+          offsetX = Math.cos(elapsed * 2.5) * orbitRadius;
+          offsetY = Math.sin(elapsed * 2.5) * orbitRadius * 0.6;
+          rotation += elapsed * 1.5;
+          break;
+        }
+        case 'JELLY': {
+          const jellyT = elapsed * 4;
+          scaleX = 1 + 0.12 * Math.cos(jellyT);
+          scaleY = 1 + 0.18 * Math.sin(jellyT);
+          offsetY = -Math.sin(jellyT) * baseFontSize * 0.06;
+          break;
+        }
+        case 'SWING': {
+          const swingAngle = Math.sin(elapsed * 3.5) * 0.35;
+          rotation += swingAngle;
+          offsetY = (1 - Math.cos(swingAngle)) * baseFontSize * 0.5;
+          break;
+        }
+        default:
           break;
       }
 
-      if (sticker.rotation) ctx.rotate(sticker.rotation * Math.PI / 180);
-      ctx.scale(stickerScale, stickerScale);
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.translate(x + offsetX, y + offsetY);
+      ctx.rotate(rotation);
+      ctx.scale(scale * scaleX, scale * scaleY);
 
-      ctx.font = `${fontSize}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(sticker.emoji, 0, 0);
+      // Soft drop shadow for depth
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 4;
+
+      // --- Draw: Noto animated GIF only (no text emoji fallback) ---
+      const gifUrl = sticker.gifUrl || emojiToNotoUrl(sticker.emoji);
+      const img = this.getOrLoadImage(gifUrl);
+      const halfSz = baseFontSize * 0.55;
+      if (img.naturalWidth > 0) {
+        ctx.drawImage(img, -halfSz, -halfSz, halfSz * 2, halfSz * 2);
+      }
 
       ctx.restore();
     });
