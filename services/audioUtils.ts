@@ -6,23 +6,23 @@
 export async function extractAudioFromVideo(videoFile: File): Promise<{ base64: string, mimeType: string }> {
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   const arrayBuffer = await videoFile.arrayBuffer();
-  
+
   try {
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    
+
     // Downsample to 16kHz Mono for optimal transcription size
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuffer.duration * 16000), 16000);
     const source = offlineCtx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(offlineCtx.destination);
     source.start();
-    
+
     const renderedBuffer = await offlineCtx.startRendering();
     const wavBlob = audioBufferToWav(renderedBuffer);
-    
+
     // Close AudioContext to free system resources
     await audioContext.close();
-    
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -35,7 +35,7 @@ export async function extractAudioFromVideo(videoFile: File): Promise<{ base64: 
   } catch (e) {
     console.error("Audio extraction failed, falling back to full video", e);
     // Close AudioContext even on failure
-    await audioContext.close().catch(() => {});
+    await audioContext.close().catch(() => { });
     // Fallback: return full video as base64
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

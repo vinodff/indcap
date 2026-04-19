@@ -493,6 +493,18 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     colorBehavior: 'WORD_POP',
     emojiPrefix: '⚡', emojiSuffix: '💥',
   },
+  
+  [CaptionStyle.EMOJI_AUTO]: {
+    name: '🌟 Emoji Auto Matcher', category: 'EMOJI',
+    fontFamily: "'Bebas Neue', display", fontSize: 64, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FFD700',
+    strokeColor: '#000000', strokeWidth: 10,
+    shadowColor: '#3B82F6', shadowBlur: 20, shadowOffsetY: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)', backgroundPadding: 20, backgroundBorderRadius: 16,
+    animation: 'POP', uppercase: true, displayMode: 'BLOCK',
+    colorBehavior: 'WORD_POP',
+    // The emoji Auto Matcher handles dynamic emojis per caption sentence, so no static prefix/suffix here.
+  },
 
   // ─── TYPOGRAPHIC ───
   [CaptionStyle.TYPOGRAPH]: {
@@ -505,6 +517,171 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     backgroundColor: 'rgba(12,12,12,0.88)', backgroundPadding: 26, backgroundBorderRadius: 0,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'ACTIVE_ONLY',
+  },
+
+  // ─── CAPCUT VIRAL ───
+
+  // TikTok / Reels "Bold Shadow" — the most readable style in the game
+  // Thick white text + enormous hard-offset black shadow. Zero subtlety, maximum impact.
+  [CaptionStyle.BOLD_SHADOW]: {
+    name: 'Bold Shadow', category: 'BOLD',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 58, fontWeight: 900,
+    textColor: '#FFFFFF',
+    strokeColor: '#000000', strokeWidth: 12,
+    shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 5, shadowOffsetY: 14,
+    animation: 'POP', uppercase: true, displayMode: 'BLOCK',
+    colorBehavior: 'FIXED',
+  },
+
+  // Storytime — clean, podcast-style comfort captions used by story-driven creators
+  // Soft translucent pill pill background with Inter for maximum legibility
+  [CaptionStyle.STORYTIME]: {
+    name: 'Storytime', category: 'MINIMAL',
+    fontFamily: "'Poppins', sans-serif", fontSize: 40, fontWeight: 600,
+    textColor: '#FFFFFF',
+    shadowColor: 'rgba(0,0,0,0.5)', shadowBlur: 8, shadowOffsetY: 2,
+    backgroundColor: 'rgba(10, 10, 10, 0.72)', backgroundPadding: 22, backgroundBorderRadius: 40,
+    animation: 'NONE', uppercase: false, displayMode: 'BLOCK',
+    colorBehavior: 'FIXED',
+  },
+
+  // 3D Chrome — metallic extrusion effect, dominant on Shorts gaming / tech channels
+  // Hard-stacked shadow creates the 3D depth; silver gradient fills the face.
+  [CaptionStyle.CHROME_3D]: {
+    name: '3D Chrome', category: 'BOLD',
+    fontFamily: "'Anton', sans-serif", fontSize: 82, fontWeight: 400,
+    textColor: '#E8E8E8',
+    gradientColors: ['#C0C0C0', '#F8F8F8', '#A8A8A8'],
+    strokeColor: '#1A1A1A', strokeWidth: 10,
+    shadowColor: '#1A1A1A', shadowBlur: 0, shadowOffsetX: 6, shadowOffsetY: 10,
+    activeTextColor: '#FFD700',
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+
+  // Auto Highlight — CapCut's biggest viral feature: each active word gets a colored highlight box
+  // Uses WORD mode + BOX highlight to show per-word box backgrounds
+  [CaptionStyle.AUTO_HIGHLIGHT]: {
+    name: 'Auto Highlight', category: 'HIGHLIGHT',
+    fontFamily: "'Inter', sans-serif", fontSize: 60, fontWeight: 900,
+    textColor: '#1A1A1A', activeTextColor: '#FFFFFF',
+    strokeColor: '#000000', strokeWidth: 0,
+    shadowColor: 'rgba(0,0,0,0.4)', shadowBlur: 10, shadowOffsetY: 4,
+    activeBackgroundColor: '#FF3B3B',
+    backgroundColor: '#FFE000',
+    backgroundPadding: 18, backgroundBorderRadius: 10,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'CONTEXTUAL',
+  },
+
+  // Glitch RGB — cyberpunk neon + RGB split. Uses GLITCH entry animation + cyan/magenta gradient.
+  // The staggered gradient simulates the three-channel colour separation effect.
+  [CaptionStyle.GLITCH_RGB]: {
+    name: 'Glitch RGB', category: 'NEON',
+    fontFamily: "'Orbitron', sans-serif", fontSize: 60, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#00FF00',
+    gradientColors: ['#FF0055', '#00FFFF', '#FFFFFF'],
+    strokeColor: '#00FFFF', strokeWidth: 8,
+    shadowColor: '#FF0055', shadowBlur: 30, shadowOffsetX: 4, shadowOffsetY: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)', backgroundPadding: 16, backgroundBorderRadius: 4,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'FIXED',
+  },
+
+  // Retro Wave — 80s outrun synthwave aesthetic. Italic bold font, magenta→cyan gradient,
+  // deep purple background strip. Pure nostalgia energy.
+  [CaptionStyle.RETRO_WAVE]: {
+    name: 'Retro Wave', category: 'ART',
+    fontFamily: "'Bebas Neue', sans-serif", fontSize: 62, fontWeight: 400,
+    textColor: '#FF00CC',
+    gradientColors: ['#FF00CC', '#AA00FF', '#00CCFF'],
+    strokeColor: '#FF00CC', strokeWidth: 2,
+    shadowColor: '#FF00CC', shadowBlur: 40, shadowOffsetY: 0,
+    backgroundColor: 'rgba(10, 0, 30, 0.88)', backgroundPadding: 28, backgroundBorderRadius: 0,
+    animation: 'SCALE_UP', uppercase: true, displayMode: 'BLOCK',
+    colorBehavior: 'FIXED',
+  },
+
+  // Ghost Fade — ultra-cinematic mode where all inactive words are barely visible (5% opacity)
+  // and the active word explodes into full brightness with a white glow.
+  [CaptionStyle.GHOST_FADE]: {
+    name: 'Ghost Fade', category: 'MINIMAL',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 64, fontWeight: 900,
+    textColor: 'rgba(255,255,255,0.06)', activeTextColor: '#FFFFFF',
+    strokeColor: '#000000', strokeWidth: 6,
+    shadowColor: '#FFFFFF', shadowBlur: 60, shadowOffsetY: 0,
+    opacityInactive: 0.06,
+    animation: 'SCALE_UP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+
+  // Cinematic Titles — full-width dark strip, dead-center placement, wide letter-spacing.
+  // The "film opening titles" look used by documentary and storytelling creators.
+  [CaptionStyle.CINEMATIC_TITLES]: {
+    name: 'Cinematic Titles', category: 'MINIMAL',
+    fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, fontWeight: 400,
+    textColor: '#FFFFFF',
+    strokeColor: '#000000', strokeWidth: 0,
+    shadowColor: 'rgba(255,255,255,0.15)', shadowBlur: 20, shadowOffsetY: 0,
+    backgroundColor: 'rgba(0,0,0,0.82)', backgroundPadding: 32, backgroundBorderRadius: 0,
+    animation: 'NONE', uppercase: true, displayMode: 'BLOCK',
+    colorBehavior: 'FIXED',
+  },
+
+  // ─── TYPOGRAPHIC VARIANTS ───
+
+  // Dual Color Split — upper half of each word is gold, lower half is white.
+  // Popular on music/motivation content. Needs specialRenderer path.
+  [CaptionStyle.DUAL_COLOR]: {
+    name: 'Dual Color', category: 'VIRAL',
+    fontFamily: "'Anton', sans-serif", fontSize: 78, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FFD700',
+    strokeColor: '#000000', strokeWidth: 12,
+    shadowColor: 'rgba(0,0,0,0.8)', shadowBlur: 0, shadowOffsetX: 4, shadowOffsetY: 8,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'DUAL_COLOR',
+  },
+
+  // Shake Cam — bold white with micro-jitter on every active word.
+  // Creates urgency and energy. Widely used for gym/hype/comedy content.
+  [CaptionStyle.SHAKE_CAM]: {
+    name: 'Shake Cam', category: 'VIRAL',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 70, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#FF4500',
+    strokeColor: '#000000', strokeWidth: 14,
+    shadowColor: '#FF4500', shadowBlur: 20, shadowOffsetY: 6,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'SHAKE_CAM',
+  },
+
+  // Minimal Bar — typographic template variant with thinner accent bar, lighter background.
+  // Routes through the same drawTypograph() as TYPOGRAPH for consistency.
+  [CaptionStyle.MINIMAL_BAR]: {
+    name: 'Minimal Bar', category: 'TYPOGRAPHIC',
+    fontFamily: "'Inter', sans-serif", fontSize: 70, fontWeight: 800,
+    textColor: '#FFFFFF', activeTextColor: '#FACC15',
+    gradientColors: ['#FFFFFF', '#E0E0E0'],
+    strokeColor: '#0A0A0A', strokeWidth: 0,
+    shadowColor: 'rgba(0,0,0,0.9)', shadowBlur: 0,
+    backgroundColor: 'rgba(8,8,8,0.92)', backgroundPadding: 24, backgroundBorderRadius: 0,
+    animation: 'SCALE_UP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+
+  // Liquid Chrome — animated metallic shimmer that cycles silver→gold→silver over time.
+  // Feels premium and alive. Great for luxury/lifestyle creators.
+  [CaptionStyle.LIQUID_CHROME]: {
+    name: 'Liquid Chrome', category: 'GLOW',
+    fontFamily: "'Bebas Neue', sans-serif", fontSize: 80, fontWeight: 400,
+    textColor: '#F0F0F0', activeTextColor: '#FFD700',
+    gradientColors: ['#B8B8B8', '#F5F5F5', '#D0A855', '#F5F5F5', '#B8B8B8'],
+    strokeColor: '#1A1A1A', strokeWidth: 8,
+    shadowColor: '#D0A855', shadowBlur: 30, shadowOffsetY: 6,
+    animation: 'SCALE_UP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'LIQUID_CHROME',
   },
 
   // ─── CUSTOM ───

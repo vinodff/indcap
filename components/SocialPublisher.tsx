@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { X, Youtube, Instagram, Facebook, Video, UploadCloud, CheckCircle2, AlertCircle, Loader2, Link as LinkIcon, Lock, Globe, MessageCircle, Zap, Clock, ShieldCheck, Sparkles, Bot, ChevronDown, ChevronUp, Play, Settings, Bell, Send, Activity, AlertTriangle } from 'lucide-react';
 import { SocialPlatform, SocialAccount, UploadProgress, UploadStage, InstagramAutomationConfig, Caption, IGAccountType } from '../types';
 import { generateInstagramDm } from '../services/geminiService';
-import { activateAutomation } from '../services/automationSimulationService';
 import AutomationDashboard from './AutomationDashboard';
 
 interface Props {
@@ -151,7 +150,7 @@ const SocialPublisher: React.FC<Props> = ({ onClose, videoSrc, captions }) => {
 
       // Activate Automation if selected
       if (selectedPlatforms.includes('INSTAGRAM') && igAutomation.enabled) {
-          activateAutomation(igAutomation, captions || []);
+          console.log('[Automation] Instagram automation config activated:', igAutomation);
       }
   };
 

@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Zap, MessageCircle, Bot, Activity, Play, Pause, Send, User, ChevronRight, Terminal, AlertTriangle, AlertOctagon, BarChart3, PieChart, Users, TrendingUp, Filter, Lightbulb, MousePointerClick, Sparkles } from 'lucide-react';
-import { subscribeToSimulation, simulateIncomingComment, simulateStoryReply, simulateFollow, triggerPlatformError } from '../services/automationSimulationService';
+// Inline stubs — automationSimulationService was removed during cleanup
+const DEFAULT_STATS = {
+  commentsDetected: 0, dmsSent: 0, spamBlocked: 0, repliesReceived: 0,
+  hourlyUsage: 0, dailyUsage: 0, healthStatus: 'HEALTHY' as const,
+  analytics: {
+    replyRate: 0,
+    funnel: { comments: 0, dmsSent: 0, replies: 0, clicks: 0 },
+    dailyHistory: [],
+    triggerPerformance: [],
+  },
+};
+const subscribeToSimulation = (cb: (logs: any[], stats: any) => void) => {
+  cb([], DEFAULT_STATS);
+  return () => {};
+};
+const simulateIncomingComment = async (_user: string, _comment: string) => {};
+const simulateStoryReply = async (_user: string, _msg: string) => {};
+const simulateFollow = async (_user: string) => {};
+const triggerPlatformError = () => {};
 import { AutomationLog, SimulationStats, LogStatus, HealthStatus } from '../types';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, TooltipProps } from 'recharts';
 

@@ -71,9 +71,27 @@ export enum CaptionStyle {
   EMOJI_HEART = 'EMOJI_HEART',
   EMOJI_PARTY = 'EMOJI_PARTY',
   EMOJI_HYPE = 'EMOJI_HYPE',
+  EMOJI_AUTO = 'EMOJI_AUTO',   // ← Auto-matched animated emoji per sentence
+
 
   // ─── TYPOGRAPHIC ───
   TYPOGRAPH = 'TYPOGRAPH',
+
+  // ─── CAPCUT VIRAL (NEW) ───
+  BOLD_SHADOW = 'BOLD_SHADOW',
+  STORYTIME = 'STORYTIME',
+  CHROME_3D = 'CHROME_3D',
+  AUTO_HIGHLIGHT = 'AUTO_HIGHLIGHT',
+  GLITCH_RGB = 'GLITCH_RGB',
+  RETRO_WAVE = 'RETRO_WAVE',
+  GHOST_FADE = 'GHOST_FADE',
+  CINEMATIC_TITLES = 'CINEMATIC_TITLES',
+
+  // ─── TYPOGRAPHIC VARIANTS (NEW) ───
+  DUAL_COLOR = 'DUAL_COLOR',
+  SHAKE_CAM = 'SHAKE_CAM',
+  MINIMAL_BAR = 'MINIMAL_BAR',
+  LIQUID_CHROME = 'LIQUID_CHROME',
 
   // ─── CUSTOM ───
   CUSTOM = 'CUSTOM'
@@ -169,6 +187,7 @@ export interface StyleConfig {
   colorBehavior?: ColorBehavior; // Per-template color logic
   emojiPrefix?: string;   // Emoji char(s) prepended to caption text (rendered as animated GIF)
   emojiSuffix?: string;   // Emoji char(s) appended to caption text (rendered as animated GIF)
+  specialRenderer?: 'DUAL_COLOR' | 'SHAKE_CAM' | 'LIQUID_CHROME'; // Opt-in custom draw path
 }
 
 export interface ProcessingStats {
@@ -308,4 +327,89 @@ export interface SimulationStats {
   hourlyUsage: number;
   dailyUsage: number;
   analytics: AnalyticsData; // Added rich analytics data
+}
+
+// --- BRAND KIT ---
+export type BrandTone = 'FUNNY' | 'EDUCATIONAL' | 'FOMO' | 'INSPIRATIONAL' | 'PROFESSIONAL';
+
+export interface BrandKit {
+  name: string;
+  niche: string;
+  audience: string;
+  tone: BrandTone;
+  ctaLink?: string;
+  about?: string;
+}
+
+// --- CONTENT REMIX ---
+export interface RemixResult {
+  instagram: string;
+  twitter: string;
+  linkedin: string;
+  youtube: string;
+  blog: string;
+}
+
+// --- VIRAL COACH ---
+export interface ViralScore {
+  hook: number;          // 0-100
+  engagement: number;    // 0-100
+  emotion: number;       // 0-100
+  shareability: number;  // 0-100
+  cta: number;           // 0-100
+  overallScore: number;
+  suggestions: string[];
+  alternativeHooks: string[];
+  verdict: string;
+}
+
+// --- TREND & INSPIRATION ---
+export interface ContentIdea {
+  title: string;
+  hook: string;
+  outline: string[];
+  hashtags: string[];
+  platform: SocialPlatform;
+  estimatedViralScore: number;
+}
+
+// --- SCHEDULER ---
+export interface ScheduleOptions {
+  mode: 'NOW' | 'SCHEDULED' | 'AUTO_BEST';
+  scheduledAt?: string; // ISO date string
+  timezone?: string;
+}
+
+// --- AI THUMBNAIL GENERATOR ---
+export type ThumbnailTemplate = 'YOUTUBE' | 'SHORTS' | 'MRBEAST' | 'MINIMAL' | 'CINEMATIC';
+export type ThumbnailTextPosition = 'TOP' | 'CENTER' | 'BOTTOM';
+
+export interface ThumbnailFrame {
+  dataUrl: string;
+  timestamp: number;
+  score: number;
+}
+
+export interface ThumbnailHook {
+  text: string;
+  style: 'POWER' | 'QUESTION' | 'SHOCK';
+}
+
+export interface ThumbnailConfig {
+  template: ThumbnailTemplate;
+  hookText: string;
+  hookColor: string;
+  accentColor: string;
+  textPosition: ThumbnailTextPosition;
+  showGradient: boolean;
+  emojiPrefix?: string;
+}
+
+export interface ThumbnailHistoryItem {
+  id: string;
+  imageDataUrl: string;
+  hookText: string;
+  template: ThumbnailTemplate;
+  ctrScore: number;
+  createdAt: string;
 }

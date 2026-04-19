@@ -6,7 +6,15 @@ interface FeatureSelectorProps {
 }
 
 const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) => {
+  const features = [
+    { id: 'CAPTIONS',   title: 'Viral Captions',         desc: 'Auto-transcribe & style with viral presets.',       icon: <Type size={32} />,        color: 'from-blue-500 to-cyan-400',     badge: null },
+    { id: 'SEO',        title: 'SEO Metadata',            desc: 'Generate viral titles, tags & descriptions.',       icon: <Globe size={32} />,       color: 'from-emerald-500 to-teal-400',  badge: null },
+    { id: 'PUBLISH',    title: 'Social Publisher',        desc: 'Post to IG, TikTok & YouTube with scheduler.',      icon: <Share2 size={32} />,      color: 'from-orange-500 to-yellow-400', badge: null },
+    { id: 'AUTOMATION', title: 'AI Automation',           desc: 'Smart DM & comment auto-replies.',                  icon: <Zap size={32} />,         color: 'from-indigo-500 to-blue-600',   badge: null },
+  ];
+
   return (
+
     <main className="flex-1 flex flex-col items-center justify-center p-6 bg-[#0a0a0a] overflow-y-auto custom-scrollbar">
       <div className="max-w-4xl w-full space-y-12 py-12">
         <div className="text-center space-y-4">
@@ -21,18 +29,19 @@ const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) =
           </p>
         </div>
 
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            { id: 'CAPTIONS', title: 'Viral Captions', desc: 'Auto-transcribe & style with viral presets.', icon: <Type size={32} />, color: 'from-blue-500 to-cyan-400' },
-            { id: 'SEO', title: 'SEO Metadata', desc: 'Generate viral titles, tags & descriptions.', icon: <Globe size={32} />, color: 'from-emerald-500 to-teal-400' },
-            { id: 'PUBLISH', title: 'Social Publisher', desc: 'Directly post to IG, TikTok & YouTube.', icon: <Share2 size={32} />, color: 'from-orange-500 to-yellow-400' },
-            { id: 'AUTOMATION', title: 'AI Automation', desc: 'Smart DM & comment auto-replies.', icon: <Zap size={32} />, color: 'from-indigo-500 to-blue-600' }
-          ].map((f) => (
+          {features.map((f) => (
             <button
               key={f.id}
               onClick={() => setActiveFeature(f.id)}
               className="group relative p-8 rounded-[32px] bg-[#121212] border border-gray-800 hover:border-gray-600 transition-all text-left overflow-hidden active:scale-95"
             >
+              {f.badge && (
+                <div className="absolute top-5 right-5 px-2 py-0.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white text-[9px] font-black rounded-full uppercase tracking-widest">
+                  {f.badge}
+                </div>
+              )}
               <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${f.color} opacity-0 group-hover:opacity-10 blur-3xl transition-opacity`} />
               <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${f.color} flex items-center justify-center text-white mb-6 shadow-lg shadow-black/20 group-hover:scale-110 transition-transform`}>
                 {f.icon}
@@ -51,3 +60,4 @@ const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) =
 };
 
 export default FeatureSelector;
+

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Smile, Sparkles, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram } from 'lucide-react';
+import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Smile, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram } from 'lucide-react';
 import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, StickerItem, AspectRatio } from './types';
 import { STYLES_CONFIG } from './constants';
 
@@ -58,7 +58,10 @@ import KeyboardShortcutPanel from './components/KeyboardShortcutPanel';
 import ThemePresetsPanel from './components/ThemePresetsPanel';
 import { ThemePreset, AIStyleSuggestion, THEME_PRESETS } from './services/aiStyleService';
 import { TemplateManager, CaptionTemplate } from './services/TemplateManager';
+import { applyAutoEmojis, removeAutoEmojis } from './services/emojiAutoMatcher';
 import { useUndoableState } from './hooks/useUndoableState';
+
+
 
 
 const App: React.FC = () => {
@@ -94,6 +97,8 @@ const App: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [isSeoModalOpen, setIsSeoModalOpen] = useState(false);
   const [isPublisherOpen, setIsPublisherOpen] = useState(false);
+
+
 
   // Feature Toggles
   const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true);
@@ -153,7 +158,7 @@ const App: React.FC = () => {
     setCaptions(prev => prev.map(c => {
       if (c.id !== id) return c;
       const newCaption = { ...c, ...updates };
-      
+
       // If we are updating text but not explicitly updating words, 
       // we need to recalculate the words array to match the new text
       if (updates.text !== undefined && updates.words === undefined) {
@@ -161,7 +166,7 @@ const App: React.FC = () => {
         const newWordsList = newText.trim().split(/\s+/).filter(w => w.length > 0);
         const duration = newCaption.endTime - newCaption.startTime;
         const wordDuration = newWordsList.length > 0 ? duration / newWordsList.length : 0;
-        
+
         newCaption.words = newWordsList.map((wordText, i) => ({
           text: wordText,
           word: wordText, // Just in case some templates still expect .word
@@ -170,7 +175,7 @@ const App: React.FC = () => {
           confidence: 1
         }));
       }
-      
+
       return newCaption;
     }));
   }, []);
@@ -286,7 +291,7 @@ const App: React.FC = () => {
         }
       ]);
     }
-    
+
     // 3. Play video
     setIsPlaying(true);
     if (videoRef.current) {
@@ -328,6 +333,12 @@ const App: React.FC = () => {
 
   // Sync design state when a preset is selected
   const selectPreset = (key: CaptionStyle) => {
+    if (key === CaptionStyle.EMOJI_AUTO) {
+      setCaptions(prev => applyAutoEmojis(prev));
+    } else if (currentStyle === CaptionStyle.EMOJI_AUTO) {
+      setCaptions(prev => removeAutoEmojis(prev));
+    }
+
     const p = STYLES_CONFIG[key];
     setCurrentStyle(key);
     setFontFamily(p.fontFamily);
@@ -385,9 +396,14 @@ const App: React.FC = () => {
         currentStyle
       );
 
-      resetCaptionsHistory(genCaps);
-      const avgConfidence = genCaps.length > 0
-        ? Math.round(genCaps.reduce((acc, c) => acc + (c.confidence || 0), 0) / genCaps.length)
+      let finalCaps = genCaps;
+      if (currentStyle === CaptionStyle.EMOJI_AUTO) {
+        finalCaps = applyAutoEmojis(genCaps);
+      }
+
+      resetCaptionsHistory(finalCaps);
+      const avgConfidence = finalCaps.length > 0
+        ? Math.round(finalCaps.reduce((acc, c) => acc + (c.confidence || 0), 0) / finalCaps.length)
         : 0;
       setStats({
         transcriptionTime: Date.now() - startTime,
@@ -476,8 +492,17 @@ const App: React.FC = () => {
       renderFrame();
     }
 
+    // Force re-render triggered by captionRenderer (e.g. when an animated GIF finishes loading)
+    const handleForceRender = () => {
+      if (!isPlaying && status !== 'EXPORTING') {
+        renderFrame();
+      }
+    };
+    window.addEventListener('createrin-force-render', handleForceRender);
+
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('createrin-force-render', handleForceRender);
     };
   }, [renderFrame, isPlaying, status]);
 
@@ -635,10 +660,10 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  // Bug 2 Fix: added all closed-over callbacks to dependency list
-  // Bug 13 Fix: added keyboardShortcuts so custom remaps apply immediately
+    // Bug 2 Fix: added all closed-over callbacks to dependency list
+    // Bug 13 Fix: added keyboardShortcuts so custom remaps apply immediately
   }, [togglePlay, selectedCaptionId, currentTime, isStickerPanelOpen, activeTab,
-      undoCaptions, redoCaptions, splitCaption, deleteCaption, duplicateCaption, keyboardShortcuts, captions]);
+    undoCaptions, redoCaptions, splitCaption, deleteCaption, duplicateCaption, keyboardShortcuts, captions]);
 
   // Helper function to get shortcut (custom or default)
   const getShortcut = (id: string): string => {
@@ -676,12 +701,12 @@ const App: React.FC = () => {
       const vidAny = video as any;
       if (vidAny.captureStream) audioStream = vidAny.captureStream();
       else if (vidAny.mozCaptureStream) audioStream = vidAny.mozCaptureStream();
-      
+
       if (!audioStream || audioStream.getAudioTracks().length === 0) {
         // Must create or reuse a shared AudioContext established during user interaction if possible, 
         // but creating here is usually okay if we immediately resume it.
         const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        
+
         // Ensure the context is running (fixes silent audio if context starts suspended)
         if (audioCtx.state === 'suspended') {
           audioCtx.resume().catch(console.error);
@@ -707,7 +732,7 @@ const App: React.FC = () => {
     }
 
     const bitrateMap = { LOW: 2000000, MEDIUM: 5000000, HIGH: 8000000, ULTRA: 15000000 };
-    
+
     // Better codec prioritization for broad compatibility
     const baseMimeTypes = [
       'video/mp4;codecs="avc1.42E01E,mp4a.40.2"', // Standard MP4 with H.264 & AAC
@@ -720,7 +745,7 @@ const App: React.FC = () => {
       'video/webm;codecs="vp8"',
       'video/webm'
     ];
-    
+
     let mimeTypes = baseMimeTypes;
     if (options.format === 'mp4') {
       mimeTypes = [
@@ -729,7 +754,7 @@ const App: React.FC = () => {
         ...baseMimeTypes
       ];
     }
-    
+
     // Fallback to empty string if none matched, browser will use default
     const mimeType = mimeTypes.find(t => MediaRecorder.isTypeSupported(t)) || '';
 
@@ -773,11 +798,10 @@ const App: React.FC = () => {
 
       {/* Bug 14 Fix: In-app Toast Notification (replaces alert()) */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border text-sm font-bold transition-all animate-in slide-in-from-top-2 ${
-          toast.type === 'error'
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border text-sm font-bold transition-all animate-in slide-in-from-top-2 ${toast.type === 'error'
             ? 'bg-red-900/90 border-red-700 text-red-200'
             : 'bg-blue-900/90 border-blue-700 text-blue-200'
-        }`}>
+          }`}>
           {toast.message}
           <button onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100"><X size={14} /></button>
         </div>
@@ -790,6 +814,8 @@ const App: React.FC = () => {
       {isPublisherOpen && videoSrc && (
         <SocialPublisher videoSrc={videoSrc} onClose={() => setIsPublisherOpen(false)} captions={captions} />
       )}
+
+
       {isExportPanelOpen && (
         <ExportPanel
           onExport={handleExportWithOptions}
@@ -806,12 +832,12 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* CapCut-style Header */}
-      <header className="h-12 border-b border-gray-800/80 flex items-center justify-between px-4 bg-[#141414] z-50 flex-shrink-0">
+      {/* CapCut-style Header (App-level — has undo/redo/speed) */}
+      <header className="cc-header">
         <div className="flex items-center gap-3">
           {activeFeature && (
-            <button onClick={() => setActiveFeature(null)} className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-gray-500 hover:text-white">
-              <ChevronLeft size={18} />
+            <button onClick={() => setActiveFeature(null)} className="cc-btn cc-btn-ghost !px-2 !py-2">
+              <ChevronLeft size={16} />
             </button>
           )}
           <img
@@ -820,25 +846,40 @@ const App: React.FC = () => {
             className="h-7 w-auto rounded object-contain bg-white"
             onError={(e) => { e.currentTarget.style.display = 'none'; const f = document.getElementById('logo-fallback'); if (f) f.classList.remove('hidden'); }}
           />
-          <h1 id="logo-fallback" className="hidden text-xl font-black text-[#009ca6]">createrin</h1>
-          <div className="h-4 w-px bg-gray-700 mx-1" />
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Caption Studio</span>
+          <h1 id="logo-fallback" className="hidden text-lg font-black" style={{ color: '#009ca6' }}>createrin</h1>
+
+          {/* Status pill */}
+          <div
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
+            style={{ background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.25)', border: '1px solid rgba(59,130,246,0.25)', color: '#60a5fa' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            Caption Studio
+          </div>
         </div>
 
         {/* Center: Undo/Redo/Speed */}
         {status === 'READY' && (
-          <div className="flex items-center gap-1 md:gap-2">
-            <button onClick={undoCaptions} disabled={!canUndo} title="Undo" className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 transition-all text-gray-400 hover:text-white">
+          <div className="flex items-center gap-1.5">
+            <button onClick={undoCaptions} disabled={!canUndo} title="Undo"
+              className="cc-btn cc-btn-ghost !px-2 !py-2 disabled:opacity-25"
+            >
               <Undo size={14} />
             </button>
-            <button onClick={redoCaptions} disabled={!canRedo} title="Redo" className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 transition-all text-gray-400 hover:text-white">
+            <button onClick={redoCaptions} disabled={!canRedo} title="Redo"
+              className="cc-btn cc-btn-ghost !px-2 !py-2 disabled:opacity-25"
+            >
               <Redo size={14} />
             </button>
-            <div className="h-4 w-px bg-gray-700 mx-0.5 md:mx-1" />
+            <div className="h-4 w-px mx-1" style={{ background: 'var(--cc-border-mid)' }} />
             <select
               value={playbackRate}
               onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
-              className="bg-gray-800 text-xs text-white rounded-lg outline-none border border-gray-700 py-1 px-2 cursor-pointer"
+              style={{
+                background: 'var(--cc-surface-3)', border: '1px solid var(--cc-border)',
+                borderRadius: 8, padding: '4px 8px', fontSize: 11,
+                color: 'var(--cc-text-2)', outline: 'none', cursor: 'pointer',
+              }}
             >
               <option value={0.5}>0.5×</option>
               <option value={1}>1.0×</option>
@@ -850,42 +891,52 @@ const App: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          <button onClick={resetApiKey} className="hidden md:block p-1.5 bg-gray-800 hover:bg-red-900/50 rounded-lg text-gray-500 hover:text-red-400 transition-colors" title="Reset API Key">
-            <Key size={12} />
+          <button onClick={resetApiKey} className="cc-btn cc-btn-ghost !px-2 !py-2" title="Reset API Key">
+            <Key size={12} style={{ color: 'var(--cc-text-3)' }} />
           </button>
           {status === 'READY' && (
             <>
-              <button onClick={() => setIsSeoModalOpen(true)} className="hidden xl:flex items-center gap-1.5 bg-gray-800 text-white hover:bg-gray-700 px-3 py-1.5 rounded-lg font-bold transition-all text-xs border border-gray-700">
+              <button onClick={() => setIsSeoModalOpen(true)} className="cc-btn cc-btn-ghost hidden xl:inline-flex">
                 <Share2 size={13} /> SEO
               </button>
-              <button onClick={() => setIsPublisherOpen(true)} className="hidden md:flex items-center gap-1.5 bg-blue-600 text-white hover:bg-blue-500 px-3 py-1.5 rounded-lg font-bold transition-all text-xs border border-blue-500">
+              <button onClick={() => setIsPublisherOpen(true)} className="cc-btn cc-btn-primary hidden md:inline-flex">
                 <UploadCloud size={13} /> Publish
               </button>
-              <button onClick={() => setIsExportPanelOpen(true)} className="flex items-center gap-1.5 bg-white text-black hover:bg-gray-200 px-3 md:px-4 py-1.5 rounded-lg font-black transition-all text-xs shadow-lg active:scale-95">
+              <button onClick={() => setIsExportPanelOpen(true)} className="cc-btn cc-btn-white">
                 <Download size={14} /> <span className="hidden sm:inline">Export</span>
               </button>
-              <button onClick={() => setIsShortcutPanelOpen(true)} className="hidden lg:flex items-center gap-1.5 bg-gray-800 text-white hover:bg-gray-700 px-3 py-1.5 rounded-lg font-bold transition-all text-xs border border-gray-700">
-                <Menu size={13} /> Shortcuts
-              </button>
               <div className="relative">
-                <button onClick={() => setAspectRatioMenuOpen(!aspectRatioMenuOpen)} className="flex items-center gap-1.5 bg-gray-800 text-white hover:bg-gray-700 px-2 md:px-3 py-1.5 rounded-lg font-bold transition-all text-xs border border-gray-700 max-w-[80px] md:max-w-none overflow-hidden">
-                  <Square size={13} className="flex-shrink-0" /> <span className="truncate hidden sm:inline">{aspectRatio}</span>
-
-                  <ChevronDown size={10} className="ml-1" />
+                <button
+                  onClick={() => setAspectRatioMenuOpen(!aspectRatioMenuOpen)}
+                  className="cc-btn cc-btn-ghost"
+                >
+                  <Square size={12} />
+                  <span className="hidden sm:inline">{aspectRatio}</span>
+                  <ChevronDown size={10} />
                 </button>
                 {aspectRatioMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-gray-700 rounded-xl shadow-lg z-20">
+                  <div className="absolute right-0 mt-2 w-36 rounded-xl shadow-2xl z-20 overflow-hidden"
+                    style={{ background: 'var(--cc-surface-2)', border: '1px solid var(--cc-border-mid)' }}
+                  >
                     {[
-                      ['ORIGINAL', 'Original (Detected)'],
-                      ['9:16', 'Portrait / Shorts'],
-                      ['16:9', 'Landscape / YouTube'],
-                      ['1:1', 'Square'],
-                      ['4:5', 'Portrait Tall']
+                      ['ORIGINAL', 'Original'],
+                      ['9:16', 'Portrait 9:16'],
+                      ['16:9', 'Landscape 16:9'],
+                      ['1:1', 'Square 1:1'],
+                      ['4:5', 'Portrait 4:5']
                     ].map(([value, label]) => (
                       <button
                         key={value}
                         onClick={() => { setAspectRatio(value as AspectRatio); setAspectRatioMenuOpen(false); }}
-                        className={`w-full px-3 py-2 text-left text-sm font-medium ${aspectRatio === value ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
+                        style={{
+                          width: '100%', padding: '8px 14px', textAlign: 'left',
+                          fontSize: 12, fontWeight: 500, cursor: 'pointer', border: 'none',
+                          background: aspectRatio === value ? 'var(--cc-blue-dim)' : 'transparent',
+                          color: aspectRatio === value ? 'var(--cc-blue-light)' : 'var(--cc-text-2)',
+                          transition: 'all 0.12s',
+                        }}
+                        onMouseEnter={e => { if (aspectRatio !== value) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = aspectRatio === value ? 'var(--cc-blue-dim)' : 'transparent'; }}
                       >
                         {label}
                       </button>
@@ -900,11 +951,14 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       {!activeFeature ? (
-        <FeatureSelector setActiveFeature={setActiveFeature} />
+        <FeatureSelector setActiveFeature={(id: string) => {
+          setActiveFeature(id);
+        }} />
       ) : (
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative bg-[#0a0a0a]">
-          {/* Left Tools Panel (CapCut-style) */}
-          <div className="order-3 md:order-1 z-30 flex-shrink-0 w-full md:w-auto mt-auto md:mt-0">
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--cc-bg)' }}>
+
+          {/* Left Tools Panel */}
+          <div style={{ flexShrink: 0, zIndex: 30 }}>
             <ToolsPanel
               activeTool={activeTool}
               setActiveTool={setActiveTool}
@@ -914,13 +968,11 @@ const App: React.FC = () => {
           </div>
 
           {/* Center: Video + Timeline */}
-          <div className="order-1 md:order-2 flex-1 flex flex-col overflow-hidden relative z-10 w-full">
-            {/* Video Preview Area */}
-            <div className="flex-1 flex items-center justify-center bg-[#050505] relative overflow-hidden">
-              <div className="absolute inset-0 opacity-10 pointer-events-none"
-                style={{ backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-
-              <div className="relative flex items-center justify-center w-full h-full">
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
+            {/* Video canvas area */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#030303', position: 'relative', overflow: 'hidden' }}>
+              <div className="cc-dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
                 <VideoPreviewArea
                   videoSrc={videoSrc}
                   videoRef={videoRef}
@@ -999,11 +1051,14 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Right Panel: Context-sensitive (CapCut-style) */}
-          <div className={`
-            ${(activeTool || (videoSrc && status === 'IDLE')) ? 'absolute md:relative inset-x-0 bottom-20 top-[45vh] md:top-[40vh] md:top-auto md:bottom-auto md:inset-auto' : 'hidden md:flex flex-1 md:flex-none'} 
-            order-2 md:order-3 w-full md:w-[380px] bg-[#141414] border-t md:border-t-0 md:border-l border-gray-800 flex flex-col z-40 md:z-20 flex-shrink-0 overflow-hidden rounded-t-2xl md:rounded-none shadow-[0_-10px_50px_rgba(0,0,0,0.8)] md:shadow-none transition-transform
-          `}>
+          {/* Right Panel: Context-sensitive */}
+          <div style={{
+            width: 'var(--panel-width)', flexShrink: 0, zIndex: 20,
+            display: 'flex', flexDirection: 'column',
+            background: 'var(--cc-surface)',
+            borderLeft: '1px solid var(--cc-border)',
+            overflow: 'hidden',
+          }}>
 
             {/* Initial Generation State */}
             {videoSrc && status === 'IDLE' && (
@@ -1022,11 +1077,18 @@ const App: React.FC = () => {
             {status === 'READY' && (
               <>
                 {/* Tab bar for right panel */}
-                <div className="flex border-b border-gray-800 bg-[#141414] flex-shrink-0 overflow-x-auto custom-scrollbar">
+                <div style={{
+                  display: 'flex',
+                  borderBottom: '1px solid var(--cc-border)',
+                  background: 'var(--cc-surface)',
+                  flexShrink: 0, overflowX: 'auto',
+                }}>
                   {activeTool === 'STICKERS' ? (
-                    <div className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-center text-white bg-gray-800/50">
-                      Stickers & Overlay
-                    </div>
+                    <div style={{
+                      flex: 1, padding: '11px 16px',
+                      fontSize: 9, fontWeight: 800, letterSpacing: '0.12em',
+                      textTransform: 'uppercase', color: 'var(--cc-text-2)',
+                    }}>Stickers &amp; Overlay</div>
                   ) : (
                     [
                       { id: 'PRESETS', label: 'Templates' },
@@ -1037,13 +1099,14 @@ const App: React.FC = () => {
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex-shrink-0 px-4 md:px-5 py-3.5 text-[11px] md:text-xs font-black uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'text-white border-blue-500 bg-gray-800/50' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+                        className={`cc-tab ${activeTab === tab.id ? 'active' : ''}`}
                       >
                         {tab.label}
                       </button>
                     ))
                   )}
                 </div>
+
 
                 {/* Panel content */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -1076,6 +1139,11 @@ const App: React.FC = () => {
                     <ThemePresetsPanel
                       captions={captions}
                       onApplyTheme={(preset: ThemePreset) => {
+                        if (preset.captionStyle === CaptionStyle.EMOJI_AUTO) {
+                          setCaptions(prev => applyAutoEmojis(prev));
+                        } else if (currentStyle === CaptionStyle.EMOJI_AUTO) {
+                          setCaptions(prev => removeAutoEmojis(prev));
+                        }
                         setCurrentStyle(preset.captionStyle);
                         setFontFamily(preset.fontFamily);
                         setFontWeight(preset.fontWeight);
@@ -1095,6 +1163,11 @@ const App: React.FC = () => {
                       onApplyAIStyle={(suggestion: AIStyleSuggestion) => {
                         const matchingTheme = THEME_PRESETS.find(t => t.id === suggestion.theme);
                         if (matchingTheme) {
+                          if (matchingTheme.captionStyle === CaptionStyle.EMOJI_AUTO) {
+                            setCaptions(prev => applyAutoEmojis(prev));
+                          } else if (currentStyle === CaptionStyle.EMOJI_AUTO) {
+                            setCaptions(prev => removeAutoEmojis(prev));
+                          }
                           setCurrentStyle(matchingTheme.captionStyle);
                           setFontFamily(matchingTheme.fontFamily);
                           setFontWeight(matchingTheme.fontWeight);
@@ -1128,6 +1201,11 @@ const App: React.FC = () => {
                         animationSpeed,
                       }}
                       onApplyTemplate={(template: CaptionTemplate) => {
+                        if (template.captionStyle === CaptionStyle.EMOJI_AUTO) {
+                          setCaptions(prev => applyAutoEmojis(prev));
+                        } else if (currentStyle === CaptionStyle.EMOJI_AUTO) {
+                          setCaptions(prev => removeAutoEmojis(prev));
+                        }
                         setCurrentStyle(template.captionStyle);
                         setFontFamily(template.fontFamily);
                         setFontWeight(template.fontWeight);

@@ -37,7 +37,7 @@ const easeOutQuint = (t: number): number => {
 
 // ─── Emoji / Noto Animated GIF utilities ────────────────────────────────────
 // Detects if a string is a single emoji (one or more codepoints forming a grapheme)
-const EMOJI_REGEX = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/gu;
+const EMOJI_REGEX = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)/gu;
 export const isEmojiWord = (word: string): boolean => {
   const clean = word.trim();
   if (!clean) return false;
@@ -407,8 +407,8 @@ export class CaptionRenderer {
       ctx.translate(-anchorX, -anchorY);
     }
 
-    // TYPOGRAPH style uses its own specialised renderer
-    if (state.currentStyle === CaptionStyle.TYPOGRAPH) {
+    // TYPOGRAPH and MINIMAL_BAR use the specialised editorial renderer
+    if (state.currentStyle === CaptionStyle.TYPOGRAPH || state.currentStyle === CaptionStyle.MINIMAL_BAR) {
       this.drawTypograph(ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime);
     } else {
       // All other styles route through the unified drawGeneric renderer
@@ -434,8 +434,25 @@ export class CaptionRenderer {
     renderTime: number,
     state: RendererState
   ): void {
-    const fontSize = style.fontSize * scaleFactor;
+    let fontSize = style.fontSize * scaleFactor;
     const spaceWidth = fontSize * 0.3;
+
+    // In WORD display mode, pre-shrink font if the active word overflows the canvas width.
+    // We must do this BEFORE defineWord closure so fontSize is correct inside it.
+    if (style.displayMode === 'WORD') {
+      const rawT = style.uppercase ? caption.text.toUpperCase() : caption.text;
+      const pfx = style.emojiPrefix ? style.emojiPrefix + ' ' : '';
+      const sfx = style.emojiSuffix ? ' ' + style.emojiSuffix : '';
+      const allWords = (pfx + rawT + sfx).split(' ');
+      // Measure widest possible word in this caption
+      ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
+      let maxW = 0;
+      allWords.forEach(w => { maxW = Math.max(maxW, this.getMixedTextWidth(ctx, w, fontSize)); });
+      const allowed = canvas.width * 0.88;
+      if (maxW > allowed) {
+        fontSize = fontSize * (allowed / maxW);
+      }
+    }
 
     const fontStr = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
     ctx.font = fontStr;
@@ -489,6 +506,16 @@ export class CaptionRenderer {
 
     const drawWord = (word: string, x: number, y: number, active: boolean, idx: number) => {
       ctx.save();
+
+      // ── SHAKE_CAM: micro-jitter on active word ──
+      if (active && style.specialRenderer === 'SHAKE_CAM') {
+        const shakeIntensity = 5 * scaleFactor;
+        const shakeX = Math.sin(renderTime * 73.1 + idx * 4.3) * shakeIntensity;
+        const shakeY = Math.cos(renderTime * 59.7 + idx * 2.9) * shakeIntensity * 0.5;
+        ctx.translate(x + shakeX, y + shakeY);
+        ctx.translate(-x, -y);
+      }
+
       // WAVE highlight mode: oscillate Y-position per word
       const wHighlightCheck = state.wordHighlight || 'NONE';
       const waveOffsetY = wHighlightCheck === 'WAVE'
@@ -537,18 +564,22 @@ export class CaptionRenderer {
       }
 
       // Background (standard or active)
-      const bgColor = active && style.activeBackgroundColor
-        ? style.activeBackgroundColor
-        : style.backgroundColor;
+      // Only draw per-word background if display mode is WORD, or if we are actively highlighting via BOX
+      const isWordMode = style.displayMode === 'WORD';
+      if (isWordMode) {
+        const bgColor = active && style.activeBackgroundColor
+          ? style.activeBackgroundColor
+          : style.backgroundColor;
 
-      if (bgColor) {
-        const w = this.getMixedTextWidth(ctx, word, fontSize);
-        const p = (style.backgroundPadding || 12) * scaleFactor;
-        const r = (style.backgroundBorderRadius || 0) * scaleFactor;
-        ctx.fillStyle = bgColor;
-        ctx.beginPath();
-        ctx.roundRect(-w / 2 - p, -fontSize / 2 - p, w + p * 2, fontSize + p * 2, r);
-        ctx.fill();
+        if (bgColor && wHighlight !== 'BOX') {
+          const wMeasure = this.getMixedTextWidth(ctx, word, fontSize);
+          const p = (style.backgroundPadding || 12) * scaleFactor;
+          const r = (style.backgroundBorderRadius || 0) * scaleFactor;
+          ctx.fillStyle = bgColor;
+          ctx.beginPath();
+          ctx.roundRect(-wMeasure / 2 - p, -fontSize / 2 - p, wMeasure + p * 2, fontSize + p * 2, r);
+          ctx.fill();
+        }
       }
 
       // FIRE_POP realistic particle fire background
@@ -631,7 +662,24 @@ export class CaptionRenderer {
       // --- FILL LOGIC: governed by colorBehavior ---
       let fill: string | CanvasGradient;
 
-      if (colorBehavior === 'FIXED') {
+      // ── LIQUID_CHROME: animated metallic shimmer gradient ──
+      if (style.specialRenderer === 'LIQUID_CHROME') {
+        const shimmerPhase = (renderTime * 0.6 + idx * 0.15) % 1.0;
+        const wGrad = this.getMixedTextWidth(ctx, word, fontSize);
+        // Shift gradient stops based on time to create a shimmer sweep across the text
+        const shimmerGrad = ctx.createLinearGradient(-wGrad / 2, 0, wGrad / 2, 0);
+        const goldBright = `hsl(${42 + Math.sin(renderTime * 1.5 + idx) * 12}, 90%, ${active ? 72 : 55}%)`;
+        const silver     = `hsl(0, 0%, ${active ? 90 : 70}%)`;
+        const goldDim    = `hsl(${38 + Math.cos(renderTime + idx * 0.5) * 8}, 70%, ${active ? 60 : 45}%)`;
+        // Animate stop positions for the sweep effect
+        const pivot = (shimmerPhase + idx * 0.2) % 1.0;
+        shimmerGrad.addColorStop(0, silver);
+        shimmerGrad.addColorStop(Math.max(0, pivot - 0.3), silver);
+        shimmerGrad.addColorStop(pivot, goldBright);
+        shimmerGrad.addColorStop(Math.min(1, pivot + 0.3), goldDim);
+        shimmerGrad.addColorStop(1, silver);
+        fill = shimmerGrad;
+      } else if (colorBehavior === 'FIXED') {
         // FIXED: always use the style's static color or gradient — never transform per word
         if (style.gradientColors && style.gradientColors.length >= 2) {
           const wGrad = this.getMixedTextWidth(ctx, word, fontSize);
@@ -716,8 +764,28 @@ export class CaptionRenderer {
         fill = '#000000'; // Black text on yellow box
       }
 
-      // Draw text (with inline animated emojis)
-      this.drawMixedText(ctx, word, fontSize, fill as string | CanvasGradient, 0, 0, false);
+      // ── DUAL_COLOR: top-half golden / bottom-half white split text ──
+      if (style.specialRenderer === 'DUAL_COLOR') {
+        const wMeasure = this.getMixedTextWidth(ctx, word, fontSize);
+        // Top half: gold fill (clipped to upper 50% of text height)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-wMeasure, -fontSize, wMeasure * 2, fontSize * 0.55);
+        ctx.clip();
+        const goldFill = active && style.activeTextColor ? style.activeTextColor : '#FFD700';
+        this.drawMixedText(ctx, word, fontSize, goldFill, 0, 0, false);
+        ctx.restore();
+        // Bottom half: white fill (clipped to lower 50% of text height)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-wMeasure, -fontSize * 0.45, wMeasure * 2, fontSize * 1.5);
+        ctx.clip();
+        this.drawMixedText(ctx, word, fontSize, '#FFFFFF', 0, 0, false);
+        ctx.restore();
+      } else {
+        // Draw text (with inline animated emojis)
+        this.drawMixedText(ctx, word, fontSize, fill as string | CanvasGradient, 0, 0, false);
+      }
 
       // KARAOKE dynamic highlight filling (style-level)
       if (active && style.animation === 'KARAOKE' && style.activeTextColor) {
@@ -807,9 +875,22 @@ export class CaptionRenderer {
 
     if (style.displayMode === 'WORD') {
       // Single-word mode: display only the active word centered.
+      // Font was pre-shrunk above; now just clamp position within safe canvas bounds.
       if (activeWordIndex >= 0 && activeWordIndex < words.length) {
         const currWord = words[activeWordIndex];
-        drawWord(currWord, anchorX, anchorY, true, activeWordIndex);
+
+        // Clamp anchorX so the word never bleeds off the sides
+        const halfW = this.getMixedTextWidth(ctx, currWord, fontSize) / 2;
+        const safeLeft  = halfW + canvas.width * 0.04;
+        const safeRight = canvas.width - halfW - canvas.width * 0.04;
+        const clampedX = Math.max(safeLeft, Math.min(safeRight, anchorX));
+
+        // Clamp anchorY so word doesn't go above/below canvas
+        const safeTopY    = canvas.height * 0.06;
+        const safeBottomY = canvas.height * 0.96;
+        const clampedY = Math.max(safeTopY, Math.min(safeBottomY, anchorY));
+
+        drawWord(currWord, clampedX, clampedY, true, activeWordIndex);
       }
     } else {
       // BLOCK mode — wrap text into lines
@@ -851,6 +932,19 @@ export class CaptionRenderer {
       lines.forEach((line) => {
         const lineWidth = this.getMixedTextWidth(ctx, line.text, fontSize);
         let curX = anchorX - (style.textAlign === 'center' ? lineWidth / 2 : style.textAlign === 'right' ? lineWidth : 0);
+
+        // Draw unified block background for the entire line
+        if (style.backgroundColor) {
+          const p = (style.backgroundPadding || 12) * scaleFactor;
+          const r = (style.backgroundBorderRadius || 0) * scaleFactor;
+          ctx.save();
+          ctx.fillStyle = style.backgroundColor;
+          ctx.beginPath();
+          // curX is the left-edge of the text. startY is the vertical center of the text.
+          ctx.roundRect(curX - p, startY - fontSize / 2 - p, lineWidth + p * 2, fontSize + p * 2, r);
+          ctx.fill();
+          ctx.restore();
+        }
 
         line.words.forEach((w, i) => {
           const globalIndex = line.startIndex + i;
@@ -1518,6 +1612,11 @@ export class CaptionRenderer {
       document.body.appendChild(container);
     }
     container.appendChild(img);
+
+    img.onload = () => {
+      // Dispatch event to force a frame re-render (helpful if video is currently paused)
+      window.dispatchEvent(new CustomEvent('createrin-force-render'));
+    };
 
     img.src = url;
     this.imageCache.set(url, img);

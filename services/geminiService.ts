@@ -59,7 +59,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 export const generateCaptionsFromVideo = async (
-  base64Video: string,
+  videoData: Blob | File,
   mimeType: string,
   autoAdjust: boolean,
   smartCompression: boolean,
@@ -144,20 +144,44 @@ export const generateCaptionsFromVideo = async (
     }
   }
 
-  try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Video
-            }
-          },
-          { text: prompt }
-        ]
+    const formData = new FormData();
+    formData.append('video', videoData, 'upload.webm');
+    
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    
+    // 1. Upload to node backend proxy to bypass inline data limits
+    console.log("[GEMINI] Uploading video via backend proxy...");
+    const uploadRes = await fetch(`${API_BASE}/api/upload-video`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
       },
+      body: formData
+    });
+
+    if (!uploadRes.ok) {
+      const err = await uploadRes.json();
+      throw new Error(err.error || 'Failed to upload video to backend proxy');
+    }
+
+    const { fileUri, fileName } = await uploadRes.json();
+    console.log(`[GEMINI] Upload successful. URI: ${fileUri}`);
+
+    // 2. Generate Content using the File API URI
+    try {
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: {
+          parts: [
+            {
+              fileData: {
+                fileUri: fileUri,
+                mimeType: mimeType
+              }
+            },
+            { text: prompt }
+          ]
+        },
       config: {
         systemInstruction: finalInstruction,
         responseMimeType: "application/json",
@@ -217,6 +241,16 @@ export const generateCaptionsFromVideo = async (
       rawData = [];
     }
 
+    // 3. Cleanup Video from Google Storage
+    fetch(`${API_BASE}/api/delete-video`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({ fileName })
+    }).catch(err => console.error("Cleanup failed", err));
+
     // Map AI response to internal Caption type
     const captions: Caption[] = rawData.map((item: any, index: number) => {
       // Map Categories to Hex Colors
@@ -262,24 +296,23 @@ export const generateCaptionsFromVideo = async (
       }
 
       return {
-        id: `cap-${index}`,
-        startTime: parseTime(item.start),
-        endTime: parseTime(item.end),
+        id: index,
+        start: parseTime(item.start),
+        end: parseTime(item.end),
         text: item.text,
-        language: item.language || 'en',
-        confidence: item.confidence || 0,
-        highlightIndices: item.highlight_indices,
-        position: item.position || 'BOTTOM',
-        sentiment: item.sentiment,
-        customScale: item.custom_scale,
-        customPosition: item.custom_position,
-        wordColors: wordColors,
         secondaryText,
         primaryText,
         accentText,
-        words: parsedWords
+        language: item.language || languageMode,
+        confidence: item.confidence || 90,
+        highlightIndices: item.highlight_indices || [],
+        position: item.position || 'MIDDLE',
+        sentiment: item.sentiment || 'neutral',
+        wordColors,
+        words: parsedWords || []
       };
     });
+
 
     // Calculate dominant language from AI results
     const languageCounts: Record<string, number> = {};
@@ -288,9 +321,9 @@ export const generateCaptionsFromVideo = async (
       languageCounts[lang] = (languageCounts[lang] || 0) + 1;
     });
 
-    const dominantLanguage = Object.keys(languageCounts).reduce((a, b) =>
-      languageCounts[a] > languageCounts[b] ? a : b
-      , "en");
+    const dominantLanguage = Object.keys(languageCounts).length > 0 
+      ? Object.keys(languageCounts).reduce((a, b) => languageCounts[a] > languageCounts[b] ? a : b)
+      : "en";
 
     // Format display name
     const langMap: Record<string, string> = {
@@ -564,4 +597,172 @@ export const analyzeCommentIntent = async (comment: string, videoContext: string
 
   const text = response.text || '{"intent": "NEUTRAL", "confidence": 0}';
   return JSON.parse(text);
+};
+
+// ─── CONTENT REMIX ENGINE ────────────────────────────────────────────────────
+import type { RemixResult, ViralScore, ContentIdea, BrandKit } from '../types';
+
+export const remixContentForPlatforms = async (
+  captions: Caption[],
+  brandKit?: BrandKit | null
+): Promise<RemixResult> => {
+  const apiKey = getApiKey();
+  const ai = new GoogleGenAI({ apiKey });
+  const transcript = captions.map(c => c.text).join(' ').substring(0, 12000);
+
+  const brandContext = brandKit
+    ? `\nBRAND CONTEXT: Name="${brandKit.name}", Niche="${brandKit.niche}", Target Audience="${brandKit.audience}", Tone="${brandKit.tone}"${brandKit.ctaLink ? `, CTA Link="${brandKit.ctaLink}"` : ''}.`
+    : '';
+
+  const systemInstruction = `
+You are an expert multi-platform content strategist. Convert a video transcript into platform-native content.
+${brandContext}
+
+PLATFORM RULES:
+- INSTAGRAM: 2-3 punchy lines with hook + emojis + CTA (max 150 chars visible). End with 5 hashtags.
+- TWITTER/X: 5-7 tweet thread. Start with a hook tweet. Each tweet max 280 chars. Numbered 1/, 2/, etc.
+- LINKEDIN: Professional insight post. 3-4 paragraphs. Start with a bold insight. End with a question to drive comments.
+- YOUTUBE: Full description with hook first sentence, summary, timestamps placeholder, and 5 keywords.
+- BLOG: 150-word intro paragraph. Compelling, SEO-friendly opening that hooks the reader.
+
+Ensure each piece is native to that platform's culture and format. Use the brand tone if provided.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: { parts: [{ text: `VIDEO TRANSCRIPT:\n${transcript}` }] },
+    config: {
+      systemInstruction,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          instagram: { type: Type.STRING },
+          twitter:   { type: Type.STRING },
+          linkedin:  { type: Type.STRING },
+          youtube:   { type: Type.STRING },
+          blog:      { type: Type.STRING },
+        },
+        required: ['instagram', 'twitter', 'linkedin', 'youtube', 'blog']
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}') as RemixResult;
+};
+
+// ─── VIRAL AI COACH ──────────────────────────────────────────────────────────
+export const analyzeViralPotential = async (
+  captions: Caption[],
+  brandKit?: BrandKit | null
+): Promise<ViralScore> => {
+  const apiKey = getApiKey();
+  const ai = new GoogleGenAI({ apiKey });
+  const transcript = captions.map(c => c.text).join(' ').substring(0, 8000);
+
+  const brandContext = brandKit
+    ? `Target audience: ${brandKit.audience}. Niche: ${brandKit.niche}.`
+    : 'General social media audience.';
+
+  const systemInstruction = `
+You are a viral content strategist for TikTok, YouTube Shorts, and Instagram Reels.
+Analyze the video transcript and score it on 5 viral dimensions (0-100 each).
+
+Context: ${brandContext}
+
+SCORING CRITERIA:
+- hook (0-100): How compelling are the first words? Does it create curiosity or stop the scroll?
+- engagement (0-100): Does it invite likes, comments, saves, shares?
+- emotion (0-100): Does it trigger a strong emotional response (laugh, surprise, inspiration, FOMO)?
+- shareability (0-100): Would someone forward this to a friend?
+- cta (0-100): Is there a clear call-to-action driving conversion?
+
+Also provide:
+- overallScore: weighted average (hook 30%, emotion 25%, engagement 20%, shareability 15%, cta 10%)
+- suggestions: 3-4 specific, actionable improvements
+- alternativeHooks: 5 alternative opening lines that would score higher
+- verdict: 1 sentence overall summary verdict
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: { parts: [{ text: `TRANSCRIPT:\n${transcript}` }] },
+    config: {
+      systemInstruction,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          hook:             { type: Type.INTEGER },
+          engagement:       { type: Type.INTEGER },
+          emotion:          { type: Type.INTEGER },
+          shareability:     { type: Type.INTEGER },
+          cta:              { type: Type.INTEGER },
+          overallScore:     { type: Type.INTEGER },
+          suggestions:      { type: Type.ARRAY, items: { type: Type.STRING } },
+          alternativeHooks: { type: Type.ARRAY, items: { type: Type.STRING } },
+          verdict:          { type: Type.STRING },
+        },
+        required: ['hook','engagement','emotion','shareability','cta','overallScore','suggestions','alternativeHooks','verdict']
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}') as ViralScore;
+};
+
+// ─── TREND & INSPIRATION FINDER ──────────────────────────────────────────────
+export const generateContentIdeas = async (
+  niche: string,
+  brandKit?: BrandKit | null
+): Promise<ContentIdea[]> => {
+  const apiKey = getApiKey();
+  const ai = new GoogleGenAI({ apiKey });
+
+  const audience = brandKit?.audience || 'General social media users';
+  const tone = brandKit?.tone || 'EDUCATIONAL';
+
+  const systemInstruction = `
+You are a viral content strategist specializing in short-form video content ideas.
+Generate exactly 10 high-potential video ideas for the niche: "${niche}".
+
+Audience: ${audience}
+Tone: ${tone}
+
+For EACH idea:
+- title: Clickbait-style title (max 8 words, punchy)
+- hook: The exact first line to say on camera (1-2 sentences, scroll-stopper)
+- outline: 3 bullet points describing the video structure
+- hashtags: 5 relevant hashtags (include #)
+- platform: Best platform — one of: YOUTUBE, SHORTS, INSTAGRAM, TIKTOK, FACEBOOK
+- estimatedViralScore: Predicted viral potential 0-100
+
+Sort by estimated viral score descending.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: { parts: [{ text: `Generate 10 viral content ideas for niche: ${niche}` }] },
+    config: {
+      systemInstruction,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title:               { type: Type.STRING },
+            hook:                { type: Type.STRING },
+            outline:             { type: Type.ARRAY, items: { type: Type.STRING } },
+            hashtags:            { type: Type.ARRAY, items: { type: Type.STRING } },
+            platform:            { type: Type.STRING },
+            estimatedViralScore: { type: Type.INTEGER },
+          },
+          required: ['title','hook','outline','hashtags','platform','estimatedViralScore']
+        }
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '[]') as ContentIdea[];
 };

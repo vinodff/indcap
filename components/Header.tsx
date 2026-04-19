@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, Video, Key, Share2, UploadCloud, Download } from 'lucide-react';
+import { ChevronLeft, Key, Share2, UploadCloud, Download, Sparkles } from 'lucide-react';
 import { ProcessingStatus } from '../types';
 
 interface HeaderProps {
@@ -9,6 +9,7 @@ interface HeaderProps {
   resetApiKey: () => void;
   setIsSeoModalOpen: (isOpen: boolean) => void;
   setIsPublisherOpen: (isOpen: boolean) => void;
+  setIsGrowthHubOpen: (isOpen: boolean) => void;
   handleExport: () => void;
 }
 
@@ -19,73 +20,106 @@ const Header: React.FC<HeaderProps> = ({
   resetApiKey,
   setIsSeoModalOpen,
   setIsPublisherOpen,
+  setIsGrowthHubOpen,
   handleExport
 }) => {
   return (
-    <header className="border-b border-gray-800 p-4 flex justify-between items-center bg-[#1a1a1a] z-50 shadow-lg">
-      <div className="flex items-center gap-4">
+    <header className="cc-header">
+      {/* Left — logo + back */}
+      <div className="flex items-center gap-3">
         {activeFeature && (
-          <button 
+          <button
             onClick={() => setActiveFeature(null)}
-            className="p-2 hover:bg-white/5 rounded-xl transition-colors text-gray-400 hover:text-white"
-            title="Back to Home"
+            className="cc-btn cc-btn-ghost !px-2.5 !py-2"
+            title="Back"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={16} />
           </button>
         )}
-        <div className="relative flex items-center">
-          {/* Logo Image */}
-          <img 
-            src="https://createrin.com/wp-content/uploads/2025/03/createrin_logo.jpg" 
-            alt="Createrin" 
-            className="h-10 w-auto rounded-lg object-contain bg-white"
-            onError={(e) => {
+
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <img
+            src="https://createrin.com/wp-content/uploads/2025/03/createrin_logo.jpg"
+            alt="Createrin"
+            className="h-7 w-auto rounded-md object-contain bg-white"
+            onError={e => {
               e.currentTarget.style.display = 'none';
-              // Show text fallback when image fails
-              const fallback = document.getElementById('logo-fallback-text');
-              if (fallback) fallback.classList.remove('hidden');
+              const fb = document.getElementById('logo-fallback-text');
+              if (fb) fb.classList.remove('hidden');
             }}
           />
-          {/* Text Fallback (Hidden by default, shown via onError) */}
-          <h1 id="logo-fallback-text" className="hidden text-3xl font-black tracking-tight text-[#009ca6] leading-none">
+          <h1
+            id="logo-fallback-text"
+            className="hidden text-lg font-black tracking-tight"
+            style={{ color: '#009ca6' }}
+          >
             createrin
           </h1>
         </div>
-        <div className="flex bg-gray-900 p-1 rounded-xl border border-gray-800 ml-4">
-          <button 
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 bg-blue-600 text-white shadow-lg`}
-          >
-            <Video size={14} /> Video
-          </button>
+
+        {/* Project mode pill */}
+        <div
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-widest"
+          style={{
+            background: 'rgba(59,130,246,0.1)',
+            borderColor: 'rgba(59,130,246,0.25)',
+            color: '#60a5fa'
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          Video Captions
         </div>
-        <button 
+
+        {/* API Key reset */}
+        <button
           onClick={resetApiKey}
-          className="p-1.5 bg-gray-800 hover:bg-red-900/50 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
+          className="cc-btn cc-btn-ghost !px-2 !py-1.5"
           title="Reset API Key"
         >
-          <Key size={12} />
+          <Key size={11} style={{ color: 'var(--cc-text-3)' }} />
         </button>
       </div>
-      <div className="flex items-center gap-3">
+
+      {/* Right — actions */}
+      <div className="flex items-center gap-2">
         {status === 'READY' && (
           <>
-            <button 
+            <button
               onClick={() => setIsSeoModalOpen(true)}
-              className="flex items-center gap-2 bg-gray-800 text-white hover:bg-gray-700 px-4 py-2.5 rounded-full font-bold transition-all text-xs border border-gray-700"
+              className="cc-btn cc-btn-ghost hidden sm:inline-flex"
             >
-              <Share2 size={16} /> <span className="hidden sm:inline">SEO</span>
+              <Share2 size={13} />
+              <span>SEO</span>
             </button>
-            <button 
+
+            <button
+              onClick={() => setIsGrowthHubOpen(true)}
+              className="cc-btn hidden sm:inline-flex"
+              style={{
+                background: 'rgba(139,92,246,0.15)',
+                color: '#a78bfa',
+                borderColor: 'rgba(139,92,246,0.3)'
+              }}
+            >
+              <Sparkles size={13} />
+              <span>Growth</span>
+            </button>
+
+            <button
               onClick={() => setIsPublisherOpen(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2.5 rounded-full font-bold transition-all text-xs border border-blue-500 shadow-lg shadow-blue-600/20"
+              className="cc-btn cc-btn-primary hidden sm:inline-flex"
             >
-              <UploadCloud size={16} /> <span className="hidden sm:inline">Publish</span>
+              <UploadCloud size={13} />
+              <span>Publish</span>
             </button>
-            <button 
-              onClick={handleExport} 
-              className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 px-6 py-2.5 rounded-full font-black transition-all text-sm shadow-xl active:scale-95"
+
+            <button
+              onClick={handleExport}
+              className="cc-btn cc-btn-white"
             >
-              <Download size={18} /> <span className="hidden sm:inline">Export</span>
+              <Download size={14} />
+              <span>Export</span>
             </button>
           </>
         )}
