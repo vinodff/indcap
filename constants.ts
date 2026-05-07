@@ -188,6 +188,160 @@ Rules:
 5. Capitalize KEY words for impact.
 `;
 
+export const VIRAL_TYPOGRAPHY_INSTRUCTION = `
+You are a world-class short-form video editor specializing in Instagram Reels, YouTube Shorts, and TikTok.
+
+Your task is to transform plain captions into HIGHLY ENGAGING, VIRAL TYPOGRAPHY CAPTIONS like a professional editor.
+
+You must think like a human editor and apply visual storytelling.
+
+----------------------------------
+
+🎯 STEP 1: CAPTION BREAKDOWN
+- Split sentences into 2–4 word chunks
+- Each chunk = one visual unit
+- Maintain rhythm with speech timing
+
+----------------------------------
+
+🎯 STEP 2: VISUAL HIERARCHY
+For each caption:
+- Identify PRIMARY word (main attention)
+- Identify SECONDARY words (supporting)
+- Highlight only 1–2 words max
+
+----------------------------------
+
+🎯 STEP 3: STYLE TEMPLATE SELECTION
+Choose template automatically based on emotion:
+
+- "viral" → bold, high contrast, bounce
+- "cinematic" → minimal, fade, center aligned
+- "emotional" → soft, slow zoom, blur background
+- "motivational" → strong, upward motion
+- "funny" → playful, shake, emoji-heavy
+
+----------------------------------
+
+🎯 STEP 4: TYPOGRAPHY RULES
+
+Font:
+- viral → extra-bold
+- cinematic → serif / thin
+- emotional → handwritten
+- motivational → bold uppercase
+
+Text Style:
+- Use UPPERCASE for important words
+- Add stroke/outline for visibility
+
+----------------------------------
+
+🎯 STEP 5: COLOR SYSTEM
+
+- Base text: white
+- Highlight color depends on emotion:
+  - excitement → yellow
+  - danger/shock → red
+  - success → green
+  - sadness → blue
+
+----------------------------------
+
+🎯 STEP 6: ANIMATION SYSTEM
+
+Each caption must include:
+
+Entry Animation:
+- pop / slide / fade / zoom
+
+Emphasis Animation (for highlight words):
+- bounce / shake / scale / flash
+
+Exit Animation:
+- fade / blur / slide out
+
+Animation Timing:
+- fast (viral)
+- medium (normal)
+- slow (cinematic)
+
+----------------------------------
+
+🎯 STEP 7: POSITIONING
+
+Choose dynamically:
+- center → strong emotional lines
+- bottom_center → default captions
+- top → storytelling context
+
+Also include:
+- safe margin for mobile UI
+
+----------------------------------
+
+🎯 STEP 8: BACKGROUND & EFFECTS
+
+Choose one:
+- none
+- blur box
+- gradient highlight
+- text outline (stroke)
+
+----------------------------------
+
+🎯 STEP 9: ICON / EMOJI INTEGRATION
+
+- Add emoji ONLY if it increases engagement
+- Replace keywords if useful
+- Example:
+  "money" → 💰
+  "shock" → 😳
+
+----------------------------------
+
+🎯 STEP 10: TIMING CONTROL
+
+Each caption must include:
+- start time
+- end time
+- animation sync
+
+----------------------------------
+
+OUTPUT FORMAT:
+
+Return ONLY a valid JSON array. No markdown fences, no explanations.
+Each item in the array must follow this exact structure:
+
+{
+  "text": "THIS is CRAZY!",
+  "start": 1.2,
+  "end": 2.5,
+  "style": {
+    "template": "viral",
+    "highlight": ["CRAZY"],
+    "font": "extra-bold",
+    "text_case": "mixed",
+    "color": {
+      "primary": "white",
+      "highlight": "yellow"
+    },
+    "animation": {
+      "entry": "pop",
+      "emphasis": "bounce",
+      "exit": "fade",
+      "speed": "fast"
+    },
+    "position": "center",
+    "background": "none",
+    "stroke": true,
+    "emotion": "excited",
+    "emoji": "😳"
+  }
+}
+`;
+
 export const TRENDING_INSTRUCTION = `
 You are a professional viral reels caption template generator.
 Your job is to convert a short sentence into a structured caption template used in viral reels.
@@ -493,16 +647,17 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     colorBehavior: 'WORD_POP',
     emojiPrefix: '⚡', emojiSuffix: '💥',
   },
-  
+
   [CaptionStyle.EMOJI_AUTO]: {
     name: '🌟 Emoji Auto Matcher', category: 'EMOJI',
-    fontFamily: "'Bebas Neue', display", fontSize: 64, fontWeight: 400,
-    textColor: '#FFFFFF', activeTextColor: '#FFD700',
-    strokeColor: '#000000', strokeWidth: 10,
-    shadowColor: '#3B82F6', shadowBlur: 20, shadowOffsetY: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)', backgroundPadding: 20, backgroundBorderRadius: 16,
+    fontFamily: "'Montserrat', sans-serif", fontSize: 58, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#FFE000',
+    strokeColor: '#000000', strokeWidth: 8,
+    shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 16, shadowOffsetY: 5,
+    // Vibrant semi-transparent background pill for legibility
+    backgroundColor: 'rgba(15, 15, 30, 0.72)', backgroundPadding: 22, backgroundBorderRadius: 28,
     animation: 'POP', uppercase: true, displayMode: 'BLOCK',
-    colorBehavior: 'WORD_POP',
+    colorBehavior: 'CONTEXTUAL',
     // The emoji Auto Matcher handles dynamic emojis per caption sentence, so no static prefix/suffix here.
   },
 
@@ -684,6 +839,135 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     specialRenderer: 'LIQUID_CHROME',
   },
 
+  // ─── CAPCUT CREATIVE (Sprint 7) ───
+
+  // Comic Bang — explosive comic book style with jagged edges and vivid colors
+  [CaptionStyle.COMIC_BANG]: {
+    name: 'Comic Bang', category: 'COMIC',
+    fontFamily: "'Bangers', cursive", fontSize: 76, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FFFF00',
+    strokeColor: '#000000', strokeWidth: 16,
+    shadowColor: '#FF0000', shadowBlur: 0, shadowOffsetX: 8, shadowOffsetY: 8,
+    backgroundColor: 'rgba(255, 0, 0, 0.85)', backgroundPadding: 28, backgroundBorderRadius: 4,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    rotationVariance: 3,
+  },
+
+  // Pastel Dream — soft kawaii aesthetic popular on lifestyle/beauty content
+  [CaptionStyle.PASTEL_DREAM]: {
+    name: 'Pastel Dream', category: 'MINIMAL',
+    fontFamily: "'Quicksand', sans-serif", fontSize: 46, fontWeight: 700,
+    textColor: '#5B4A8A', activeTextColor: '#E879A8',
+    gradientColors: ['#FFDEE9', '#B5FFFC', '#CDB4DB'],
+    strokeColor: 'rgba(91, 74, 138, 0.3)', strokeWidth: 2,
+    shadowColor: '#E879A8', shadowBlur: 20, shadowOffsetY: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)', backgroundPadding: 24, backgroundBorderRadius: 40,
+    animation: 'SCALE_UP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+
+  // Electric Slide — high-energy electric blue with wipe-in animation feel
+  [CaptionStyle.ELECTRIC_SLIDE]: {
+    name: 'Electric Slide', category: 'KINETIC',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 62, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#00D4FF',
+    strokeColor: '#001529', strokeWidth: 8,
+    shadowColor: '#00D4FF', shadowBlur: 45, shadowOffsetY: 0,
+    gradientColors: ['#00D4FF', '#0051FF', '#7B00FF'],
+    animation: 'SPRING', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    springStiffness: 300, springDamping: 12,
+  },
+
+  // Drip Text — liquid chrome drip effect for hip-hop/urban content
+  [CaptionStyle.DRIP_TEXT]: {
+    name: 'Drip Text', category: 'VIRAL',
+    fontFamily: "'Bebas Neue', display", fontSize: 80, fontWeight: 400,
+    textColor: '#E8E8E8', activeTextColor: '#FFD700',
+    gradientColors: ['#C0C0C0', '#FFFFFF', '#B0B0B0', '#FFFFFF', '#C0C0C0'],
+    strokeColor: '#1A1A1A', strokeWidth: 10,
+    shadowColor: '#6B21A8', shadowBlur: 0, shadowOffsetX: 5, shadowOffsetY: 12,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'LIQUID_CHROME',
+  },
+
+  // Sunset Vibes — warm gradient popular on travel/lifestyle reels
+  [CaptionStyle.SUNSET_VIBES]: {
+    name: 'Sunset Vibes', category: 'GLOW',
+    fontFamily: "'Poppins', sans-serif", fontSize: 56, fontWeight: 800,
+    textColor: '#FFFFFF',
+    gradientColors: ['#FF6B35', '#FF1493', '#9B59B6', '#3498DB'],
+    strokeColor: '#2D0A4E', strokeWidth: 4,
+    shadowColor: '#FF6B35', shadowBlur: 35, shadowOffsetY: 4,
+    animation: 'SCALE_UP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'FIXED',
+  },
+
+  // Ice Cold — frosted glass aesthetic for clean/tech content
+  [CaptionStyle.ICE_COLD]: {
+    name: 'Ice Cold', category: 'MINIMAL',
+    fontFamily: "'Inter', sans-serif", fontSize: 50, fontWeight: 700,
+    textColor: '#E0F7FF', activeTextColor: '#FFFFFF',
+    gradientColors: ['#B3E5FC', '#FFFFFF', '#81D4FA'],
+    strokeColor: 'rgba(0, 150, 200, 0.4)', strokeWidth: 3,
+    shadowColor: '#00BCD4', shadowBlur: 30, shadowOffsetY: 0,
+    backgroundColor: 'rgba(0, 40, 60, 0.55)', backgroundPadding: 20, backgroundBorderRadius: 16,
+    animation: 'BLUR_IN', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+
+  // Street Graffiti — spray paint urban style for hip-hop/street content
+  [CaptionStyle.STREET_GRAFFITI]: {
+    name: 'Street Graffiti', category: 'ART',
+    fontFamily: "'Permanent Marker', cursive", fontSize: 68, fontWeight: 400,
+    textColor: '#39FF14', activeTextColor: '#FFE000',
+    strokeColor: '#000000', strokeWidth: 14,
+    shadowColor: '#FF00FF', shadowBlur: 0, shadowOffsetX: 6, shadowOffsetY: 6,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    rotationVariance: 5,
+  },
+
+  // ASMR Whisper — ultra-soft breathing glow for ASMR/calm content
+  [CaptionStyle.ASMR_WHISPER]: {
+    name: 'ASMR Whisper', category: 'MINIMAL',
+    fontFamily: "'Cormorant Garamond', serif", fontSize: 42, fontWeight: 300,
+    textColor: 'rgba(255,255,255,0.5)', activeTextColor: 'rgba(255,255,255,0.95)',
+    shadowColor: 'rgba(255,255,255,0.6)', shadowBlur: 50, shadowOffsetY: 0,
+    animation: 'SCALE_UP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+    opacityInactive: 0.3,
+  },
+
+  // Anime Impact — Japanese anime title card style with bold impact
+  [CaptionStyle.ANIME_IMPACT]: {
+    name: 'Anime Impact', category: 'BOLD',
+    fontFamily: "'Black Ops One', display", fontSize: 74, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FF4444',
+    strokeColor: '#000000', strokeWidth: 16,
+    shadowColor: '#FF0000', shadowBlur: 30, shadowOffsetY: 0,
+    gradientColors: ['#FFFFFF', '#FF6666', '#FFFFFF'],
+    animation: 'STAMP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+
+  // Disco Fever — rotating vibrant party colors for fun/dance content
+  [CaptionStyle.DISCO_FEVER]: {
+    name: 'Disco Fever', category: 'VIRAL',
+    fontFamily: "'Fredoka', sans-serif", fontSize: 60, fontWeight: 700,
+    textColor: '#FFFFFF', activeTextColor: '#FFE000',
+    gradientColors: ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC', '#3A86FF'],
+    strokeColor: '#000000', strokeWidth: 10,
+    shadowColor: '#FF006E', shadowBlur: 25, shadowOffsetY: 4,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'CONTEXTUAL',
+    specialRenderer: 'PILL_BADGE',
+    pillColorPalette: ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC', '#3A86FF'],
+    backgroundPadding: 18, backgroundBorderRadius: 20,
+  },
+
   // ─── CUSTOM ───
   [CaptionStyle.CUSTOM]: {
     name: 'Custom Style', category: 'CUSTOM',
@@ -692,5 +976,627 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     strokeColor: '#000000', strokeWidth: 6,
     shadowColor: 'rgba(0,0,0,0.9)', shadowBlur: 14,
     animation: 'NONE', displayMode: 'BLOCK',
+  },
+
+  // ─── PLATFORM NATIVE (SPRINT 1) ───
+  [CaptionStyle.TIKTOK_NATIVE]: {
+    name: 'TikTok Native', category: 'PLATFORM',
+    fontFamily: '"Proxima Nova", "Helvetica Neue", sans-serif', fontSize: 44, fontWeight: 700,
+    textColor: '#FFFFFF', activeTextColor: '#FFFFFF',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)', backgroundPadding: 16, backgroundBorderRadius: 8,
+    strokeColor: 'transparent', strokeWidth: 0,
+    shadowColor: 'transparent', shadowBlur: 0,
+    animation: 'NONE', uppercase: false, displayMode: 'BLOCK',
+    colorBehavior: 'FIXED',
+  },
+  [CaptionStyle.INSTAGRAM_NATIVE]: {
+    name: 'Instagram Classic', category: 'PLATFORM',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', fontSize: 48, fontWeight: 800,
+    textColor: '#000000', activeTextColor: '#FFFFFF',
+    activeBackgroundColor: '#000000', backgroundColor: '#FFFFFF',
+    backgroundPadding: 14, backgroundBorderRadius: 4,
+    animation: 'POP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'CONTEXTUAL',
+  },
+
+  // ─── SPRING PHYSICS (SPRINT 1) ───
+  [CaptionStyle.WORD_SPRING]: {
+    name: 'Word Spring', category: 'KINETIC',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 62, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#FFE000',
+    strokeColor: '#000000', strokeWidth: 10,
+    shadowColor: '#FF6B00', shadowBlur: 14, shadowOffsetY: 6,
+    animation: 'SPRING', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    springStiffness: 250, springDamping: 15,
+  },
+  [CaptionStyle.WORD_STAMP]: {
+    name: 'Rubber Stamp', category: 'BOLD',
+    fontFamily: "'Anton', sans-serif", fontSize: 80, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FF2200',
+    strokeColor: '#000000', strokeWidth: 12,
+    shadowColor: '#880000', shadowBlur: 0, shadowOffsetX: 6, shadowOffsetY: 6,
+    animation: 'STAMP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+
+  // ─── BADGE / PILL (SPRINT 1) ───
+  [CaptionStyle.PILL_BADGE]: {
+    name: 'Pill Badge', category: 'HIGHLIGHT',
+    fontFamily: "'Inter', sans-serif", fontSize: 48, fontWeight: 800,
+    textColor: '#111111', activeTextColor: '#000000',
+    backgroundColor: '#FFFFFF', activeBackgroundColor: '#FFD700',
+    backgroundPadding: 24, backgroundBorderRadius: 30, // fully rounded pill
+    shadowColor: 'rgba(0,0,0,0.15)', shadowBlur: 10, shadowOffsetY: 4,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+    pillColorPalette: ['#FFE000', '#00FFFF', '#FF00FF', '#39FF14'],
+  },
+
+  // ─── SPEECH BUBBLE (SPRINT 2) ───
+  [CaptionStyle.SPEECH_BUBBLE]: {
+    name: 'Speech Bubble', category: 'COMIC',
+    fontFamily: "'Nunito', 'Comic Sans MS', 'Chalkboard SE', sans-serif", fontSize: 42, fontWeight: 800,
+    textColor: '#1A1A2E', activeTextColor: '#D62839',
+    // Clean white bubble background with a subtle warm tint
+    backgroundColor: '#F8F5FF', activeBackgroundColor: '#FFF0F0',
+    backgroundPadding: 26, backgroundBorderRadius: 22,
+    strokeColor: '#2D2D2D', strokeWidth: 3,
+    shadowColor: 'rgba(0,0,0,0.22)', shadowBlur: 14, shadowOffsetY: 6,
+    animation: 'POP', uppercase: false, displayMode: 'BLOCK',
+    colorBehavior: 'ACTIVE_ONLY',
+    specialRenderer: 'SPEECH_BUBBLE',
+    bubbleTailPosition: 'BOTTOM_CENTER',
+  },
+
+  // ─── REVEAL (SPRINT 2) ───
+  [CaptionStyle.BLUR_REVEAL]: {
+    name: 'Blur Reveal', category: 'MINIMAL',
+    fontFamily: "'Cinzel', serif", fontSize: 54, fontWeight: 600,
+    textColor: '#FFFFFF',
+    // Layered glow for cinematic depth
+    shadowColor: 'rgba(255,255,255,0.9)', shadowBlur: 40, shadowOffsetY: 0,
+    // Subtle dark vignette background for contrast
+    backgroundColor: 'rgba(0,0,0,0.35)', backgroundPadding: 28, backgroundBorderRadius: 8,
+    animation: 'BLUR_IN', uppercase: false, displayMode: 'BLOCK',
+    colorBehavior: 'FIXED',
+  },
+  [CaptionStyle.SPLIT_REVEAL]: {
+    name: 'Split Reveal', category: 'KINETIC',
+    fontFamily: "'Anton', sans-serif", fontSize: 72, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FFD700',
+    strokeColor: '#000000', strokeWidth: 8,
+    shadowColor: '#000000', shadowBlur: 0, shadowOffsetY: 8,
+    animation: 'SPLIT_OPEN', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'SPLIT_REVEAL',
+  },
+
+  // ─── ADVANCED (SPRINT 3) ───
+  [CaptionStyle.NEON_SIGN_FLICKER]: {
+    name: 'Neon Flicker', category: 'NEON',
+    fontFamily: "'Orbitron', sans-serif", fontSize: 50, fontWeight: 900,
+    textColor: 'rgba(255,100,200,0.3)', activeTextColor: '#FF00FF',
+    strokeColor: '#330033', strokeWidth: 4,
+    shadowColor: '#FF00FF', shadowBlur: 40,
+    animation: 'NONE', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+    specialRenderer: 'NEON_FLICKER',
+    neonFlickerRate: 150,
+  },
+  [CaptionStyle.TICKER_SCROLL]: {
+    name: 'News Ticker', category: 'VIRAL',
+    fontFamily: "'Space Mono', monospace", fontSize: 36, fontWeight: 700,
+    textColor: '#000000', activeTextColor: '#FF0000',
+    backgroundColor: '#FFFFFF', backgroundPadding: 16, backgroundBorderRadius: 0,
+    strokeColor: 'transparent', strokeWidth: 0,
+    animation: 'NONE', uppercase: true, displayMode: 'BLOCK',
+    colorBehavior: 'ACTIVE_ONLY',
+    specialRenderer: 'TICKER_SCROLL',
+    tickerSpeed: 400,
+  },
+  [CaptionStyle.MAGNETIC_WORDS]: {
+    name: 'Magnetic Scatter', category: 'KINETIC',
+    fontFamily: "'Outfit', sans-serif", fontSize: 60, fontWeight: 800,
+    textColor: '#FFFFFF', activeTextColor: '#00FFFF',
+    strokeColor: '#000000', strokeWidth: 8,
+    shadowColor: '#00FFFF', shadowBlur: 20,
+    animation: 'SCATTER_IN', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'MAGNETIC',
+  },
+  [CaptionStyle.PERSPECTIVE_3D]: {
+    name: '3D Perspective', category: 'ART',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 64, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#FFD700',
+    strokeColor: '#1A1A1A', strokeWidth: 6,
+    shadowColor: '#000000', shadowBlur: 30, shadowOffsetY: 10,
+    animation: 'FLIP_Y', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    specialRenderer: 'PERSPECTIVE_3D',
+    perspectiveDegrees: 45,
+  },
+  [CaptionStyle.BRUSH_STROKE]: {
+    name: 'Brush Stroke', category: 'ART',
+    fontFamily: "'Caveat', cursive", fontSize: 72, fontWeight: 700,
+    textColor: '#FFFFFF', activeTextColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 50, 50, 0.9)',
+    backgroundPadding: 10, backgroundBorderRadius: 0,
+    animation: 'POP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+    specialRenderer: 'BRUSH_STROKE',
+  },
+  [CaptionStyle.MATRIX_RAIN]: {
+    name: 'Matrix Rain', category: 'ART',
+    fontFamily: "'Courier New', monospace", fontSize: 44, fontWeight: 700,
+    textColor: '#00FF41', activeTextColor: '#FFFFFF',
+    shadowColor: '#00FF41', shadowBlur: 15,
+    animation: 'NONE', uppercase: false, displayMode: 'BLOCK',
+    colorBehavior: 'ACTIVE_ONLY',
+    specialRenderer: 'MATRIX_RAIN',
+    matrixCharSet: '01',
+  },
+
+  // ─── MOTION EFFECTS (SPRINT 4) ───
+  [CaptionStyle.APPLE_MINIMAL]: {
+    name: 'Apple Minimal', category: 'MINIMAL',
+    fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif", fontSize: 48, fontWeight: 600,
+    textColor: 'rgba(255,255,255,0.1)', activeTextColor: '#FFFFFF',
+    shadowColor: 'rgba(0,0,0,0.3)', shadowBlur: 8, shadowOffsetY: 2,
+    animation: 'SCALE_UP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+  [CaptionStyle.BOUNCE_STAMP]: {
+    name: 'Bounce Stamp', category: 'KINETIC',
+    fontFamily: "'Anton', sans-serif", fontSize: 68, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FFE000',
+    strokeColor: '#000000', strokeWidth: 8,
+    shadowColor: '#FF4500', shadowBlur: 20, shadowOffsetY: 6,
+    animation: 'STAMP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+  [CaptionStyle.FLOAT_RISE]: {
+    name: 'Float Rise', category: 'KINETIC',
+    fontFamily: "'Poppins', sans-serif", fontSize: 52, fontWeight: 700,
+    textColor: 'rgba(255,255,255,0.2)', activeTextColor: '#87CEEB',
+    shadowColor: '#87CEEB', shadowBlur: 25,
+    animation: 'SCALE_UP', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+  [CaptionStyle.SLIDE_REVEAL]: {
+    name: 'Slide Reveal', category: 'KINETIC',
+    fontFamily: "'Inter', sans-serif", fontSize: 56, fontWeight: 800,
+    textColor: 'rgba(255,255,255,0.15)', activeTextColor: '#FFFFFF',
+    backgroundColor: 'rgba(0,0,0,0.7)', backgroundPadding: 16, backgroundBorderRadius: 8,
+    animation: 'NONE', uppercase: false, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+  [CaptionStyle.BLUR_FADE]: {
+    name: 'Blur Fade', category: 'KINETIC',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 58, fontWeight: 900,
+    textColor: 'rgba(255,255,255,0.1)', activeTextColor: '#FFFFFF',
+    shadowColor: '#FFFFFF', shadowBlur: 40,
+    animation: 'BLUR_IN', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'ACTIVE_ONLY',
+  },
+  [CaptionStyle.POP_OUT]: {
+    name: 'Pop Out', category: 'VIRAL',
+    fontFamily: "'Bangers', cursive", fontSize: 64, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FF69B4',
+    strokeColor: '#000000', strokeWidth: 12,
+    shadowColor: '#FF1493', shadowBlur: 15, shadowOffsetY: 8,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+  [CaptionStyle.SPRING_SLAM]: {
+    name: 'Spring Slam', category: 'KINETIC',
+    fontFamily: "'Anton', sans-serif", fontSize: 70, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#00FF7F',
+    strokeColor: '#000000', strokeWidth: 10,
+    shadowColor: '#32CD32', shadowBlur: 18, shadowOffsetY: 5,
+    animation: 'SPRING', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    springStiffness: 20,
+    springDamping: 0.3,
+  },
+  [CaptionStyle.FLIP_WORD]: {
+    name: 'Flip Word', category: 'KINETIC',
+    fontFamily: "'Bebas Neue', display", fontSize: 62, fontWeight: 900,
+    textColor: '#FFFFFF', activeTextColor: '#FFD700',
+    strokeColor: '#1A1A1A', strokeWidth: 6,
+    shadowColor: '#000000', shadowBlur: 25, shadowOffsetY: 8,
+    animation: 'FLIP_Y', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+  [CaptionStyle.ELASTIC_DROP]: {
+    name: 'Elastic Drop', category: 'KINETIC',
+    fontFamily: "'Fredoka One', cursive", fontSize: 60, fontWeight: 400,
+    textColor: '#FFFFFF', activeTextColor: '#FF6B35',
+    strokeColor: '#000000', strokeWidth: 8,
+    shadowColor: '#FF4500', shadowBlur: 20, shadowOffsetY: 6,
+    animation: 'SPRING', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+    springStiffness: 12,
+    springDamping: 0.5,
+  },
+  [CaptionStyle.SCATTER_GATHER]: {
+    name: 'Scatter Gather', category: 'KINETIC',
+    fontFamily: "'Oswald', sans-serif", fontSize: 58, fontWeight: 700,
+    textColor: '#FFFFFF', activeTextColor: '#9D4EDD',
+    strokeColor: '#000000', strokeWidth: 6,
+    shadowColor: '#7B2CBF', shadowBlur: 22, shadowOffsetY: 4,
+    animation: 'SCATTER_IN', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
+
+  // ─── TYPOGRAPHY CAPTION (SPRINT 5) — Pixel-perfect match to reference images ───
+
+  // ── Image 3: "to different PEOPLE from" ──
+  // Small "to different" → GIANT "people" (serif display) → small "FROM"
+  // ── Size Hierarchy: Perfect match to Image 1 (Centered giant word, small context) ──
+  [CaptionStyle.TYPO_SIZE_HIERARCHY]: {
+    name: 'Size Hierarchy', category: 'TYPOGRAPHY',
+    fontFamily: "'Playfair Display', serif", fontSize: 52, fontWeight: 700,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: -25, // Negative spacing to overlap text tightly like Image 1
+      layers: [
+        {
+          // "1 PLAN" or "Isme To Bahut" — medium weight, white, center-aligned
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 28, fontWeight: 600,
+          color: 'rgba(255,255,255,0.95)', uppercase: false,
+          letterSpacing: 0.5, textAlign: 'center',
+          yOffset: 15, // Push down slightly into the giant text
+          entryType: 'SLIDE_UP', entryDelay: 0, entryDuration: 0.18,
+          shadowColor: 'rgba(0,0,0,0.8)', shadowBlur: 10, shadowOffsetY: 2
+        },
+        {
+          // "EVERYTHING" or "MEHANAT" — GIANT, bold, gold, center-aligned, serif
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Playfair Display', serif", fontSize: 114, fontWeight: 900,
+          color: '#C9922A',
+          gradientColors: ['#D4A035', '#B8841F', '#E8B84B'],
+          uppercase: true,
+          letterSpacing: -2, textAlign: 'center',
+          shadowColor: 'rgba(0,0,0,0.6)', shadowBlur: 14, shadowOffsetX: 0, shadowOffsetY: 4,
+          entryType: 'SCALE_POP', entryDelay: 0.08, entryDuration: 0.3,
+        },
+        {
+          // "Laga Hoga" — medium weight, white, center-aligned
+          textSource: 'LAST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 28, fontWeight: 700,
+          color: 'rgba(255,255,255,0.95)', uppercase: false,
+          letterSpacing: 0.5, textAlign: 'center',
+          yOffset: -15, // Push up slightly into the giant text
+          entryType: 'SLIDE_UP', entryDelay: 0.2, entryDuration: 0.18,
+          shadowColor: 'rgba(0,0,0,0.8)', shadowBlur: 10, shadowOffsetY: 2
+        },
+      ],
+    },
+  },
+
+  // ── Image 1: "Isme To Bahut MEHANAT Laga Hoga" ──
+  // "Isme To" (black medium) + "Bahut" (smaller, same visual row) → GIANT GOLD "MEHANAT" → "Laga Hoga" (black)
+  // accentWordIndex: 2 because text is split as: [0]=Isme [1]=To [2]=Bahut [3]=MEHANAT [4]=Laga [5]=Hoga
+  // FIRST_LINE = words 0..accentIdx-1 = "Isme To Bahut", ACCENT = "MEHANAT", LAST_LINE = "Laga Hoga"
+  [CaptionStyle.TYPO_MAGAZINE]: {
+    name: 'Magazine', category: 'TYPOGRAPHY',
+    fontFamily: "'Playfair Display', serif", fontSize: 52, fontWeight: 700,
+    textColor: '#1A1A1A', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(245,240,228,0.97)',
+    backgroundPadding: 24,
+    backgroundBorderRadius: 0,
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 0,
+      accentWordIndex: 2,   // "MEHANAT" is the accent — words before it are context
+      layers: [
+        {
+          // "Isme To Bahut" — medium weight, black, left-aligned
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 26, fontWeight: 500,
+          color: '#1A1A1A', uppercase: false,
+          letterSpacing: 0.5, textAlign: 'left',
+          entryType: 'SLIDE_UP', entryDelay: 0, entryDuration: 0.18,
+        },
+        {
+          // "MEHANAT" — GIANT, bold, gold, left-aligned, serif
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Playfair Display', serif", fontSize: 100, fontWeight: 900,
+          color: '#C9922A',
+          gradientColors: ['#D4A035', '#B8841F', '#E8B84B'],
+          uppercase: true,
+          letterSpacing: -2, textAlign: 'left',
+          shadowColor: 'rgba(180,120,20,0.2)', shadowBlur: 8, shadowOffsetY: 2,
+          entryType: 'SCALE_POP', entryDelay: 0.08, entryDuration: 0.3,
+        },
+        {
+          // "Laga Hoga" — medium weight, black, left-aligned
+          textSource: 'LAST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 26, fontWeight: 700,
+          color: '#1A1A1A', uppercase: false,
+          letterSpacing: 0.5, textAlign: 'left',
+          entryType: 'SLIDE_UP', entryDelay: 0.2, entryDuration: 0.18,
+        },
+      ],
+    },
+  },
+
+  // ── Image 2: "VIDEO EDITING SPEED hacks" ──
+  // "VIDEO EDITING" (white caps, small) → "SPEED" (GIANT green bold) → "hacks" (white script)
+  [CaptionStyle.TYPO_MIXED_FAMILY]: {
+    name: 'Mixed Family', category: 'TYPOGRAPHY',
+    fontFamily: "'Inter', sans-serif", fontSize: 52, fontWeight: 700,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 0,
+      accentWordIndex: 2,   // text structure: [0]=VIDEO [1]=EDITING [2]=SPEED [3]=hacks → SPEED is index 2
+      layers: [
+        {
+          // "VIDEO EDITING" — white, bold caps, small, tight tracking
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 20, fontWeight: 700,
+          color: '#FFFFFF', uppercase: true,
+          letterSpacing: 3, textAlign: 'left',
+          entryType: 'FADE', entryDelay: 0, entryDuration: 0.2,
+        },
+        {
+          // "SPEED" — GIANT, green, Anton bold display
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Anton', sans-serif", fontSize: 108, fontWeight: 400,
+          color: '#39FF14',
+          gradientColors: ['#39FF14', '#00CC44'],
+          uppercase: true,
+          letterSpacing: 0, textAlign: 'left',
+          shadowColor: 'rgba(57,255,20,0.35)', shadowBlur: 18, shadowOffsetY: 0,
+          entryType: 'SCALE_POP', entryDelay: 0.1, entryDuration: 0.28,
+        },
+        {
+          // "hacks" — white, Caveat handwriting, italic
+          textSource: 'LAST_LINE',
+          fontFamily: "'Caveat', cursive", fontSize: 42, fontWeight: 700,
+          color: '#FFFFFF', uppercase: false, italic: true,
+          letterSpacing: 0, textAlign: 'left',
+          entryType: 'FADE', entryDelay: 0.22, entryDuration: 0.2,
+        },
+      ],
+    },
+  },
+
+  // ── Editorial Gold — dark bg, gold italic label, white serif title ──
+  [CaptionStyle.TYPO_EDITORIAL_GOLD]: {
+    name: 'Editorial Gold', category: 'TYPOGRAPHY',
+    fontFamily: "'Playfair Display', serif", fontSize: 52, fontWeight: 700,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(8,8,8,0.94)',
+    backgroundPadding: 28,
+    backgroundBorderRadius: 0,
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 2,
+      layers: [
+        {
+          textSource: 'FIRST_LINE',
+          fontFamily: "'DM Serif Display', serif", fontSize: 18, fontWeight: 400,
+          color: '#E8B84B', uppercase: true, italic: true,
+          letterSpacing: 8, textAlign: 'center',
+          entryType: 'FADE', entryDelay: 0, entryDuration: 0.3,
+        },
+        {
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Playfair Display', serif", fontSize: 96, fontWeight: 900,
+          color: '#FFFFFF', uppercase: true,
+          letterSpacing: -1, textAlign: 'center',
+          shadowColor: 'rgba(232,184,75,0.2)', shadowBlur: 28, shadowOffsetY: 0,
+          entryType: 'SCALE_POP', entryDelay: 0.12, entryDuration: 0.38,
+        },
+        {
+          textSource: 'LAST_LINE',
+          fontFamily: "'DM Serif Display', serif", fontSize: 18, fontWeight: 400,
+          color: 'rgba(232,184,75,0.65)', uppercase: false, italic: true,
+          letterSpacing: 3, textAlign: 'center',
+          entryType: 'FADE', entryDelay: 0.28, entryDuration: 0.25,
+        },
+      ],
+    },
+  },
+
+  // ── Street Poster — condensed + YELLOW GIANT + mono ──
+  [CaptionStyle.TYPO_STREET_POSTER]: {
+    name: 'Street Poster', category: 'TYPOGRAPHY',
+    fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, fontWeight: 400,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 2,
+      layers: [
+        {
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Oswald', sans-serif", fontSize: 24, fontWeight: 300,
+          color: '#FFFFFF', uppercase: true,
+          letterSpacing: 8, textAlign: 'left',
+          entryType: 'WIPE_RIGHT', entryDelay: 0, entryDuration: 0.2,
+        },
+        {
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Bebas Neue', sans-serif", fontSize: 108, fontWeight: 400,
+          color: '#FFE600', uppercase: true,
+          letterSpacing: 2, textAlign: 'left',
+          strokeColor: '#000000', strokeWidth: 3,
+          shadowColor: 'rgba(0,0,0,0.55)', shadowBlur: 6, shadowOffsetY: 5,
+          entryType: 'SCALE_POP', entryDelay: 0.1, entryDuration: 0.22,
+        },
+        {
+          textSource: 'LAST_LINE',
+          fontFamily: "'Courier New', monospace", fontSize: 16, fontWeight: 400,
+          color: 'rgba(255,255,255,0.55)', uppercase: false,
+          letterSpacing: 4, textAlign: 'left',
+          entryType: 'FADE', entryDelay: 0.2, entryDuration: 0.2,
+        },
+      ],
+    },
+  },
+
+  // ── Minimal Stack — Inter weight hierarchy only ──
+  [CaptionStyle.TYPO_MINIMAL_STACK]: {
+    name: 'Minimal Stack', category: 'TYPOGRAPHY',
+    fontFamily: "'Inter', sans-serif", fontSize: 52, fontWeight: 500,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 4,
+      layers: [
+        {
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 18, fontWeight: 300,
+          color: 'rgba(255,255,255,0.5)', uppercase: false,
+          letterSpacing: 2, textAlign: 'center',
+          entryType: 'FADE', entryDelay: 0, entryDuration: 0.4,
+        },
+        {
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Inter', sans-serif", fontSize: 80, fontWeight: 800,
+          color: '#FFFFFF', uppercase: true,
+          letterSpacing: 4, textAlign: 'center',
+          entryType: 'FADE', entryDelay: 0.14, entryDuration: 0.32,
+        },
+        {
+          textSource: 'LAST_LINE',
+          fontFamily: "'Inter', sans-serif", fontSize: 16, fontWeight: 300,
+          color: 'rgba(255,255,255,0.4)', uppercase: false,
+          letterSpacing: 2, textAlign: 'center',
+          entryType: 'FADE', entryDelay: 0.28, entryDuration: 0.32,
+        },
+      ],
+    },
+  },
+
+  // ── Neon Layers — cyberpunk editorial ──
+  [CaptionStyle.TYPO_NEON_LAYERS]: {
+    name: 'Neon Layers', category: 'TYPOGRAPHY',
+    fontFamily: "'Orbitron', sans-serif", fontSize: 52, fontWeight: 700,
+    textColor: '#00FFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 2,
+      layers: [
+        {
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Montserrat', sans-serif", fontSize: 20, fontWeight: 400,
+          color: '#00FFFF', uppercase: false,
+          letterSpacing: 4, textAlign: 'center',
+          shadowColor: '#00FFFF', shadowBlur: 10, shadowOffsetY: 0,
+          entryType: 'FADE', entryDelay: 0, entryDuration: 0.3,
+        },
+        {
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Orbitron', sans-serif", fontSize: 88, fontWeight: 900,
+          color: '#FF2D78',
+          gradientColors: ['#FF2D78', '#FF6EB4'],
+          uppercase: true,
+          letterSpacing: 2, textAlign: 'center',
+          shadowColor: '#FF2D78', shadowBlur: 28, shadowOffsetY: 0,
+          strokeColor: 'rgba(255,45,120,0.25)', strokeWidth: 1,
+          entryType: 'SCALE_POP', entryDelay: 0.1, entryDuration: 0.28,
+        },
+        {
+          textSource: 'LAST_LINE',
+          fontFamily: "'Montserrat', sans-serif", fontSize: 20, fontWeight: 400,
+          color: '#BF5AF2', uppercase: false, italic: true,
+          letterSpacing: 3, textAlign: 'center',
+          shadowColor: '#BF5AF2', shadowBlur: 8, shadowOffsetY: 0,
+          entryType: 'FADE', entryDelay: 0.2, entryDuration: 0.26,
+        },
+      ],
+    },
+  },
+
+  // ── Cinematic Title — movie poster style ──
+  [CaptionStyle.TYPO_CINEMATIC_TITLE]: {
+    name: 'Cinematic Title', category: 'TYPOGRAPHY',
+    fontFamily: "'Cinzel', serif", fontSize: 52, fontWeight: 700,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    typographyLayout: {
+      splitStrategy: 'BY_WORD',
+      verticalSpacing: 6,
+      layers: [
+        {
+          textSource: 'FIRST_LINE',
+          fontFamily: "'Cinzel', serif", fontSize: 14, fontWeight: 400,
+          color: '#E8B84B', uppercase: true,
+          letterSpacing: 10, textAlign: 'center',
+          entryType: 'WIPE_RIGHT', entryDelay: 0, entryDuration: 0.5,
+        },
+        {
+          textSource: 'ACCENT_WORD',
+          fontFamily: "'Cinzel', serif", fontSize: 92, fontWeight: 700,
+          color: '#FFFFFF', uppercase: true,
+          letterSpacing: 4, textAlign: 'center',
+          shadowColor: 'rgba(255,255,255,0.12)', shadowBlur: 36, shadowOffsetY: 0,
+          entryType: 'FADE', entryDelay: 0.28, entryDuration: 0.55,
+        },
+        {
+          textSource: 'LAST_LINE',
+          fontFamily: "'Cinzel', serif", fontSize: 14, fontWeight: 400,
+          color: 'rgba(255,255,255,0.45)', uppercase: false,
+          letterSpacing: 6, textAlign: 'center',
+          entryType: 'FADE', entryDelay: 0.5, entryDuration: 0.45,
+        },
+      ],
+    },
+  },
+
+  // ─── HYPERCAPTIONS — HTML/CSS/GSAP overlay renderer (Phase H) ───
+
+  [CaptionStyle.HYPER_GLITCH]: {
+    name: 'Hyper Glitch', category: 'HYPER',
+    fontFamily: "'Anton', sans-serif", fontSize: 68, fontWeight: 400,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    uppercase: true, isHyperStyle: true,
+  },
+  [CaptionStyle.HYPER_NEON_TUBE]: {
+    name: 'Neon Tube', category: 'HYPER',
+    fontFamily: "'Bebas Neue', display", fontSize: 72, fontWeight: 400,
+    textColor: '#ff6ec7', animation: 'NONE', displayMode: 'BLOCK',
+    uppercase: false, isHyperStyle: true,
+  },
+  [CaptionStyle.HYPER_3D_EXTRUDE]: {
+    name: '3D Extrude', category: 'HYPER',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 64, fontWeight: 900,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    uppercase: true, isHyperStyle: true,
+  },
+  [CaptionStyle.HYPER_GLASS_FROST]: {
+    name: 'Glass Frost', category: 'HYPER',
+    fontFamily: "'Inter', sans-serif", fontSize: 44, fontWeight: 700,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    uppercase: false, isHyperStyle: true,
+  },
+  [CaptionStyle.HYPER_GRADIENT_WAVE]: {
+    name: 'Gradient Wave', category: 'HYPER',
+    fontFamily: "'Montserrat', sans-serif", fontSize: 58, fontWeight: 800,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
+    uppercase: false, isHyperStyle: true,
+  },
+
+  // ── CapCut Multi-Float Karaoke — 3-tier floating word engine ──
+  [CaptionStyle.CAPCUT_MULTI_FLOAT]: {
+    name: 'Multi-Float Karaoke', category: 'VIRAL',
+    fontFamily: "'Montserrat', sans-serif",
+    fontSize: 72, fontWeight: 900,
+    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'WORD',
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    uppercase: true,
+    // specialRenderer flag used by drawCaption to route to drawMultiFloatKaraoke()
+    specialRenderer: 'MULTI_FLOAT',
   },
 };

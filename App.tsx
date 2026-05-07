@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Smile, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram } from 'lucide-react';
-import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, StickerItem, AspectRatio } from './types';
+import React, { useState, useRef, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
+import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram } from 'lucide-react';
+import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, AspectRatio, ViralTypographyCaption } from './types';
+
 import { STYLES_CONFIG } from './constants';
 
 interface KeyboardShortcut {
@@ -31,31 +32,33 @@ const DEFAULT_SHORTCUTS: KeyboardShortcut[] = [
   { id: 'jump-to-end', name: 'Jump to End', description: 'Jump to end of video', defaultKey: 'End', category: 'navigation' },
 
   // Tools
-  { id: 'toggle-sticker-panel', name: 'Toggle Sticker Panel', description: 'Show/hide sticker panel', defaultKey: 'Shift+S', category: 'tools' },
+
   { id: 'toggle-style-customizer', name: 'Toggle Style Customizer', description: 'Show/hide style customizer panel', defaultKey: 'Shift+C', category: 'tools' },
   { id: 'toggle-transcript-editor', name: 'Toggle Transcript Editor', description: 'Show/hide transcript editor panel', defaultKey: 'Shift+T', category: 'tools' },
 ];
 import { generateCaptionsFromVideo } from './services/geminiService';
+
 import { extractAudioFromVideo } from './services/audioUtils';
 import { CaptionRenderer } from './services/captionRenderer';
 import { SoundEngine } from './services/soundEngine';
 import ProjectSpecs from './components/ProjectSpecs';
 import ProcessingChart from './components/ProcessingChart';
-import SeoGenerator from './components/SeoGenerator';
-import SocialPublisher from './components/SocialPublisher';
 import ApiKeySelector from './components/ApiKeySelector';
 import Header from './components/Header';
 import FeatureSelector from './components/FeatureSelector';
 import VideoPreviewArea from './components/VideoPreviewArea';
 import InitialGenerationState from './components/InitialGenerationState';
-import StyleCustomizer from './components/StyleCustomizer';
 import EnhancedTimeline from './components/EnhancedTimeline';
-import AnimationPanel from './components/AnimationPanel';
-import ToolsPanel, { ActiveTool } from './components/ToolsPanel';
-import ExportPanel from './components/ExportPanel';
-import StickerPanel from './components/StickerPanel';
-import KeyboardShortcutPanel from './components/KeyboardShortcutPanel';
-import ThemePresetsPanel from './components/ThemePresetsPanel';
+
+const SeoGenerator = lazy(() => import('./components/SeoGenerator'));
+const SocialPublisher = lazy(() => import('./components/SocialPublisher'));
+const StyleCustomizer = lazy(() => import('./components/StyleCustomizer'));
+const AnimationPanel = lazy(() => import('./components/AnimationPanel'));
+const ExportPanel = lazy(() => import('./components/ExportPanel'));
+const KeyboardShortcutPanel = lazy(() => import('./components/KeyboardShortcutPanel'));
+const ThemePresetsPanel = lazy(() => import('./components/ThemePresetsPanel'));
+const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
+const ThumbnailGenerator = lazy(() => import('./components/ThumbnailGenerator').then(module => ({ default: module.ThumbnailGenerator })));
 import { ThemePreset, AIStyleSuggestion, THEME_PRESETS } from './services/aiStyleService';
 import { TemplateManager, CaptionTemplate } from './services/TemplateManager';
 import { applyAutoEmojis, removeAutoEmojis } from './services/emojiAutoMatcher';
@@ -67,10 +70,10 @@ import { useUndoableState } from './hooks/useUndoableState';
 const App: React.FC = () => {
   // API Key State
   const [apiKey, setApiKey] = useState<string | null>(() => {
-    // Prioritize environment key
-    const envKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-    if (envKey) return envKey;
-    return localStorage.getItem('createrin_api_key');
+    return import.meta.env.VITE_GEMINI_API_KEY
+      || import.meta.env.VITE_API_KEY
+      || process.env.GEMINI_API_KEY
+      || localStorage.getItem('createrin_api_key');
   });
 
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
@@ -88,12 +91,13 @@ const App: React.FC = () => {
   const [captions, setCaptions, undoCaptions, redoCaptions, resetCaptionsHistory, canUndo, canRedo] = useUndoableState<Caption[]>([]);
   const [status, setStatus] = useState<ProcessingStatus>('IDLE');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const currentTimeRef = useRef(0);
   const [stats, setStats] = useState<ProcessingStats | null>(null);
   const [exportProgress, setExportProgress] = useState(0);
 
   // UI Tabs & Modals
-  const [activeTab, setActiveTab] = useState<'PRESETS' | 'DESIGN' | 'TRANSCRIPT' | 'ANIMATE' | 'THEMES'>('PRESETS');
+  // UI Tabs & Modals
+  const [activeTab, setActiveTab] = useState<'PRESETS' | 'DESIGN' | 'TRANSCRIPT' | 'ANIMATE'>('PRESETS');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [isSeoModalOpen, setIsSeoModalOpen] = useState(false);
   const [isPublisherOpen, setIsPublisherOpen] = useState(false);
@@ -108,7 +112,8 @@ const App: React.FC = () => {
   const [languageMode, setLanguageMode] = useState<LanguageMode>('AUTO');
   const [sfxVolume, setSfxVolume] = useState<'LOW' | 'MED' | 'HIGH'>('MED');
   const [showSafeZones, setShowSafeZones] = useState(false);
-  const [safeZonePlatform, setSafeZonePlatform] = useState<'SHORTS' | 'TIKTOK' | 'INSTAGRAM'>('SHORTS');
+  // Bug 4 Fix: Add FACEBOOK to type union — VideoPreviewArea already has Facebook overlay built
+  const [safeZonePlatform, setSafeZonePlatform] = useState<'SHORTS' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK'>('SHORTS');
   const [playbackRate, setPlaybackRate] = useState(1);
 
   // CUSTOM DESIGN OVERRIDES
@@ -137,15 +142,8 @@ const App: React.FC = () => {
   const [animationSpeed, setAnimationSpeed] = useState<'FAST' | 'MEDIUM' | 'SLOW'>('MEDIUM');
   const [kineticMode, setKineticMode] = useState<KineticMode>('NONE');
 
-  // Phase 1: CapCut-style UI State
-  const [activeTool, setActiveTool] = useState<ActiveTool>(null);
   const [isExportPanelOpen, setIsExportPanelOpen] = useState(false);
   const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
-
-  // Phase 5: Sticker & Emoji Overlay State
-  const [stickers, setStickers] = useState<StickerItem[]>([]);
-  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
-  const [isStickerPanelOpen, setIsStickerPanelOpen] = useState(false);
   const [isShortcutPanelOpen, setIsShortcutPanelOpen] = useState(false);
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<Record<string, string>>({});
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('ORIGINAL');
@@ -209,18 +207,6 @@ const App: React.FC = () => {
     });
   }, []);
 
-  // Sticker functions
-  const updateSticker = useCallback((id: string, updates: Partial<StickerItem>) => {
-    setStickers(prev => prev.map(sticker => sticker.id === id ? { ...sticker, ...updates } : sticker));
-  }, []);
-
-  const deleteSticker = useCallback((id: string) => {
-    setStickers(prev => prev.filter(sticker => sticker.id !== id));
-  }, []);
-
-  const addSticker = useCallback((sticker: StickerItem) => {
-    setStickers(prev => [...prev, sticker]);
-  }, []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -244,9 +230,19 @@ const App: React.FC = () => {
     }
   }, [playbackRate, videoSrc, isPlaying]);
 
+  // Sync SFX volume
+  useEffect(() => {
+    const volumeMap = { 'LOW': 0.1, 'MED': 0.3, 'HIGH': 0.6 };
+    soundEngineRef.current.setVolume(volumeMap[sfxVolume] || 0.3);
+  }, [sfxVolume]);
+
   const startPreviewMode = async () => {
     // 1. Load sample video if none exists
     if (!videoSrc) {
+      // Revoke old URL if it exists
+      if (videoObjectUrlRef.current) {
+        URL.revokeObjectURL(videoObjectUrlRef.current);
+      }
       try {
         setStatus('IDLE');
         let response = await fetch('/test video.mp4');
@@ -254,7 +250,9 @@ const App: React.FC = () => {
         const blob = await response.blob();
         const file = new File([blob], "test video.mp4", { type: "video/mp4" });
         setVideoFile(file);
-        setVideoSrc(URL.createObjectURL(file));
+        const url = URL.createObjectURL(file);
+        videoObjectUrlRef.current = url;
+        setVideoSrc(url);
       } catch (e) {
         console.error("Local sample failed, trying remote", e);
         try {
@@ -263,7 +261,9 @@ const App: React.FC = () => {
             const blob = await response.blob();
             const file = new File([blob], "test video.mp4", { type: "video/mp4" });
             setVideoFile(file);
-            setVideoSrc(URL.createObjectURL(file));
+            const url = URL.createObjectURL(file);
+            videoObjectUrlRef.current = url;
+            setVideoSrc(url);
           }
         } catch (err) {
           console.error("Sample video load failed completely", err);
@@ -340,6 +340,19 @@ const App: React.FC = () => {
     }
 
     const p = STYLES_CONFIG[key];
+
+    // Debug logging to validate style configurations exist
+    console.log(`🎨 Style Selected: ${key}`);
+    console.log(`✅ Config Exists: ${!!p}`);
+    if (p) {
+      console.log(`📝 Style Name: ${p.name}`);
+      console.log(`🎭 Animation: ${p.animation}`);
+      console.log(`🎨 Text Color: ${p.textColor}`);
+      console.log(`🔤 Font Family: ${p.fontFamily}`);
+    } else {
+      console.warn(`❌ Missing config for style: ${key} - Will fallback to CLEAN_WHITE`);
+    }
+
     setCurrentStyle(key);
     setFontFamily(p.fontFamily);
     setFontWeight(p.fontWeight);
@@ -418,9 +431,43 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Processing Error:", error);
       setStatus('IDLE');
-      showToast("Processing Failed. The video might be too large or the API is temporarily unavailable.");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      showToast(`Processing Failed: ${errorMessage}`);
     }
   };
+
+  /**
+   * Called when the user clicks "Generate Viral Captions" in ThemePresetsPanel.
+   * Maps ViralTypographyCaption[] → Caption[] by preserving IDs, merging timing
+   * and text, and attaching the AI style payload as extra metadata.
+   */
+  const handleApplyViralTypography = useCallback((viralCaptions: ViralTypographyCaption[]) => {
+    if (!viralCaptions || viralCaptions.length === 0) return;
+
+    setCaptions(prev => {
+      const updated = [...prev];
+
+      viralCaptions.forEach((vc) => {
+        if (updated.length === 0) return;
+        // Find the existing caption whose startTime is closest to vc.start
+        const closest = updated.reduce((best, c) =>
+          Math.abs(c.startTime - vc.start) < Math.abs(best.startTime - vc.start) ? c : best
+          , updated[0]);
+
+        const idx = updated.findIndex(c => c.id === closest.id);
+        if (idx !== -1) {
+          updated[idx] = Object.assign({}, updated[idx], {
+            text: vc.text,
+            startTime: vc.start,
+            endTime: vc.end,
+            viralStyle: vc.style,
+          });
+        }
+      });
+
+      return updated;
+    });
+  }, [setCaptions]);
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -436,7 +483,7 @@ const App: React.FC = () => {
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      currentTimeRef.current = videoRef.current.currentTime;
       if (status === 'EXPORTING' && videoRef.current.duration > 0) {
         setExportProgress(Math.round((videoRef.current.currentTime / videoRef.current.duration) * 100));
       }
@@ -461,12 +508,15 @@ const App: React.FC = () => {
       autoAdjustEnabled,
       autoMotionEnabled,
       autoSfxEnabled,
+      kineticMode,
       isPlaying,
       entryAnimation,
       exitAnimation,
       wordHighlight,
       animationSpeed,
-      stickers
+      aspectRatio,
+      // Skip canvas caption draw when HTML overlay is handling it
+      skipCaptionDraw: activeConfig?.isHyperStyle === true,
     }, {
       onNewCaption: (caption) => {
         soundEngineRef.current.playWhoosh();
@@ -475,7 +525,7 @@ const App: React.FC = () => {
         }
       }
     });
-  }, [captions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, stickers]);
+  }, [captions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio]);
 
   // --- ANIMATION LOOP: only run when playing or exporting ---
   useEffect(() => {
@@ -510,7 +560,7 @@ const App: React.FC = () => {
   const handleSeek = useCallback((time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
-      setCurrentTime(time);
+      currentTimeRef.current = time;
     }
   }, []);
 
@@ -535,7 +585,7 @@ const App: React.FC = () => {
           e.preventDefault();
           if (videoRef.current) {
             videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
-            setCurrentTime(videoRef.current.currentTime);
+            currentTimeRef.current = videoRef.current.currentTime;
           }
           return;
         }
@@ -548,7 +598,7 @@ const App: React.FC = () => {
               videoRef.current.duration || 0,
               videoRef.current.currentTime + 5
             );
-            setCurrentTime(videoRef.current.currentTime);
+            currentTimeRef.current = videoRef.current.currentTime;
           }
           return;
         }
@@ -556,7 +606,7 @@ const App: React.FC = () => {
         // S - Split Caption
         if (e.code === getShortcut('split-caption') && selectedCaptionId) {
           e.preventDefault();
-          splitCaption(selectedCaptionId, currentTime);
+          splitCaption(selectedCaptionId, currentTimeRef.current);
           return;
         }
 
@@ -576,14 +626,14 @@ const App: React.FC = () => {
         }
 
         // Meta+Z - Undo
-        if (e.code === 'Z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        if ((e.code === 'KeyZ' || e.key === 'z' || e.key === 'Z') && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
           e.preventDefault();
           undoCaptions();
           return;
         }
 
         // Meta+Shift+Z - Redo
-        if (e.code === 'Z' && (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey) {
+        if ((e.code === 'KeyZ' || e.key === 'z' || e.key === 'Z') && (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey) {
           e.preventDefault();
           redoCaptions();
           return;
@@ -618,7 +668,7 @@ const App: React.FC = () => {
           e.preventDefault();
           if (videoRef.current) {
             videoRef.current.currentTime = 0;
-            setCurrentTime(0);
+            currentTimeRef.current = 0;
           }
           return;
         }
@@ -628,17 +678,12 @@ const App: React.FC = () => {
           e.preventDefault();
           if (videoRef.current) {
             videoRef.current.currentTime = videoRef.current.duration || 0;
-            setCurrentTime(videoRef.current.duration || 0);
+            currentTimeRef.current = videoRef.current.duration || 0;
           }
           return;
         }
 
-        // Shift+S - Toggle Sticker Panel
-        if (e.code === getShortcut('toggle-sticker-panel')) {
-          e.preventDefault();
-          setIsStickerPanelOpen(!isStickerPanelOpen);
-          return;
-        }
+
 
         // Shift+C - Toggle Style Customizer
         if (e.code === getShortcut('toggle-style-customizer')) {
@@ -662,15 +707,19 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
     // Bug 2 Fix: added all closed-over callbacks to dependency list
     // Bug 13 Fix: added keyboardShortcuts so custom remaps apply immediately
-  }, [togglePlay, selectedCaptionId, currentTime, isStickerPanelOpen, activeTab,
+  }, [togglePlay, selectedCaptionId, activeTab,
     undoCaptions, redoCaptions, splitCaption, deleteCaption, duplicateCaption, keyboardShortcuts, captions]);
 
   // Helper function to get shortcut (custom or default)
   const getShortcut = (id: string): string => {
-    return keyboardShortcuts[id] || DEFAULT_SHORTCUTS.find(s => s.id === id)?.defaultKey || '';
+    let key = keyboardShortcuts[id] || DEFAULT_SHORTCUTS.find(s => s.id === id)?.defaultKey || '';
+    if (key.length === 1 && /[A-Za-z]/.test(key)) {
+      key = `Key${key.toUpperCase()}`;
+    }
+    return key;
   };
 
-  if (!apiKey && !process.env.GEMINI_API_KEY && !process.env.API_KEY) {
+  if (!apiKey && !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_API_KEY && !process.env.GEMINI_API_KEY) {
     return <ApiKeySelector onSelect={(k) => {
       localStorage.setItem('createrin_api_key', k);
       setApiKey(k);
@@ -694,6 +743,17 @@ const App: React.FC = () => {
       video.currentTime = 0;
     });
     await new Promise(r => setTimeout(r, 200));
+
+    // Resize canvas to target export resolution before capture
+    const origCanvasWidth = canvas.width;
+    const origCanvasHeight = canvas.height;
+    const resolutionHeightMap: Record<string, number> = { '720p': 720, '1080p': 1080, '4K': 2160 };
+    const targetHeight = resolutionHeightMap[options.resolution] ?? origCanvasHeight;
+    if (targetHeight !== origCanvasHeight && origCanvasHeight > 0) {
+      const scale = targetHeight / origCanvasHeight;
+      canvas.width = Math.round(origCanvasWidth * scale);
+      canvas.height = targetHeight;
+    }
 
     const canvasStream = canvas.captureStream(options.fps);
     let audioStream: MediaStream | null = null;
@@ -762,6 +822,10 @@ const App: React.FC = () => {
     const chunks: Blob[] = [];
     mediaRecorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
     mediaRecorder.onstop = () => {
+      // Restore canvas to display resolution
+      canvas.width = origCanvasWidth;
+      canvas.height = origCanvasHeight;
+
       const blob = new Blob(chunks, { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -781,7 +845,12 @@ const App: React.FC = () => {
       setIsPlaying(false);
       setIsExportPanelOpen(false);
     };
-    mediaRecorder.onerror = () => { setStatus('READY'); showToast("Export failed. Please try again."); };
+    mediaRecorder.onerror = () => {
+      canvas.width = origCanvasWidth;
+      canvas.height = origCanvasHeight;
+      setStatus('READY');
+      showToast("Export failed. Please try again.");
+    };
     mediaRecorder.start();
     video.onended = () => { mediaRecorder.stop(); video.onended = null; };
     // Bug 7 Fix: readyState guard
@@ -798,7 +867,7 @@ const App: React.FC = () => {
 
       {/* Bug 14 Fix: In-app Toast Notification (replaces alert()) */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border text-sm font-bold transition-all animate-in slide-in-from-top-2 ${toast.type === 'error'
+        <div className={`cc-toast flex items-center gap-3 ${toast.type === 'error'
             ? 'bg-red-900/90 border-red-700 text-red-200'
             : 'bg-blue-900/90 border-blue-700 text-blue-200'
           }`}>
@@ -809,27 +878,35 @@ const App: React.FC = () => {
 
       {/* MODALS */}
       {isSeoModalOpen && (
-        <SeoGenerator captions={captions} onClose={() => setIsSeoModalOpen(false)} />
+        <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"><Loader2 className="animate-spin text-blue-500" /></div>}>
+          <SeoGenerator captions={captions} onClose={() => setIsSeoModalOpen(false)} />
+        </Suspense>
       )}
       {isPublisherOpen && videoSrc && (
-        <SocialPublisher videoSrc={videoSrc} onClose={() => setIsPublisherOpen(false)} captions={captions} />
+        <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"><Loader2 className="animate-spin text-blue-500" /></div>}>
+          <SocialPublisher videoSrc={videoSrc} onClose={() => setIsPublisherOpen(false)} captions={captions} />
+        </Suspense>
       )}
 
 
       {isExportPanelOpen && (
-        <ExportPanel
-          onExport={handleExportWithOptions}
-          onClose={() => setIsExportPanelOpen(false)}
-          isExporting={status === 'EXPORTING'}
-          exportProgress={exportProgress}
-        />
+        <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"><Loader2 className="animate-spin text-blue-500" /></div>}>
+          <ExportPanel
+            onExport={handleExportWithOptions}
+            onClose={() => setIsExportPanelOpen(false)}
+            isExporting={status === 'EXPORTING'}
+            exportProgress={exportProgress}
+          />
+        </Suspense>
       )}
       {isShortcutPanelOpen && (
-        <KeyboardShortcutPanel
-          isOpen={isShortcutPanelOpen}
-          onClose={() => setIsShortcutPanelOpen(false)}
-          onShortcutChange={setKeyboardShortcuts}
-        />
+        <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"><Loader2 className="animate-spin text-blue-500" /></div>}>
+          <KeyboardShortcutPanel
+            isOpen={isShortcutPanelOpen}
+            onClose={() => setIsShortcutPanelOpen(false)}
+            onShortcutChange={setKeyboardShortcuts}
+          />
+        </Suspense>
       )}
 
       {/* CapCut-style Header (App-level — has undo/redo/speed) */}
@@ -949,28 +1026,43 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Bug 1 Fix: Route each feature to its dedicated fullscreen component */}
+      {activeFeature === 'THUMBNAIL' && (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
+          <ThumbnailGenerator onBack={() => setActiveFeature(null)} />
+        </Suspense>
+      )}
+      {activeFeature === 'SEO' && (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
+          <SeoGenerator captions={captions} onClose={() => setActiveFeature(null)} />
+        </Suspense>
+      )}
+      {activeFeature === 'PUBLISH' && (
+        videoSrc
+          ? <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}><SocialPublisher videoSrc={videoSrc} captions={captions} onClose={() => setActiveFeature(null)} /></Suspense>
+          : <div className="flex-1 flex items-center justify-center flex-col gap-4 bg-[#0a0a0a]">
+            <div className="text-4xl">🎬</div>
+            <h2 className="text-xl font-black text-white">Upload a video first</h2>
+            <p className="text-gray-500 text-sm">You need to generate captions before publishing.</p>
+            <button onClick={() => setActiveFeature(null)} className="mt-4 px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold text-sm transition-colors">← Back</button>
+          </div>
+      )}
+      {activeFeature === 'AUTOMATION' && (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
+          <AutomationDashboard onClose={() => setActiveFeature(null)} />
+        </Suspense>
+      )}
       {!activeFeature ? (
         <FeatureSelector setActiveFeature={(id: string) => {
           setActiveFeature(id);
         }} />
-      ) : (
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--cc-bg)' }}>
-
-          {/* Left Tools Panel */}
-          <div style={{ flexShrink: 0, zIndex: 30 }}>
-            <ToolsPanel
-              activeTool={activeTool}
-              setActiveTool={setActiveTool}
-              hasVideo={!!videoSrc}
-              hasCaptions={captions.length > 0}
-            />
-          </div>
+      ) : activeFeature === 'CAPTIONS' ? (
+        <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden overflow-x-hidden bg-[var(--cc-bg)]">
 
           {/* Center: Video + Timeline */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
+          <div className="shrink-0 md:flex-1 flex flex-col overflow-visible md:overflow-hidden relative z-10 w-full h-auto md:h-full md:min-h-0">
             {/* Video canvas area */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#030303', position: 'relative', overflow: 'hidden' }}>
+            <div className="w-full flex-shrink-0 relative bg-[#030303] overflow-hidden flex items-center justify-center h-[55vh] md:h-auto md:flex-1" style={{ flex: 'none' }}>
               <div className="cc-dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
                 <VideoPreviewArea
@@ -978,6 +1070,7 @@ const App: React.FC = () => {
                   videoRef={videoRef}
                   canvasRef={canvasRef}
                   handleFileUpload={handleFileUpload}
+                  onLoadSampleVideo={startPreviewMode}
                   setVideoSrc={setVideoSrc}
                   setVideoFile={setVideoFile}
                   setStatus={setStatus}
@@ -993,9 +1086,12 @@ const App: React.FC = () => {
                   aspectRatio={aspectRatio}
                   videoIntrinsicRatio={videoIntrinsicRatio}
                   setVideoIntrinsicRatio={setVideoIntrinsicRatio}
-                  stickers={stickers}
-                  updateSticker={updateSticker}
-                  activeTool={activeTool}
+                  isHyperStyle={activeConfig?.isHyperStyle === true}
+                  activeConfig={activeConfig}
+                  currentStyle={currentStyle}
+                  fontScale={fontScale}
+                  verticalPos={verticalPos}
+                  horizontalPos={horizontalPos}
                 />
 
                 {/* Safe Zones Toggle */}
@@ -1010,14 +1106,14 @@ const App: React.FC = () => {
                     </button>
                     {showSafeZones && (
                       <div className="flex bg-black/80 items-center px-1 border-l border-white/10">
-                        {(['SHORTS', 'TIKTOK', 'INSTAGRAM'] as const).map(p => (
+                        {(['SHORTS', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK'] as const).map(p => (
                           <button
                             key={p}
                             onClick={() => setSafeZonePlatform(p)}
                             className={`p-1.5 rounded transition-colors ${safeZonePlatform === p ? 'text-yellow-400 bg-white/10' : 'text-gray-400 hover:text-white'}`}
-                            title={p === 'SHORTS' ? 'YouTube Shorts' : p === 'TIKTOK' ? 'TikTok' : 'Instagram Reels'}
+                            title={p === 'SHORTS' ? 'YouTube Shorts' : p === 'TIKTOK' ? 'TikTok' : p === 'INSTAGRAM' ? 'Instagram Reels' : 'Facebook Reels'}
                           >
-                            {p === 'SHORTS' ? <Youtube size={14} /> : p === 'TIKTOK' ? <Video size={14} /> : <Instagram size={14} />}
+                            {p === 'SHORTS' ? <Youtube size={14} /> : p === 'TIKTOK' ? <Video size={14} /> : p === 'INSTAGRAM' ? <Instagram size={14} /> : <span className="text-[11px] font-black">FB</span>}
                           </button>
                         ))}
                       </div>
@@ -1032,7 +1128,6 @@ const App: React.FC = () => {
               <EnhancedTimeline
                 videoRef={videoRef}
                 captions={captions}
-                currentTime={currentTime}
                 isPlaying={isPlaying}
                 onSeek={handleSeek}
                 onUpdateCaption={updateCaption}
@@ -1041,24 +1136,49 @@ const App: React.FC = () => {
                 onDuplicateCaption={duplicateCaption}
                 selectedCaptionId={selectedCaptionId}
                 onSelectCaption={setSelectedCaptionId}
-                stickers={stickers}
-                onUpdateSticker={updateSticker}
-                onDeleteSticker={deleteSticker}
-                selectedStickerId={selectedStickerId}
-                onSelectSticker={setSelectedStickerId}
-                activeTool={activeTool || undefined}
+
               />
             )}
           </div>
 
           {/* Right Panel: Context-sensitive */}
-          <div style={{
-            width: 'var(--panel-width)', flexShrink: 0, zIndex: 20,
-            display: 'flex', flexDirection: 'column',
-            background: 'var(--cc-surface)',
-            borderLeft: '1px solid var(--cc-border)',
-            overflow: 'hidden',
-          }}>
+          <div className="w-full h-auto md:h-full flex-shrink-0 z-20 flex flex-col bg-[var(--cc-surface)] md:overflow-hidden border-t md:border-t-0 md:border-l border-[var(--cc-border)] md:w-[var(--panel-width)]">
+
+            {/* Bug 2 Fix: Upload prompt when no video is loaded */}
+            {!videoSrc && (status === 'IDLE') && (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                  <Upload size={28} className="text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-black text-base">Upload a Video</h3>
+                  <p className="text-gray-500 text-xs mt-1 leading-relaxed">Drop a vertical video on the left to start generating viral captions.</p>
+                </div>
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-left">
+                    <span className="text-lg">🎬</span>
+                    <div>
+                      <p className="text-xs font-bold text-gray-300">9:16 Vertical</p>
+                      <p className="text-[10px] text-gray-600">TikTok, Reels, Shorts</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-purple-500/5 border border-purple-500/10 text-left">
+                    <span className="text-lg">✨</span>
+                    <div>
+                      <p className="text-xs font-bold text-gray-300">100+ Languages</p>
+                      <p className="text-[10px] text-gray-600">Auto-detect or pick manually</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/5 border border-green-500/10 text-left">
+                    <span className="text-lg">🚀</span>
+                    <div>
+                      <p className="text-xs font-bold text-gray-300">Viral Templates</p>
+                      <p className="text-[10px] text-gray-600">12 trending caption styles</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Initial Generation State */}
             {videoSrc && status === 'IDLE' && (
@@ -1074,6 +1194,32 @@ const App: React.FC = () => {
               />
             )}
 
+            {/* Bug 10 Fix: Processing state in right panel */}
+            {(status === 'UPLOADING' || status === 'TRANSCRIBING') && (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-500 animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Wand2 size={24} className="text-blue-400" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-white font-black text-base">
+                    {status === 'UPLOADING' ? 'Uploading Video…' : status === 'TRANSCRIBING' ? 'Transcribing Audio…' : 'Processing…'}
+                  </h3>
+                  <p className="text-gray-500 text-xs mt-1">
+                    {status === 'UPLOADING' ? 'Sending to Gemini AI' : status === 'TRANSCRIBING' ? 'Reading every word with AI' : 'Almost done'}
+                  </p>
+                </div>
+                <div className="flex gap-1.5">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {status === 'READY' && (
               <>
                 {/* Tab bar for right panel */}
@@ -1083,13 +1229,7 @@ const App: React.FC = () => {
                   background: 'var(--cc-surface)',
                   flexShrink: 0, overflowX: 'auto',
                 }}>
-                  {activeTool === 'STICKERS' ? (
-                    <div style={{
-                      flex: 1, padding: '11px 16px',
-                      fontSize: 9, fontWeight: 800, letterSpacing: '0.12em',
-                      textTransform: 'uppercase', color: 'var(--cc-text-2)',
-                    }}>Stickers &amp; Overlay</div>
-                  ) : (
+                  {
                     [
                       { id: 'PRESETS', label: 'Templates' },
                       { id: 'DESIGN', label: 'Customize' },
@@ -1104,25 +1244,14 @@ const App: React.FC = () => {
                         {tab.label}
                       </button>
                     ))
-                  )}
+                  }
                 </div>
 
 
                 {/* Panel content */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  {activeTool === 'STICKERS' ? (
-                    <StickerPanel
-                      stickers={stickers}
-                      setStickers={setStickers}
-                      selectedStickerId={selectedStickerId}
-                      setSelectedStickerId={setSelectedStickerId}
-                      videoRef={videoRef}
-                      canvasRef={canvasRef}
-                      updateSticker={updateSticker}
-                      deleteSticker={deleteSticker}
-                      addSticker={addSticker}
-                    />
-                  ) : activeTab === 'ANIMATE' ? (
+                <div className="flex-1 md:overflow-y-auto custom-scrollbar">
+                  {activeTab === 'ANIMATE' ? (
+                    <Suspense fallback={<div className="flex-1 flex items-center justify-center p-6"><Loader2 className="animate-spin text-blue-500" /></div>}>
                     <AnimationPanel
                       entryAnimation={entryAnimation}
                       setEntryAnimation={setEntryAnimation}
@@ -1135,7 +1264,9 @@ const App: React.FC = () => {
                       kineticMode={kineticMode}
                       setKineticMode={setKineticMode}
                     />
-                  ) : activeTab === 'THEMES' || activeTab === 'PRESETS' ? (
+                    </Suspense>
+                  ) : activeTab === 'PRESETS' ? (
+                    <Suspense fallback={<div className="flex-1 flex items-center justify-center p-6"><Loader2 className="animate-spin text-blue-500" /></div>}>
                     <ThemePresetsPanel
                       captions={captions}
                       onApplyTheme={(preset: ThemePreset) => {
@@ -1226,8 +1357,11 @@ const App: React.FC = () => {
                         setWordHighlight(template.wordHighlight);
                         setAnimationSpeed(template.animationSpeed);
                       }}
+                      onApplyViralTypography={handleApplyViralTypography}
                     />
+                    </Suspense>
                   ) : (
+                    <Suspense fallback={<div className="flex-1 flex items-center justify-center p-6"><Loader2 className="animate-spin text-blue-500" /></div>}>
                     <StyleCustomizer
                       activeTab={activeTab as 'PRESETS' | 'DESIGN' | 'TRANSCRIPT'}
                       setActiveTab={(t) => setActiveTab(t)}
@@ -1268,13 +1402,14 @@ const App: React.FC = () => {
                       videoRef={videoRef}
                       onPreviewMode={startPreviewMode}
                     />
+                    </Suspense>
                   )}
                 </div>
               </>
             )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

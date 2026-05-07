@@ -87,24 +87,164 @@ export enum CaptionStyle {
   GHOST_FADE = 'GHOST_FADE',
   CINEMATIC_TITLES = 'CINEMATIC_TITLES',
 
-  // ─── TYPOGRAPHIC VARIANTS (NEW) ───
+  // ─── TYPOGRAPHIC VARIANTS ───
   DUAL_COLOR = 'DUAL_COLOR',
   SHAKE_CAM = 'SHAKE_CAM',
   MINIMAL_BAR = 'MINIMAL_BAR',
   LIQUID_CHROME = 'LIQUID_CHROME',
 
+  // ─── PLATFORM NATIVE (SPRINT 1) ───
+  TIKTOK_NATIVE = 'TIKTOK_NATIVE',
+  INSTAGRAM_NATIVE = 'INSTAGRAM_NATIVE',
+
+  // ─── SPRING PHYSICS (SPRINT 1) ───
+  WORD_SPRING = 'WORD_SPRING',
+  WORD_STAMP = 'WORD_STAMP',
+
+  // ─── BADGE / PILL (SPRINT 1) ───
+  PILL_BADGE = 'PILL_BADGE',
+
+  // ─── SPEECH BUBBLE (SPRINT 2) ───
+  SPEECH_BUBBLE = 'SPEECH_BUBBLE',
+
+  // ─── REVEAL (SPRINT 2) ───
+  BLUR_REVEAL = 'BLUR_REVEAL',
+  SPLIT_REVEAL = 'SPLIT_REVEAL',
+
+  // ─── ADVANCED (SPRINT 3) ───
+  NEON_SIGN_FLICKER = 'NEON_SIGN_FLICKER',
+  TICKER_SCROLL = 'TICKER_SCROLL',
+  MAGNETIC_WORDS = 'MAGNETIC_WORDS',
+  PERSPECTIVE_3D = 'PERSPECTIVE_3D',
+  BRUSH_STROKE = 'BRUSH_STROKE',
+  MATRIX_RAIN = 'MATRIX_RAIN',
+
+  // ─── MOTION EFFECTS (SPRINT 4) ───
+  APPLE_MINIMAL = 'APPLE_MINIMAL',
+  BOUNCE_STAMP = 'BOUNCE_STAMP',
+  FLOAT_RISE = 'FLOAT_RISE',
+  SLIDE_REVEAL = 'SLIDE_REVEAL',
+  BLUR_FADE = 'BLUR_FADE',
+  POP_OUT = 'POP_OUT',
+  SPRING_SLAM = 'SPRING_SLAM',
+  FLIP_WORD = 'FLIP_WORD',
+  ELASTIC_DROP = 'ELASTIC_DROP',
+  SCATTER_GATHER = 'SCATTER_GATHER',
+
+  // ─── CAPCUT CREATIVE (Sprint 7) ───
+  COMIC_BANG = 'COMIC_BANG',              // Comic book POW/BANG explosion text
+  PASTEL_DREAM = 'PASTEL_DREAM',          // Soft pastel gradient with rounded pill BG
+  ELECTRIC_SLIDE = 'ELECTRIC_SLIDE',      // Electric blue wipe-in with spark trail
+  DRIP_TEXT = 'DRIP_TEXT',                // Liquid drip effect with chrome gradient
+  SUNSET_VIBES = 'SUNSET_VIBES',          // Warm sunset gradient (orange→pink→purple)
+  ICE_COLD = 'ICE_COLD',                  // Frosted glass with ice-blue glow
+  STREET_GRAFFITI = 'STREET_GRAFFITI',    // Spray paint graffiti style
+  ASMR_WHISPER = 'ASMR_WHISPER',          // Ultra-soft minimal with breathing glow
+  ANIME_IMPACT = 'ANIME_IMPACT',          // Anime-style speed lines + bold impact
+  DISCO_FEVER = 'DISCO_FEVER',            // Rotating color palette party style
+
   // ─── CUSTOM ───
-  CUSTOM = 'CUSTOM'
+  CUSTOM = 'CUSTOM',
+
+  // ─── TYPOGRAPHY CAPTION (SPRINT 5) ───
+  TYPO_SIZE_HIERARCHY = 'TYPO_SIZE_HIERARCHY',    // Size hierarchy stack (Image 1 pattern)
+  TYPO_MAGAZINE = 'TYPO_MAGAZINE',                // Magazine editorial style (Image 2 pattern)
+  TYPO_MIXED_FAMILY = 'TYPO_MIXED_FAMILY',        // Mixed font families (Image 3 pattern)
+  TYPO_EDITORIAL_GOLD = 'TYPO_EDITORIAL_GOLD',    // Gold accent editorial
+  TYPO_STREET_POSTER = 'TYPO_STREET_POSTER',      // Bold street art style
+  TYPO_MINIMAL_STACK = 'TYPO_MINIMAL_STACK',      // Clean minimal stacked
+  TYPO_NEON_LAYERS = 'TYPO_NEON_LAYERS',          // Neon glow layered
+  TYPO_CINEMATIC_TITLE = 'TYPO_CINEMATIC_TITLE',  // Movie title style
+
+  // ─── CAPCUT MULTI-FLOAT KARAOKE (Sprint 6) ───
+  CAPCUT_MULTI_FLOAT = 'CAPCUT_MULTI_FLOAT',      // 3-tier floating word karaoke engine
+
+  // ─── HYPERCAPTIONS — HTML/CSS/GSAP overlay renderer (Phase H) ───
+  HYPER_GLITCH = 'HYPER_GLITCH',           // RGB channel split + scan lines + jitter
+  HYPER_NEON_TUBE = 'HYPER_NEON_TUBE',     // Stacked text-shadow neon bloom + flicker
+  HYPER_3D_EXTRUDE = 'HYPER_3D_EXTRUDE',  // CSS perspective 3D rotation + depth extrusion
+  HYPER_GLASS_FROST = 'HYPER_GLASS_FROST', // backdrop-filter glassmorphism
+  HYPER_GRADIENT_WAVE = 'HYPER_GRADIENT_WAVE', // Animated iridescent gradient sweep
 }
 
-export type AnimationType = 'NONE' | 'POP' | 'SCALE_UP' | 'KARAOKE' | 'TYPEWRITER' | 'FIRE_POP';
-export type EntryAnimation = 'NONE' | 'SLIDE_UP' | 'SLIDE_DOWN' | 'FADE_IN' | 'ZOOM_IN' | 'BOUNCE' | 'FLIP' | 'ROTATE_IN' | 'BLUR_IN' | 'GLITCH' | 'ELASTIC' | 'KINETIC' | 'SHATTER' | 'WIPE_RIGHT' | 'SPOTLIGHT';
-export type ExitAnimation = 'NONE' | 'SLIDE_DOWN' | 'SLIDE_UP' | 'FADE_OUT' | 'ZOOM_OUT' | 'DISSOLVE' | 'GLITCH_OUT' | 'SHRINK';
+export type AnimationType =
+  | 'NONE' | 'POP' | 'SCALE_UP' | 'KARAOKE' | 'TYPEWRITER' | 'FIRE_POP'
+  | 'SPRING'      // elastic spring overshoot per word
+  | 'STAMP'       // rubber stamp scale-crash per word
+  | 'BLUR_IN'     // blur → sharp reveal (caption-level)
+  | 'SPLIT_OPEN'  // top+bottom clip split apart
+  | 'FLIP_Y'      // Y-axis 3D perspective flip per word
+  | 'SCATTER_IN'; // words scatter from random positions → snap home
+export type EntryAnimation = 'NONE' | 'SLIDE_UP' | 'SLIDE_DOWN' | 'FADE_IN' | 'ZOOM_IN' | 'BOUNCE' | 'FLIP' | 'FLIP_Y' | 'ROTATE_IN' | 'BLUR_IN' | 'GLITCH' | 'ELASTIC' | 'KINETIC' | 'SHATTER' | 'WIPE_RIGHT' | 'SPOTLIGHT' | 'SPRING' | 'STAMP' | 'SPLIT_OPEN' | 'POP' | 'SCATTER_IN' | 'SCALE_UP';
+export type ExitAnimation = 'NONE' | 'SLIDE_DOWN' | 'SLIDE_UP' | 'FADE_OUT' | 'ZOOM_OUT' | 'DISSOLVE' | 'GLITCH_OUT' | 'SHRINK' | 'FLIP';
 export type WordHighlightMode = 'NONE' | 'KARAOKE' | 'SPOTLIGHT' | 'COLOR_POP' | 'UNDERLINE' | 'BOX' | 'FIRE' | 'RAINBOW' | 'WAVE' | 'SPARKLE';
 export type KineticMode = 'NONE' | 'WAVE' | 'BOUNCE_CHAIN' | 'SHAKE' | 'STOMP';
 export type AspectRatio = 'ORIGINAL' | '9:16' | '16:9' | '1:1' | '4:5';
 export type DisplayMode = 'BLOCK' | 'WORD';
-export type StyleCategory = 'BOLD' | 'NEON' | 'MINIMAL' | 'ART' | 'GLOW' | 'HIGHLIGHT' | 'VIRAL' | 'KINETIC' | 'TRENDING' | 'INSTAGRAM' | 'EMOJI' | 'TYPOGRAPHIC' | 'CUSTOM';
+export type StyleCategory = 'BOLD' | 'NEON' | 'MINIMAL' | 'ART' | 'GLOW' | 'HIGHLIGHT' | 'VIRAL' | 'KINETIC' | 'TRENDING' | 'INSTAGRAM' | 'EMOJI' | 'TYPOGRAPHIC' | 'TYPOGRAPHY' | 'CUSTOM' | 'PLATFORM' | 'COMIC' | 'HYPER';
+
+// ─── Typography Caption Types (Sprint 5) ───
+
+// A single visual layer in a typography caption
+export interface TypographyLayer {
+  // Text source: how to determine which text this layer displays
+  textSource: 'FIRST_LINE' | 'ACCENT_WORD' | 'LAST_LINE' | 'ALL' | 'WORD_N' | 'WORD_RANGE';
+  wordIndex?: number;           // used when textSource='WORD_N'
+  wordRangeStart?: number;       // used when textSource='WORD_RANGE'
+  wordRangeEnd?: number;         // used when textSource='WORD_RANGE'
+
+  // Typography properties
+  fontFamily: string;
+  fontSize: number;             // absolute px at 1000px canvas height
+  fontWeight: string | number;
+  color: string;                // hex or rgba
+  gradientColors?: string[];    // if set, renders gradient fill
+  uppercase?: boolean;
+  italic?: boolean;
+  letterSpacing?: number;       // extra tracking in px
+  opacity?: number;
+
+  // Stroke/outline
+  strokeColor?: string;
+  strokeWidth?: number;
+
+  // Shadow/glow
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+
+  // Animation
+  entryDelay?: number;          // seconds delay before this layer appears
+  entryDuration?: number;       // seconds for entry animation
+  entryType?: 'FADE' | 'SLIDE_UP' | 'SCALE_POP' | 'WIPE_RIGHT' | 'WIPE_LEFT' | 'NONE';
+
+  // Layout positioning
+  yOffset?: number;             // px offset from center (negative = up)
+  xOffset?: number;             // px offset from center
+  textAlign?: 'left' | 'center' | 'right';
+
+  // Background/highlight
+  backgroundFill?: string;      // highlight box behind this layer
+  backgroundPadding?: number;
+  backgroundBorderRadius?: number;
+
+  // Underline decoration
+  underline?: boolean;
+  underlineColor?: string;
+  underlineThickness?: number;
+  underlineOffset?: number;      // px below text baseline
+}
+
+export interface TypographyLayout {
+  layers: TypographyLayer[];
+  splitStrategy: 'BY_LINE' | 'BY_WORD' | 'FIXED';
+  // BY_LINE: split caption.text on \n or sentence breaks
+  // BY_WORD: assign words to layers by index
+  // FIXED: layer 0=all text, layer 1=accent word (first emphasized word)
+  verticalSpacing?: number;     // px gap between layers
+  accentWordIndex?: number;     // which word is the "accent" word (0-based)
+}
 
 // Per-caption animation overrides
 export interface CaptionAnimationConfig {
@@ -187,7 +327,38 @@ export interface StyleConfig {
   colorBehavior?: ColorBehavior; // Per-template color logic
   emojiPrefix?: string;   // Emoji char(s) prepended to caption text (rendered as animated GIF)
   emojiSuffix?: string;   // Emoji char(s) appended to caption text (rendered as animated GIF)
-  specialRenderer?: 'DUAL_COLOR' | 'SHAKE_CAM' | 'LIQUID_CHROME'; // Opt-in custom draw path
+
+  // ─── Extended specialRenderer union (Sprint 1-3) ───
+  specialRenderer?:
+  | 'DUAL_COLOR'
+  | 'SHAKE_CAM'
+  | 'LIQUID_CHROME'
+  | 'SPEECH_BUBBLE'   // Comic-style bubble with tail
+  | 'SPLIT_REVEAL'    // Top+bottom clip split apart
+  | 'PERSPECTIVE_3D'  // Y-axis rotation illusion
+  | 'NEON_FLICKER'    // Per-letter neon tube flicker
+  | 'TICKER_SCROLL'   // Horizontal news ticker crawl
+  | 'MATRIX_RAIN'     // Matrix rain → final text morph
+  | 'BRUSH_STROKE'    // Animated paintbrush stroke behind text
+  | 'MAGNETIC'        // Words scatter → spring snap home
+  | 'PILL_BADGE'      // Per-word pill/badge background
+  | 'MULTI_FLOAT';    // CapCut 3-tier floating word karaoke (Sprint 6)
+
+  // ─── New style config fields (Sprint 1-3) ───
+  bubbleTailPosition?: 'BOTTOM_LEFT' | 'BOTTOM_CENTER' | 'BOTTOM_RIGHT';
+  pillColorPalette?: string[];   // Cycling pill BG colors per word
+  neonFlickerRate?: number;      // ms between flicker events
+  tickerSpeed?: number;          // Pixels-per-second for ticker crawl
+  matrixCharSet?: string;        // Characters for matrix rain column
+  perspectiveDegrees?: number;   // Max Y-rotation degrees (0-60)
+  springStiffness?: number;      // Spring physics stiffness constant
+  springDamping?: number;        // Spring physics damping ratio
+
+  // ─── Typography Caption (Sprint 5) ───
+  typographyLayout?: TypographyLayout;  // If set, routes to drawTypographyCaption()
+
+  // ─── HyperCaption flag (Phase H) ───
+  isHyperStyle?: boolean;  // Routes to HTML overlay renderer instead of canvas
 }
 
 export interface ProcessingStats {
@@ -412,4 +583,58 @@ export interface ThumbnailHistoryItem {
   template: ThumbnailTemplate;
   ctrScore: number;
   createdAt: string;
+}
+
+// ─── VIRAL TYPOGRAPHY CAPTIONS ─────────────────────────────────────────────
+// Output format produced by the generateViralTypographyCaptions() service
+// function, driven by the VIRAL_TYPOGRAPHY_INSTRUCTION prompt.
+
+export type ViralTypographyTemplate = 'viral' | 'cinematic' | 'emotional' | 'motivational' | 'funny';
+export type ViralTypographyPosition = 'center' | 'bottom_center' | 'top';
+export type ViralTypographyBackground = 'none' | 'blur box' | 'gradient highlight' | 'text outline (stroke)';
+export type ViralAnimationSpeed = 'fast' | 'medium' | 'slow';
+
+export interface ViralTypographyCaption {
+  /** Display text for this caption segment */
+  text: string;
+  /** Segment start time in seconds */
+  start: number;
+  /** Segment end time in seconds */
+  end: number;
+  style: {
+    /** Emotion-based template name */
+    template: ViralTypographyTemplate;
+    /** Word(s) inside `text` that should be highlighted */
+    highlight: string[];
+    /** Font weight descriptor */
+    font: 'extra-bold' | 'serif / thin' | 'handwritten' | 'bold uppercase' | string;
+    /** Mixed = some UPPER, some lower; upper = all caps; lower = all lowercase */
+    text_case: 'mixed' | 'upper' | 'lower';
+    color: {
+      /** Base text colour (usually "white") */
+      primary: string;
+      /** Highlight word colour: yellow / red / green / blue */
+      highlight: string;
+    };
+    animation: {
+      /** Entry animation: pop / slide / fade / zoom */
+      entry: string;
+      /** Per-word emphasis: bounce / shake / scale / flash */
+      emphasis: string;
+      /** Exit animation: fade / blur / slide out */
+      exit: string;
+      /** Timing bucket */
+      speed: ViralAnimationSpeed;
+    };
+    /** Vertical / horizontal position on screen */
+    position: ViralTypographyPosition;
+    /** Background effect behind the text block */
+    background: ViralTypographyBackground;
+    /** Whether a stroke/outline should be drawn around the text */
+    stroke: boolean;
+    /** Detected emotional tone of this segment */
+    emotion: string;
+    /** Optional emoji to display alongside the text (empty string = none) */
+    emoji: string;
+  };
 }
