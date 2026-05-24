@@ -1,7 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* ─── Google Fonts ─────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@plugin "tailwindcss-animate";
+
+@theme {
+  --animate-shimmer: shimmer 1.5s infinite;
+  --animate-spin-slow: spin 4s linear infinite;
+  
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
 
 /* ─── CapCut-grade Design Tokens ──────────────────────────────────── */
 :root {
@@ -35,7 +46,6 @@
 
   /* Spacing */
   --panel-width: 340px;
-  --tool-width:  58px;
   --header-h:    52px;
 
   /* Radius */

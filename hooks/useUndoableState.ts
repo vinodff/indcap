@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 
+const MAX_HISTORY = 50;
+
 export function useUndoableState<T>(initialValue: T) {
   const [state, setState] = useState<T>(initialValue);
   const historyRef = useRef<T[]>([initialValue]);
@@ -20,8 +22,11 @@ export function useUndoableState<T>(initialValue: T) {
       if (nextVal === prev) return prev;
 
       if (!skipHistory) {
-        const newHistory = historyRef.current.slice(0, pointerRef.current + 1);
+        let newHistory = historyRef.current.slice(0, pointerRef.current + 1);
         newHistory.push(nextVal);
+        if (newHistory.length > MAX_HISTORY) {
+          newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
+        }
         historyRef.current = newHistory;
         pointerRef.current = newHistory.length - 1;
         updateButtons();

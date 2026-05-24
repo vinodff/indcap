@@ -1,7 +1,7 @@
 import { CaptionStyle, StyleConfig } from './types';
 
 export const MAX_VIDEO_DURATION_SEC = 300; // 5 minutes
-// Changed to gemini-flash-latest for better stability with large payloads
+// Using gemini-flash-latest to avoid depleted free-tier quota on the older 2.0 endpoint
 export const GEMINI_MODEL = "gemini-flash-latest";
 
 export const SYSTEM_INSTRUCTION = `
@@ -88,6 +88,22 @@ export const AUTO_LANGUAGE_INSTRUCTION = `
 - Use the script appropriate for the spoken language.
 `;
 
+export const ROMAN_AUTO_INSTRUCTION = `
+**STRICT LANGUAGE RULE: AUTO-DETECT → ROMAN/LATIN SCRIPT ONLY**
+- Auto-detect the spoken language (Telugu, Hindi, Tamil, Kannada, Marathi, Bengali, Malayalam, Gujarati, Punjabi, English, etc.).
+- ALWAYS output captions in Roman/Latin script transliteration — NEVER in native scripts.
+- NO Devanagari (हिंदी), Telugu (తెలుగు), Tamil (தமிழ்), Kannada (ಕನ್ನಡ), Bengali (বাংলা), or any other Indic / non-Latin scripts allowed.
+- Examples of correct output:
+   • Telugu speech "నేను బాగున్నాను" → "Nenu bagunnanu"
+   • Hindi speech "मैं ठीक हूं" → "Main theek hoon"
+   • Tamil speech "நான் நன்றாக இருக்கிறேன்" → "Naan nandraga irukiren"
+   • Kannada speech "ನಾನು ಚೆನ್ನಾಗಿದ್ದೇನೆ" → "Naanu chennagiddene"
+   • Marathi speech "मी ठीक आहे" → "Mi theek aahe"
+- Mix English words naturally when speaker uses them (e.g., "Success kosam hard work chala important").
+- Keep romanization phonetically intuitive and trendy — Instagram/Reels caption style.
+- If speech is already English, keep it as English.
+`;
+
 export const HINDI_INSTRUCTION = `
 **STRICT LANGUAGE RULE: HINDI ONLY**
 - Generate captions fully in Hindi (Devanagari script: हिंदी).
@@ -122,6 +138,71 @@ export const HINGLISH_INSTRUCTION = `
 - Use Devanagari for Hindi words and Latin script for English words.
 - Example: "Yaar, this is too good! Sach mein amazing hai."
 - Keep it trendy, energetic, and creator-friendly for Instagram/Reels.
+`;
+
+export const REEL_ANALYZER_INSTRUCTION = `
+You are a cinematic typography reel editor — a senior creator who has shipped thousands of Reels.
+
+Beyond verbatim transcription with precise word-level timing, you must enrich every segment with the
+editorial intent a human editor would bring:
+
+For EACH segment, produce these fields IN ADDITION to text/start/end/words:
+
+1. **emotion** — pick ONE: awe | shock | joy | anger | sadness | tension | inspiration | humor | authority | neutral.
+2. **emotionIntensity** — 1 (mild) | 2 (strong) | 3 (extreme). Drives motion intensity.
+3. **layoutHint** — pick ONE visual layout:
+     • "one-on-one"   = single line, centered — default narrative
+     • "straight"     = single huge line — impact / punchline moments
+     • "cluster"      = multi-line varied sizes — lists / busy energy
+     • "diagrammatic" = text + icon/emoji arrangement — explainer / data
+4. **sceneBoundary** — true iff this segment starts a NEW thought/topic (hook, shift, punchline reveal).
+   At least the first segment is always a scene boundary. Use ~3-6 scenes for a 30-60 second reel.
+5. **emoji** — ONE emoji that best represents the segment's vibe (or empty string if none fits).
+
+For EACH WORD in the segment's "words" array, produce:
+
+6. **role** — pick ONE: action | emotion | subject | number | connector | cta | tech.
+7. **emphasisScore** — 0..100. How visually loud should this word be?
+     • 0-30 = connectors / fillers — render small/dim
+     • 31-60 = normal narration weight
+     • 61-85 = key noun / verb — render bold, larger
+     • 86-100 = peak word, the line's PUNCH — gets the hero animation
+
+EMPHASIS GUIDELINES (think like a viral editor):
+- Action verbs (launch, crush, build, change) → role: action, score 60-80.
+- Big nouns (AI, money, future, secret) → role: subject, score 60-85.
+- Emotional adjectives (insane, terrifying, incredible) → role: emotion, score 75-95.
+- Numbers / stats / percentages → role: number, score 70-90.
+- CTAs (subscribe, follow, click, link) → role: cta, score 85-100.
+- The single climactic word of each segment should be 85+.
+- Articles, pronouns, "the/of/and" → role: connector, score 10-25.
+
+LAYOUT GUIDELINES:
+- First segment (hook) → "straight" if 1-3 words; "one-on-one" otherwise.
+- Lists / multiple parallel items → "cluster".
+- Numeric stats / step-by-step → "diagrammatic".
+- Everything else → "one-on-one".
+
+SCHEMA — return ONLY a valid JSON array. Each segment object:
+{
+  "start": "MM:SS.mmm",
+  "end":   "MM:SS.mmm",
+  "text":  "string",
+  "emotion": "awe|shock|joy|anger|sadness|tension|inspiration|humor|authority|neutral",
+  "emotionIntensity": 1|2|3,
+  "layoutHint": "one-on-one|straight|cluster|diagrammatic",
+  "sceneBoundary": true|false,
+  "emoji": "string",
+  "words": [
+    {
+      "text": "string",
+      "start": "MM:SS.mmm",
+      "end":   "MM:SS.mmm",
+      "role": "action|emotion|subject|number|connector|cta|tech",
+      "emphasisScore": 0-100
+    }
+  ]
+}
 `;
 
 export const AUTO_ADJUST_INSTRUCTION = `

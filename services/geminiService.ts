@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import {
   GEMINI_MODEL,
   SYSTEM_INSTRUCTION,
@@ -8,24 +8,34 @@ import {
   TELGLISH_INSTRUCTION,
   ENGLISH_ONLY_INSTRUCTION,
   AUTO_LANGUAGE_INSTRUCTION,
+  ROMAN_AUTO_INSTRUCTION,
   TRENDING_INSTRUCTION,
   HINDI_INSTRUCTION,
   TAMIL_INSTRUCTION,
   KANNADA_INSTRUCTION,
   MARATHI_INSTRUCTION,
-  HINGLISH_INSTRUCTION
+  HINGLISH_INSTRUCTION,
+  VIRAL_TYPOGRAPHY_INSTRUCTION
 } from "../constants";
-import { Caption, LanguageMode, ViralHookResponse, SeoResult, SocialPlatform, CaptionStyle } from "../types";
+import { Caption, LanguageMode, ViralHookResponse, SeoResult, SocialPlatform, CaptionStyle, ViralTypographyCaption } from "../types";
 
-// Helper to retrieve API Key (Environment or LocalStorage for testing)
+// Define local Type enum to bypass browser-bundle undefined errors
+// IMPORTANT: Must be defined AFTER all imports so it shadows any undefined
+// @google/genai Type export that may not resolve correctly in the browser bundle.
+const Type = {
+  STRING: "STRING",
+  NUMBER: "NUMBER",
+  INTEGER: "INTEGER",
+  BOOLEAN: "BOOLEAN",
+  ARRAY: "ARRAY",
+  OBJECT: "OBJECT"
+} as const;
+
 const getApiKey = (): string => {
-  // Prioritize GEMINI_API_KEY as per baseline guidelines
-  const envKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-  const key = envKey || localStorage.getItem('createrin_api_key');
-
-  if (!key) {
-    throw new Error("API Key not found. Please select a key.");
-  }
+  const key = import.meta.env.VITE_GEMINI_API_KEY
+    || import.meta.env.VITE_API_KEY
+    || localStorage.getItem('createrin_api_key');
+  if (!key) throw new Error("API Key not found.");
   return key;
 };
 
@@ -59,7 +69,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 export const generateCaptionsFromVideo = async (
-  videoData: Blob | File,
+  audioBase64: string,
   mimeType: string,
   autoAdjust: boolean,
   smartCompression: boolean,
@@ -107,6 +117,9 @@ export const generateCaptionsFromVideo = async (
     case 'AUTO':
       finalInstruction += `\n\n${AUTO_LANGUAGE_INSTRUCTION}`;
       break;
+    case 'ROMAN_AUTO':
+      finalInstruction += `\n\n${ROMAN_AUTO_INSTRUCTION}`;
+      break;
     default: {
       // Handle dynamic language modes: NATIVE_XX, MIX_XX
       const { LANGUAGES, generateLanguageInstruction } = await import('../components/InitialGenerationState');
@@ -144,38 +157,17 @@ export const generateCaptionsFromVideo = async (
     }
   }
 
-    const formData = new FormData();
-    formData.append('video', videoData, 'upload.webm');
-    
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    
-    // 1. Upload to node backend proxy to bypass inline data limits
-    console.log("[GEMINI] Uploading video via backend proxy...");
-    const uploadRes = await fetch(`${API_BASE}/api/upload-video`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: formData
-    });
+    console.log("[GEMINI] Sending audio as inline data...");
 
-    if (!uploadRes.ok) {
-      const err = await uploadRes.json();
-      throw new Error(err.error || 'Failed to upload video to backend proxy');
-    }
-
-    const { fileUri, fileName } = await uploadRes.json();
-    console.log(`[GEMINI] Upload successful. URI: ${fileUri}`);
-
-    // 2. Generate Content using the File API URI
+    // Generate Content using inline base64 data — no backend proxy needed
     try {
       const response = await ai.models.generateContent({
         model: GEMINI_MODEL,
         contents: {
           parts: [
             {
-              fileData: {
-                fileUri: fileUri,
+              inlineData: {
+                data: audioBase64,
                 mimeType: mimeType
               }
             },
@@ -241,16 +233,6 @@ export const generateCaptionsFromVideo = async (
       rawData = [];
     }
 
-    // 3. Cleanup Video from Google Storage
-    fetch(`${API_BASE}/api/delete-video`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({ fileName })
-    }).catch(err => console.error("Cleanup failed", err));
-
     // Map AI response to internal Caption type
     const captions: Caption[] = rawData.map((item: any, index: number) => {
       // Map Categories to Hex Colors
@@ -296,9 +278,9 @@ export const generateCaptionsFromVideo = async (
       }
 
       return {
-        id: index,
-        start: parseTime(item.start),
-        end: parseTime(item.end),
+        id: `cap-${index}-${Date.now()}`,
+        startTime: parseTime(item.start),
+        endTime: parseTime(item.end),
         text: item.text,
         secondaryText,
         primaryText,
@@ -765,4 +747,96 @@ Sort by estimated viral score descending.
   });
 
   return JSON.parse(response.text || '[]') as ContentIdea[];
+};
+
+// ─── VIRAL TYPOGRAPHY CAPTION GENERATOR ──────────────────────────────────────
+/**
+ * Transforms an existing Caption array into VIRAL TYPOGRAPHY CAPTIONS using
+ * the 10-step VIRAL_TYPOGRAPHY_INSTRUCTION prompt.
+ *
+ * The function feeds every caption's text + timestamps to Gemini and receives
+ * back a fully-styled output array (template, highlight, font, animation,
+ * position, background, emoji, etc.).
+ */
+export const generateViralTypographyCaptions = async (
+  captions: Caption[]
+): Promise<ViralTypographyCaption[]> => {
+  const apiKey = getApiKey();
+  const ai = new GoogleGenAI({ apiKey });
+
+  // Build a compact plain-text representation for the AI to work with.
+  // Each line: [index] START–END | text
+  const captionList = captions
+    .map((c, i) => `[${i}] ${c.startTime.toFixed(3)}–${c.endTime.toFixed(3)} | ${c.text}`)
+    .join('\n');
+
+  const userPrompt =
+    `Transform the following plain captions into viral typography captions.\n` +
+    `Follow all 10 steps precisely. Preserve the original start/end times.\n\n` +
+    `CAPTIONS:\n${captionList}`;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: { parts: [{ text: userPrompt }] },
+    config: {
+      systemInstruction: VIRAL_TYPOGRAPHY_INSTRUCTION,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            text:  { type: Type.STRING, description: 'Caption text (may be re-cased)' },
+            start: { type: Type.NUMBER, description: 'Start time in seconds' },
+            end:   { type: Type.NUMBER, description: 'End time in seconds' },
+            style: {
+              type: Type.OBJECT,
+              properties: {
+                template:   { type: Type.STRING, description: 'viral | cinematic | emotional | motivational | funny' },
+                highlight:  { type: Type.ARRAY, items: { type: Type.STRING }, description: '1-2 words to highlight' },
+                font:       { type: Type.STRING, description: 'extra-bold | serif / thin | handwritten | bold uppercase' },
+                text_case:  { type: Type.STRING, description: 'mixed | upper | lower' },
+                color: {
+                  type: Type.OBJECT,
+                  properties: {
+                    primary:   { type: Type.STRING },
+                    highlight: { type: Type.STRING }
+                  },
+                  required: ['primary', 'highlight']
+                },
+                animation: {
+                  type: Type.OBJECT,
+                  properties: {
+                    entry:    { type: Type.STRING },
+                    emphasis: { type: Type.STRING },
+                    exit:     { type: Type.STRING },
+                    speed:    { type: Type.STRING, description: 'fast | medium | slow' }
+                  },
+                  required: ['entry', 'emphasis', 'exit', 'speed']
+                },
+                position:   { type: Type.STRING, description: 'center | bottom_center | top' },
+                background: { type: Type.STRING, description: 'none | blur box | gradient highlight | text outline (stroke)' },
+                stroke:     { type: Type.BOOLEAN },
+                emotion:    { type: Type.STRING, description: 'excited | calm | shocked | happy | sad | funny | motivational' },
+                emoji:      { type: Type.STRING, description: 'Single emoji character or empty string' }
+              },
+              required: ['template', 'highlight', 'font', 'text_case', 'color', 'animation', 'position', 'background', 'stroke', 'emotion', 'emoji']
+            }
+          },
+          required: ['text', 'start', 'end', 'style']
+        }
+      }
+    }
+  });
+
+  const raw = JSON.parse(response.text || '[]') as ViralTypographyCaption[];
+
+  // Normalise: guarantee emoji is always a string (never null/undefined)
+  return raw.map(item => ({
+    ...item,
+    style: {
+      ...item.style,
+      emoji: item.style.emoji ?? ''
+    }
+  }));
 };

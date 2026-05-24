@@ -10,6 +10,9 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Database from 'better-sqlite3';
 import { createServer } from 'http';
+import multer from 'multer';
+import thumbnailRouter from './routes/thumbnail.js';
+import motionRouter from './routes/motion.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -87,13 +90,32 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:4173'] }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+
+// Multer — store uploads in memory (max 50MB), audio/video only
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only audio and video files are accepted'));
+    }
+  },
+});
 
 // Simple request logger
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
+
+// ─── THUMBNAIL ROUTES ──────────────────────────────────────────────────────────
+app.use('/api/thumbnail', thumbnailRouter);
+
+// ─── MOTION GRAPHICS ROUTES ────────────────────────────────────────────────────
+app.use('/api/motion', motionRouter);
 
 // ─── BRAND KIT ROUTES ────────────────────────────────────────────────────────
 // GET latest brand kit
@@ -340,6 +362,80 @@ app.delete('/api/thumbnails/:id', (req, res) => {
   const { id } = req.params;
   db.prepare(`DELETE FROM thumbnail_history WHERE id = ?`).run(id);
   return res.json({ success: true });
+});
+
+// ─── GEMINI FILE API PROXY ───────────────────────────────────────────────────
+// POST /api/upload-video  — proxies audio/video to Google File API
+app.post('/api/upload-video', upload.single('video'), async (req, res) => {
+  try {
+    const apiKey = (req.headers.authorization || '').replace('Bearer ', '');
+    if (!apiKey) return res.status(401).json({ error: 'Missing API key' });
+    if (!req.file)  return res.status(400).json({ error: 'No file uploaded' });
+
+    const { buffer, mimetype, originalname } = req.file;
+    // Sanitize user-supplied fields before embedding in multipart body strings
+    const safeMime = (mimetype || 'application/octet-stream').replace(/[^\w\-\/+.]/g, '');
+    const displayName = (originalname || 'audio_upload').replace(/[^\w\-_.]/g, '_').substring(0, 200);
+
+    // Step 1: Initiate resumable upload
+    const initRes = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Protocol': 'multipart',
+          'Content-Type': `multipart/related; boundary=boundary_createrin`,
+        },
+        body: Buffer.concat([
+          Buffer.from(
+            `--boundary_createrin\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+            `{"file":{"displayName":"${displayName}"}}\r\n--boundary_createrin\r\nContent-Type: ${safeMime}\r\n\r\n`
+          ),
+          buffer,
+          Buffer.from('\r\n--boundary_createrin--')
+        ])
+      }
+    );
+
+    if (!initRes.ok) {
+      const errText = await initRes.text();
+      console.error('[UPLOAD] File API error:', errText);
+      return res.status(500).json({ error: 'File API upload failed', detail: errText });
+    }
+
+    const data = await initRes.json();
+    const fileUri  = data?.file?.uri;
+    const fileName = data?.file?.name;
+
+    if (!fileUri) {
+      return res.status(500).json({ error: 'No URI returned from File API', data });
+    }
+
+    console.log(`[UPLOAD] ✓ File uploaded: ${fileName}`);
+    return res.json({ fileUri, fileName });
+  } catch (err) {
+    console.error('[UPLOAD] Unexpected error:', err);
+    return res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
+
+// POST /api/delete-video — deletes file from Google File API after use
+app.post('/api/delete-video', async (req, res) => {
+  try {
+    const apiKey = (req.headers.authorization || '').replace('Bearer ', '');
+    const { fileName } = req.body;
+    if (!apiKey || !fileName) return res.status(400).json({ error: 'apiKey and fileName required' });
+
+    const delRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`,
+      { method: 'DELETE' }
+    );
+    console.log(`[CLEANUP] File ${fileName} deleted:`, delRes.status);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[CLEANUP] Error:', err);
+    return res.json({ success: false });
+  }
 });
 
 // ─── HEALTH CHECK ────────────────────────────────────────────────────────────

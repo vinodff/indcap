@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Video, Zap, Play, Pause, Loader2, Smartphone, ThumbsUp, ThumbsDown, MessageSquare, Share2, Repeat, Heart, Send, Bookmark, MoreHorizontal, MoreVertical, Music, User, Camera, MessageCircle, Forward, Search } from 'lucide-react';
-import { ProcessingStatus, Caption, AspectRatio, StickerItem } from '../types';
+import { Video, Zap, Play, Pause, Loader2, Smartphone, ThumbsUp, ThumbsDown, MessageSquare, Share2, Repeat, Heart, Send, Bookmark, MoreHorizontal, MoreVertical, Music, User, Camera, MessageCircle, Forward, Search, Type } from 'lucide-react';
+import { ProcessingStatus, Caption, AspectRatio, CaptionStyle, StyleConfig } from '../types';
+import { CaptionOverlay } from './CaptionOverlay';
 
 // ─── YouTube Shorts Platform SVGs ────────────────────────────────────────────
 const YTLogo = () => (
@@ -78,6 +79,8 @@ interface VideoPreviewAreaProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onLoadSampleVideo?: () => void;
+  onTestWithSampleText?: () => void;
   setVideoSrc: (src: string) => void;
   setVideoFile: (file: File) => void;
   setStatus: (status: ProcessingStatus) => void;
@@ -91,11 +94,17 @@ interface VideoPreviewAreaProps {
   showSafeZones?: boolean;
   safeZonePlatform?: 'SHORTS' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
   aspectRatio?: AspectRatio;
-  stickers?: StickerItem[];
-  updateSticker?: (id: string, updates: Partial<StickerItem>) => void;
-  activeTool?: any; // ActiveTool type
+
   videoIntrinsicRatio?: number | null;
   setVideoIntrinsicRatio?: (ratio: number) => void;
+
+  // HyperCaption overlay props
+  isHyperStyle?: boolean;
+  activeConfig?: StyleConfig;
+  currentStyle?: CaptionStyle;
+  fontScale?: number;
+  verticalPos?: number;
+  horizontalPos?: number;
 }
 
 // Map aspect ratio enum to CSS class
@@ -106,11 +115,13 @@ const ASPECT_RATIO_CLASS: Record<string, string> = {
   '4:5': 'aspect-[4/5]',
 };
 
-const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
+export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   videoSrc,
   videoRef,
   canvasRef,
   handleFileUpload,
+  onLoadSampleVideo,
+  onTestWithSampleText,
   setVideoSrc,
   setVideoFile,
   setStatus,
@@ -119,21 +130,52 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   togglePlay,
   status,
   exportProgress,
-  captions = [],
   updateCaption,
+  captions = [],
   showSafeZones = false,
   safeZonePlatform = 'SHORTS',
   aspectRatio = '9:16',
-  stickers = [],
-  updateSticker,
-  activeTool,
+
   videoIntrinsicRatio = null,
   setVideoIntrinsicRatio,
+  isHyperStyle = false,
+  activeConfig,
+  currentStyle,
+  fontScale = 1,
+  verticalPos = 82,
+  horizontalPos = 50,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedCaptionId, setDraggedCaptionId] = useState<string | null>(null);
-  const [draggedStickerId, setDraggedStickerId] = useState<string | null>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
+
+  // ── File drop zone handlers ──────────────────────────────────────────────
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      setVideoSrc(url);
+      setVideoFile(file);
+      setStatus('READY');
+    }
+  };
+  // ────────────────────────────────────────────────────────────────────────
+
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!videoRef.current) {
@@ -142,18 +184,6 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
     }
     const time = videoRef.current.currentTime;
     
-    // First, check if we're clicking a sticker (they render on top)
-    if (activeTool === 'STICKERS') {
-      const activeSticker = stickers.find(s => time >= s.startTime && time <= s.endTime);
-      // Rough bounding box check could go here if we tracked precise text dimension
-      if (activeSticker && updateSticker) {
-        setIsDragging(true);
-        setDraggedStickerId(activeSticker.id);
-        dragStartPos.current = { x: e.clientX, y: e.clientY };
-        e.currentTarget.setPointerCapture(e.pointerId);
-        return;
-      }
-    }
 
     const activeCaption = captions.find(c => time >= c.startTime && time <= c.endTime);
 
@@ -182,9 +212,7 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
     normX = Math.max(0.05, Math.min(normX, 0.95));
     normY = Math.max(0.05, Math.min(normY, 0.95));
 
-    if (draggedStickerId && updateSticker) {
-      updateSticker(draggedStickerId, { x: normX, y: normY });
-    } else if (draggedCaptionId && updateCaption) {
+    if (draggedCaptionId && updateCaption) {
       updateCaption(draggedCaptionId, { customX: normX, customY: normY });
     }
   };
@@ -193,7 +221,6 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
     if (isDragging) {
       setIsDragging(false);
       setDraggedCaptionId(null);
-      setDraggedStickerId(null);
       e.currentTarget.releasePointerCapture(e.pointerId);
       
       // If mouse moved very little, treat as click to toggle play
@@ -211,54 +238,65 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   return (
     <>
       {!videoSrc ? (
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="w-24 h-24 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Video size={48} className="text-blue-500" />
-          </div>
-          <h2 className="text-3xl font-black text-white">Upload Your Video</h2>
-          <p className="text-gray-500 text-sm">
-            Drag & drop or select a vertical video (9:16) for Reels, TikTok, or Shorts.
-          </p>
-          <div className="flex flex-col gap-3 w-full px-6 md:px-12">
-            <label className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-xl font-bold cursor-pointer active:scale-95 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2">
-              <Video size={18} />
-              Select File
-              <input type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
-            </label>
-            <button 
-              onClick={async () => {
-                const sampleUrl = '/test video.mp4';
-                setStatus('IDLE');
-                try {
-                  const response = await fetch(sampleUrl);
-                  if (!response.ok) throw new Error('Local file not found via fetch');
-                  const blob = await response.blob();
-                  const file = new File([blob], "test video.mp4", { type: "video/mp4" });
-                  setVideoFile(file);
-                  const objectUrl = URL.createObjectURL(file);
-                  setVideoSrc(objectUrl);
-                } catch (e) {
-                  console.error("Failed to load local sample video, trying remote fallback", e);
-                  try {
-                    const remoteUrl = 'https://storage.googleapis.com/generativeai-downloads/images/test%20video.mp4';
-                    const response = await fetch(remoteUrl);
-                    if (!response.ok) throw new Error('Remote file fetch failed');
-                    const blob = await response.blob();
-                    const file = new File([blob], "test video.mp4", { type: "video/mp4" });
-                    setVideoFile(file);
-                    const objectUrl = URL.createObjectURL(file);
-                    setVideoSrc(objectUrl);
-                  } catch (remoteErr) {
-                    console.error("Both local and remote sample video failed", remoteErr);
-                    setStatus('IDLE');
+        <div 
+          className={`relative max-w-sm w-full text-center p-1 rounded-[32px] overflow-hidden transition-all duration-300 ${
+            isDragging ? 'scale-105 shadow-2xl shadow-blue-500/20' : ''
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* Animated Gradient Border */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-600 to-cyan-400 opacity-20 pointer-events-none" />
+          {isDragging && <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-600 to-cyan-400 animate-spin-slow opacity-50 pointer-events-none" style={{ animationDuration: '4s' }} />}
+          
+          <div className="relative bg-[#111] m-[2px] rounded-[30px] p-10 flex flex-col items-center justify-center border border-white/5 z-10 backdrop-blur-xl">
+            <div className={`relative flex items-center justify-center w-28 h-28 mb-8 transition-transform ${isDragging ? 'scale-110' : ''}`}>
+              <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full" />
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg shadow-black/50 z-10">
+                <Video size={36} className="text-white" />
+              </div>
+              
+              {/* Floating elements */}
+              <div className="absolute -top-4 -right-4 p-2 bg-[#222] rounded-full border border-white/10 animate-bounce" style={{ animationDuration: '3s' }}><Zap size={14} className="text-yellow-400" /></div>
+              <div className="absolute -bottom-2 -left-2 p-2 bg-[#222] rounded-full border border-white/10 animate-bounce" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}><Music size={14} className="text-emerald-400" /></div>
+              <div className="absolute bottom-4 -right-2 p-1.5 bg-[#222] rounded-full border border-white/10 animate-pulse"><Type size={12} className="text-blue-400" /></div>
+            </div>
+
+            <h2 className="text-2xl font-black text-white mb-3 tracking-tight font-['Space_Grotesk']">Start Creating</h2>
+            <p className="text-gray-400 text-sm mb-8 leading-relaxed px-4">
+              Drag & drop a <strong className="text-white">9:16 vertical video</strong> or click to browse.
+            </p>
+
+            <div className="flex flex-col gap-3 w-full">
+              <label className="group relative w-full bg-white text-black py-3.5 rounded-xl font-bold cursor-pointer transition-all hover:bg-gray-200 active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_40px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2 overflow-hidden">
+                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                <Video size={18} />
+                Select File
+                <input type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
+              </label>
+              <button
+                onClick={async () => {
+                  if (onLoadSampleVideo) {
+                    onLoadSampleVideo();
                   }
-                }
-              }}
-              className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-3.5 rounded-xl font-bold active:scale-95 transition-all border border-gray-700 flex items-center justify-center gap-2"
-            >
-              <Zap size={16} className="text-yellow-500" />
-              Use Sample Video
-            </button>
+                }}
+                className="group w-full bg-[#1a1a1a] hover:bg-[#222] text-gray-300 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/5 hover:border-white/10"
+              >
+                <Zap size={16} className="text-yellow-500 group-hover:scale-110 transition-transform" />
+                Use Sample Video
+              </button>
+              {onTestWithSampleText && (
+                <button
+                  type="button"
+                  onClick={onTestWithSampleText}
+                  className="group w-full bg-[#0d1117] hover:bg-[#161b22] text-emerald-400 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-emerald-500/30 hover:border-emerald-400/60"
+                >
+                  <Type size={16} className="group-hover:scale-110 transition-transform" />
+                  Test with Sample Text
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -273,7 +311,7 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
           <video 
             ref={videoRef as any} 
             src={videoSrc} 
-            className="absolute inset-0 w-full h-full object-cover hidden" 
+            className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none" 
             onTimeUpdate={handleTimeUpdate} 
             onLoadedMetadata={() => {
               if (videoRef.current && canvasRef.current) {
@@ -298,7 +336,22 @@ const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
           />
-          
+
+          {/* HyperCaption HTML overlay */}
+          {isHyperStyle && activeConfig && currentStyle && (
+            <CaptionOverlay
+              captions={captions}
+              activeConfig={activeConfig}
+              currentStyle={currentStyle}
+              fontScale={fontScale}
+              verticalPos={verticalPos}
+              horizontalPos={horizontalPos}
+              videoRef={videoRef as React.RefObject<HTMLVideoElement>}
+              isPlaying={isPlaying}
+              aspectRatio={aspectRatio}
+            />
+          )}
+
           {/* Safe Zones Overlay - Pixel-Perfect Platform Previews */}
           {showSafeZones && (
             <div className="absolute inset-0 pointer-events-none z-40">

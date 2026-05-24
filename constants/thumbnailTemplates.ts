@@ -1,0 +1,113 @@
+import { ThumbnailTemplate, ThumbnailTemplateId } from '../types';
+
+export const THUMBNAIL_TEMPLATES: Record<ThumbnailTemplateId, ThumbnailTemplate> = {
+  'mrbeast': {
+    id: 'mrbeast',
+    name: 'MrBeast Style',
+    description: 'High-energy, bright colors, exaggerated expressions, yellow accents',
+    niche: 'General viral / challenge / giveaway',
+    promptInstructions: 'MrBeast style YouTube thumbnail. Bright vibrant colors, exaggerated shocked facial expression, yellow and red color scheme, high energy composition, bold thick yellow outlined text, crowded frame with exciting elements, extreme wide-angle lens effect, hyper-saturated colors, dramatic lighting, enthusiastic vibe, clickbait energy, maximum visual chaos, big bold text overlay, thick black stroke on white text.',
+    colorPalette: ['#FFD700', '#FF0000', '#FFFFFF', '#000000'],
+    textPosition: 'bottom',
+    textStyle: 'outlined',
+    bgTreatment: 'bright colorful gradient with bokeh and splatter effects',
+    composition: 'subject center-framed with arms wide, explosive background elements',
+  },
+  'gaming': {
+    id: 'gaming',
+    name: 'Gaming Style',
+    description: 'Dark neon aesthetic, purple/cyan glow, epic gaming vibe',
+    niche: 'Gaming / esports / live streaming',
+    promptInstructions: 'Gaming YouTube thumbnail. Dark background with neon purple and cyan accent lighting, epic gaming atmosphere, dramatic rim lighting on subject, cyberpunk color grading, high contrast, sharp details, glowing edge lighting, gaming headset or controller visible, intense focused expression, RGB lighting effects in background, vaporwave aesthetic touches, glitch effects, scan lines, neon text overlays with glow effect, 8K resolution, hyper-realistic textures.',
+    colorPalette: ['#8B5CF6', '#06B6D4', '#FFFFFF', '#000000'],
+    textPosition: 'bottom',
+    textStyle: 'neon',
+    bgTreatment: 'dark cyberpunk cityscape with neon signs and RGB strips',
+    composition: 'subject off-center with gaming setup visible in background',
+  },
+  'finance': {
+    id: 'finance',
+    name: 'Finance Style',
+    description: 'Clean professional, gold/green accents, data charts, premium feel',
+    niche: 'Finance / crypto / business / investing',
+    promptInstructions: 'Finance YouTube thumbnail. Clean professional aesthetic, dark background with gold and emerald green accent colors, stock market charts and graphs in background, professional attire, confident expression, premium minimalist composition, subtle lighting with dramatic key light, green and red candlestick charts, upward trending arrows, gold coin or money visual elements, crisp clean text, serif font for titles, sharp focus, shallow depth of field, suit or blazer, high-end cinematic lighting, sophisticated color grading with teal and orange, 8K detail.',
+    colorPalette: ['#FFD700', '#10B981', '#FFFFFF', '#1A1A2E'],
+    textPosition: 'top',
+    textStyle: 'gradient',
+    bgTreatment: 'dark gradient with subtle stock charts and upward arrows',
+    composition: 'subject framed in center, charts and data visualizations around',
+  },
+  'tech-review': {
+    id: 'tech-review',
+    name: 'Tech Review Style',
+    description: 'Clean product showcase, blue/white, minimalist tech aesthetic',
+    niche: 'Tech reviews / unboxing / gadgets / smartphones',
+    promptInstructions: 'Tech review YouTube thumbnail. Clean modern aesthetic, product-focused composition, minimal clutter, white and blue color palette, product displayed prominently, shallow depth of field with product in sharp focus, studio lighting with softboxes, reflective surfaces, subtle gradient background, floating product elements, technical vibe, sans-serif typography, spec callouts or feature highlights, hands holding device, screen displaying content, award or rating badge, 8K product photography quality, crisp details, HDR lighting.',
+    colorPalette: ['#3B82F6', '#FFFFFF', '#94A3B8', '#0F172A'],
+    textPosition: 'bottom',
+    textStyle: 'bold',
+    bgTreatment: 'clean gradient background with subtle tech pattern overlay',
+    composition: 'product in foreground, reviewer in background, split composition',
+  },
+  'documentary': {
+    id: 'documentary',
+    name: 'Documentary Style',
+    description: 'Cinematic, earthy tones, serif fonts, emotional depth',
+    niche: 'Documentary / storytelling / educational / travel',
+    promptInstructions: 'Documentary YouTube thumbnail. Cinematic composition, earthy warm tones, rich shadows, emotional depth, serif typography, film grain texture, cinematic letterbox bars, dramatic natural lighting, golden hour warmth, deep contrast, candid emotional expression, storytelling atmosphere, vintage film color grading, shallow depth of field, textured backgrounds, natural environments, sincere human connection, award-photo aesthetic, medium format film look, warm skin tones, professional color grading with teal/orange complement, high dynamic range, masterpiece photography quality.',
+    colorPalette: ['#D4A574', '#8B5E3C', '#F5F0E8', '#2D1B0E'],
+    textPosition: 'center',
+    textStyle: 'minimal',
+    bgTreatment: 'natural landscape or textured background with warm light rays',
+    composition: 'subject in rule-of-thirds, environmental context visible',
+  },
+  'anime': {
+    id: 'anime',
+    name: 'Anime Style',
+    description: 'Bold cel-shaded, manga aesthetic, vibrant colors, stylized',
+    niche: 'Anime / manga / weeb culture / animation',
+    promptInstructions: 'Anime-style YouTube thumbnail. Bold cel-shaded illustration aesthetic, vibrant saturated colors, thick ink outlines, manga-inspired composition, dramatic action pose, speed lines in background, glowing aura effects, character in dynamic mid-action stance, exaggerated facial expression with large eyes, anime-style sparkle effects, particle effects, dramatic angle perspective, 2D illustrated style with 3D depth, bright neon accent colors, speech bubbles or sound effect text, shojo or shonen style depending on mood, clean line art, flat colors with cel shading, anime screencap quality, iconic character moment.',
+    colorPalette: ['#FF6B6B', '#FFE66D', '#4ECDC4', '#1A1A2E'],
+    textPosition: 'top',
+    textStyle: 'gradient',
+    bgTreatment: 'anime-style sky or action background with speed lines',
+    composition: 'character in dynamic pose, centered or slightly offset',
+  },
+  'dark-cinematic': {
+    id: 'dark-cinematic',
+    name: 'Dark Cinematic',
+    description: 'Moody, high contrast, shadows, dramatic, mysterious',
+    niche: 'Horror / thriller / mystery / true crime',
+    promptInstructions: 'Dark cinematic YouTube thumbnail. Moody atmospheric composition, deep shadows, high contrast lighting, dramatic chiaroscuro effect, dark color palette with selective color pop, mysterious figure or silhouette, fog or smoke effects, single dramatic light source, gritty texture overlay, desaturated with accent colors, tense fearful expression or mysterious silhouette, dark background with subtle texture, horror movie poster aesthetic, vignette effect, cold color temperature, grain texture, low-key lighting, dramatic shadows across face, handheld camera aesthetic, true crime documentary feel, menacing atmosphere, edge of seat tension, cinematic 2.35:1 crop feel, dark blue and teal grade with warm skin accent.',
+    colorPalette: ['#0F0F0F', '#DC2626', '#94A3B8', '#450A0A'],
+    textPosition: 'bottom',
+    textStyle: 'outlined',
+    bgTreatment: 'dark atmospheric fog with single dramatic light source',
+    composition: 'subject partially shadowed, rule-of-thirds, unsettling empty space',
+  },
+  'viral-reaction': {
+    id: 'viral-reaction',
+    name: 'Viral Reaction',
+    description: 'Shock/surprise, zoomed face, bold emojis, high CTR',
+    niche: 'Reaction / commentary / vlog / comedy',
+    promptInstructions: 'Viral reaction YouTube thumbnail. Extreme close-up on face, shocked or surprised expression with wide-open eyes and mouth open, exaggerated emotion, face filling most of the frame, bright colorful background, meme-like composition, arrow or circle elements pointing to something, floating emojis around head, bold heavy text overlay with thick outline, high saturation skin tones, dramatic highlight on face, studio lighting with ring light catchlights in eyes, micro-expressions frozen mid-reaction, split-second timing captured perfectly, clickbait energy, uncompromising emotional transparency, colorful background with radial gradient behind head, text in bottom third with black stroke white fill, arrow pointing up or to the side, 8K facial detail, sharp eyes, every pore visible.',
+    colorPalette: ['#FF4500', '#FFD700', '#FFFFFF', '#1A1A2E'],
+    textPosition: 'bottom',
+    textStyle: 'outlined',
+    bgTreatment: 'bright radial gradient background with floating reaction emojis',
+    composition: 'extreme close-up face close-up with emoji decorations around',
+  },
+};
+
+export const THUMBNAIL_TEMPLATE_LIST = Object.values(THUMBNAIL_TEMPLATES);
+
+export const getTemplate = (id: ThumbnailTemplateId): ThumbnailTemplate => {
+  return THUMBNAIL_TEMPLATES[id] || THUMBNAIL_TEMPLATES['viral-reaction'];
+};
+
+export const TEMPLATE_CATEGORIES: { name: string; ids: ThumbnailTemplateId[] }[] = [
+  { name: 'Viral & Energy', ids: ['mrbeast', 'viral-reaction'] },
+  { name: 'Gaming & Anime', ids: ['gaming', 'anime'] },
+  { name: 'Professional', ids: ['finance', 'tech-review'] },
+  { name: 'Cinematic', ids: ['documentary', 'dark-cinematic'] },
+];

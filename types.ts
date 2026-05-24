@@ -551,38 +551,60 @@ export interface ScheduleOptions {
   timezone?: string;
 }
 
-// --- AI THUMBNAIL GENERATOR ---
-export type ThumbnailTemplate = 'YOUTUBE' | 'SHORTS' | 'MRBEAST' | 'MINIMAL' | 'CINEMATIC';
-export type ThumbnailTextPosition = 'TOP' | 'CENTER' | 'BOTTOM';
+// ─── AI THUMBNAIL GENERATOR (v2) ─────────────────────────────────────────
+export type ThumbnailTemplateId =
+  | 'mrbeast'
+  | 'gaming'
+  | 'finance'
+  | 'tech-review'
+  | 'documentary'
+  | 'anime'
+  | 'dark-cinematic'
+  | 'viral-reaction';
 
-export interface ThumbnailFrame {
-  dataUrl: string;
-  timestamp: number;
-  score: number;
+export interface ThumbnailTemplate {
+  id: ThumbnailTemplateId;
+  name: string;
+  description: string;
+  niche: string;
+  promptInstructions: string;
+  colorPalette: string[];
+  textPosition: 'top' | 'center' | 'bottom';
+  textStyle: 'bold' | 'outlined' | 'gradient' | 'neon' | 'minimal';
+  bgTreatment: string;
+  composition: string;
 }
 
-export interface ThumbnailHook {
-  text: string;
-  style: 'POWER' | 'QUESTION' | 'SHOCK';
-}
-
-export interface ThumbnailConfig {
-  template: ThumbnailTemplate;
-  hookText: string;
-  hookColor: string;
-  accentColor: string;
-  textPosition: ThumbnailTextPosition;
-  showGradient: boolean;
-  emojiPrefix?: string;
-}
-
-export interface ThumbnailHistoryItem {
-  id: string;
+export interface ThumbnailInput {
   imageDataUrl: string;
+  titleText: string;
   hookText: string;
-  template: ThumbnailTemplate;
-  ctrScore: number;
+  templateId: ThumbnailTemplateId;
+  customPrompt?: string;
+  aspectRatio?: AspectRatio;
+}
+
+export interface ThumbnailOutput {
+  imageDataUrl: string;
+  promptUsed: string;
+  templateId: ThumbnailTemplateId;
   createdAt: string;
+}
+
+export interface ThumbnailGenerationStatus {
+  stage: 'analyzing' | 'generating' | 'enhancing' | 'done' | 'error';
+  progress: number;
+  message?: string;
+  error?: string;
+}
+
+export interface AIPromptPackage {
+  fullPrompt: string;
+  template: ThumbnailTemplateId;
+  textOverlay: string;
+  positivePrompt: string;
+  negativePrompt?: string;
+  aspectRatio: AspectRatio;
 }
 
 // ─── VIRAL TYPOGRAPHY CAPTIONS ─────────────────────────────────────────────
@@ -637,4 +659,34 @@ export interface ViralTypographyCaption {
     /** Optional emoji to display alongside the text (empty string = none) */
     emoji: string;
   };
+}
+
+export interface RendererState {
+  captions: Caption[];
+  activeConfig: StyleConfig;
+  currentStyle: CaptionStyle;
+  fontScale: number;
+  verticalPos: number;
+  horizontalPos: number;
+  autoAdjustEnabled: boolean;
+  autoMotionEnabled: boolean;
+  autoSfxEnabled: boolean;
+  isPlaying: boolean;
+  // Phase 3: Animation Engine
+  entryAnimation?: EntryAnimation;
+  exitAnimation?: ExitAnimation;
+  wordHighlight?: WordHighlightMode;
+  animationSpeed?: 'FAST' | 'MEDIUM' | 'SLOW';
+  // Phase 4: Kinetic Typography
+  kineticMode?: KineticMode;
+  // Phase 5: Sticker & Emoji Overlay
+  stickers?: StickerItem[];
+  // Phase 12: Aspect Ratio
+  aspectRatio?: AspectRatio;
+  // Phase H: HyperCaption — skip canvas caption draw when HTML overlay is active
+  skipCaptionDraw?: boolean;
+}
+
+export interface RendererCallbacks {
+  onNewCaption?: (caption: Caption) => void; // For SFX triggers
 }

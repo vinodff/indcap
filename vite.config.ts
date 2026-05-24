@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: '/CREATERIN-/',
+      base: '/',
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -20,6 +20,24 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        target: 'esnext',
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom'],
+              ui: ['lucide-react', 'tailwindcss-animate'],
+              ai: ['@google/genai'],
+              charts: ['recharts'],
+              anim: ['lottie-web'],
+            }
+          }
+        }
+      },
+      test: {
+        environment: 'node',
+        include: ['tests/**/*.test.ts'],
       }
     };
 });

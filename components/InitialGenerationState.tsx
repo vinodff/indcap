@@ -577,8 +577,10 @@ const InitialGenerationState: React.FC<InitialGenerationStateProps> = ({
     } catch { return []; }
   });
 
-  // Currently confirmed selection
-  const [confirmedSelection, setConfirmedSelection] = useState<LanguageSelection | null>(null);
+  // Bug 3 Fix: Pre-select "Auto Detect" so the Generate button is visible by default
+  const [confirmedSelection, setConfirmedSelection] = useState<LanguageSelection | null>(
+    { primaryCode: 'auto', outputMode: 'NATIVE' }
+  );
 
   const addRecent = useCallback((code: string) => {
     if (code === 'auto') return;

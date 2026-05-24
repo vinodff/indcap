@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Sparkles, Wand2, Lightbulb, Loader2, Save, Trash2, FolderOpen, Play, Pause, Check, Eye } from 'lucide-react';
+import { Sparkles, Wand2, Lightbulb, Loader2, Save, Trash2, FolderOpen, Play, Pause, Check, Eye, Zap } from 'lucide-react';
 import { THEME_PRESETS, ThemePreset, generateAIStyleSuggestion, generateHookSuggestions, AIStyleSuggestion } from '../services/aiStyleService';
+import { generateViralTypographyCaptions } from '../services/geminiService';
 import { TemplateManager, CaptionTemplate } from '../services/TemplateManager';
-import { Caption, CaptionStyle, EntryAnimation } from '../types';
+import { Caption, CaptionStyle, EntryAnimation, ViralTypographyCaption } from '../types';
+
 
 interface ThemePresetsPanelProps {
   captions: Caption[];
@@ -10,16 +12,21 @@ interface ThemePresetsPanelProps {
   onApplyAIStyle: (suggestion: AIStyleSuggestion) => void;
   currentConfig: Omit<CaptionTemplate, 'id' | 'name' | 'createdAt'>;
   onApplyTemplate: (template: CaptionTemplate) => void;
+  /** Called after Viral Typography generates; passes re-styled captions back to App */
+  onApplyViralTypography: (viralCaptions: ViralTypographyCaption[]) => void;
 }
+
 
 // ─── Category filter data ───
 const CATEGORIES = [
   { id: 'ALL', label: 'All', icon: '✦' },
+  { id: 'HYPER', label: 'HyperCSS', icon: '🔮' },
   { id: 'Trending', label: 'Trending', icon: '🔥' },
   { id: 'Professional', label: 'Minimal', icon: '✨' },
   { id: 'Dynamic', label: 'Viral', icon: '⚡' },
   { id: 'Fun', label: 'Fun', icon: '🎨' },
   { id: 'Unique', label: 'Unique', icon: '💎' },
+  { id: 'Typography', label: 'Typography', icon: '🔤' },
 ];
 
 
@@ -61,7 +68,9 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
   onApplyAIStyle,
   currentConfig,
   onApplyTemplate,
+  onApplyViralTypography,
 }) => {
+
   const [activeThemeId, setActiveThemeId] = useState<string | null>(null);
   const [hoveredPreset, setHoveredPreset] = useState<ThemePreset | null>(null);
   const [activeCategory, setActiveCategory] = useState('ALL');
@@ -71,6 +80,11 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
   const [aiSuggestion, setAiSuggestion] = useState<AIStyleSuggestion | null>(null);
   const [hookTexts, setHookTexts] = useState<string[]>([]);
   const [isLoadingHooks, setIsLoadingHooks] = useState(false);
+
+  // Viral Typography section
+  const [isViralTypoLoading, setIsViralTypoLoading] = useState(false);
+  const [viralTypoResult, setViralTypoResult] = useState<ViralTypographyCaption[] | null>(null);
+  const [viralTypoError, setViralTypoError] = useState<string | null>(null);
 
   // Template saving
   const [templates, setTemplates] = useState<CaptionTemplate[]>(TemplateManager.loadTemplates());
@@ -125,6 +139,23 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
     }
   };
 
+  const handleViralTypography = async () => {
+    if (captions.length === 0) return;
+    setIsViralTypoLoading(true);
+    setViralTypoResult(null);
+    setViralTypoError(null);
+    try {
+      const result = await generateViralTypographyCaptions(captions);
+      setViralTypoResult(result);
+      onApplyViralTypography(result);
+    } catch (e: any) {
+      console.error('Viral Typography error:', e);
+      setViralTypoError(e?.message ?? 'Failed to generate viral captions.');
+    } finally {
+      setIsViralTypoLoading(false);
+    }
+  };
+
   const handleSaveTemplate = () => {
     if (!templateName.trim()) return;
     TemplateManager.saveTemplate(templateName.trim(), currentConfig);
@@ -150,11 +181,10 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
           <button
             key={sec.id}
             onClick={() => setActiveSection(sec.id)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-              activeSection === sec.id
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-wider transition-all ${activeSection === sec.id
                 ? 'bg-[#1a1a2e] text-white border-t border-x border-blue-500/30'
                 : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
-            }`}
+              }`}
           >
             {sec.icon}
             {sec.label}
@@ -167,20 +197,28 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Category filter chips */}
           <div className="flex gap-1.5 px-3 py-2.5 overflow-x-auto custom-scrollbar shrink-0 bg-[#0e0e16]/80 border-b border-gray-800/40">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all shrink-0 ${
-                  activeCategory === cat.id
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/10'
-                    : 'bg-gray-800/40 text-gray-500 border border-gray-700/40 hover:bg-gray-700/50 hover:text-gray-300'
-                }`}
-              >
-                <span className="text-xs">{cat.icon}</span>
-                {cat.label}
-              </button>
-            ))}
+            {CATEGORIES.map(cat => {
+              const isHyper = cat.id === 'HYPER';
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all shrink-0 ${isActive
+                      ? isHyper
+                        ? 'text-violet-300 border border-violet-500/60 shadow-lg shadow-violet-500/20'
+                        : 'bg-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/10'
+                      : isHyper
+                        ? 'bg-violet-900/30 text-violet-400 border border-violet-700/50 hover:bg-violet-800/40 hover:text-violet-300'
+                        : 'bg-gray-800/40 text-gray-500 border border-gray-700/40 hover:bg-gray-700/50 hover:text-gray-300'
+                    }`}
+                  style={isActive && isHyper ? { background: 'rgba(139,92,246,0.25)' } : undefined}
+                >
+                  <span className="text-xs">{cat.icon}</span>
+                  {cat.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Template Cards */}
@@ -194,18 +232,22 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
               {filteredPresets.map(preset => {
                 const isSelected = activeThemeId === preset.id;
                 const isHovered = hoveredPreset?.id === preset.id;
+                const isHyperPreset = preset.category === 'HYPER';
                 return (
                   <button
                     key={preset.id}
                     onMouseEnter={() => handleHover(preset)}
                     onClick={() => handleSelect(preset)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 group relative overflow-hidden ${
-                      isSelected
-                        ? 'bg-blue-600/15 border-blue-500/50 shadow-lg shadow-blue-500/10'
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 group relative overflow-hidden ${isSelected
+                        ? isHyperPreset
+                          ? 'bg-violet-600/15 border-violet-500/50 shadow-lg shadow-violet-500/10'
+                          : 'bg-blue-600/15 border-blue-500/50 shadow-lg shadow-blue-500/10'
                         : isHovered
-                        ? 'bg-gray-800/60 border-gray-600/60 shadow-md shadow-black/30 scale-[1.01]'
-                        : 'bg-[#111118]/80 border-gray-800/50 hover:bg-gray-800/50 hover:border-gray-600/50'
-                    }`}
+                          ? 'bg-gray-800/60 border-gray-600/60 shadow-md shadow-black/30 scale-[1.01]'
+                          : isHyperPreset
+                            ? 'bg-violet-950/30 border-violet-900/40 hover:bg-violet-900/30 hover:border-violet-700/50'
+                            : 'bg-[#111118]/80 border-gray-800/50 hover:bg-gray-800/50 hover:border-gray-600/50'
+                      }`}
                     style={{
                       transform: isHovered && !isSelected ? 'scale(1.01)' : undefined,
                       transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
@@ -226,10 +268,18 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
                     {/* Info */}
                     <div className="text-left flex-1 min-w-0 relative z-10">
-                      <div className={`text-[12px] font-black leading-tight ${
-                        isSelected ? 'text-blue-300' : 'text-gray-200'
-                      }`}>
-                        {preset.name}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[12px] font-black leading-tight ${isSelected
+                            ? isHyperPreset ? 'text-violet-300' : 'text-blue-300'
+                            : 'text-gray-200'
+                          }`}>
+                          {preset.name}
+                        </span>
+                        {isHyperPreset && (
+                          <span className="text-[7px] px-1.5 py-0.5 rounded font-black uppercase tracking-wide bg-violet-500/20 text-violet-400 border border-violet-500/30 shrink-0">
+                            CSS+GSAP
+                          </span>
+                        )}
                       </div>
                       <div className="text-[9px] text-gray-500 truncate mt-0.5 leading-tight">
                         {preset.description}
@@ -273,7 +323,85 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
       {/* ─── AI SECTION ─── */}
       {activeSection === 'ai' && (
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-5">
+
+          {/* ─── Viral Typography (FIRST — most prominent) ─── */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-orange-800/40 pb-2">
+              <Zap size={13} className="text-orange-400" /> Viral Typography
+            </div>
+            <p className="text-[10px] text-gray-500 leading-relaxed">
+              Transforms captions into high-retention CapCut-style segments — emotion-based fonts, animations, highlights &amp; emojis.
+            </p>
+            <button
+              id="viral-typography-btn"
+              onClick={handleViralTypography}
+              disabled={isViralTypoLoading || captions.length === 0}
+              className="w-full flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              style={{
+                background: isViralTypoLoading
+                  ? 'rgba(249,115,22,0.3)'
+                  : 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)',
+                color: '#fff',
+                boxShadow: isViralTypoLoading ? 'none' : '0 4px 24px rgba(249,115,22,0.35)',
+                border: '1px solid rgba(249,115,22,0.3)',
+              }}
+            >
+              {isViralTypoLoading ? (
+                <><Loader2 size={16} className="animate-spin" /> Generating Viral Captions…</>
+              ) : (
+                <><Zap size={16} /> ⚡ Generate Viral Captions</>
+              )}
+            </button>
+            {captions.length === 0 && (
+              <p className="text-[10px] text-gray-600 text-center">
+                Generate captions first to use Viral Typography
+              </p>
+            )}
+            {viralTypoError && (
+              <div className="text-[10px] text-red-400 bg-red-900/20 border border-red-500/30 rounded-lg p-2.5">
+                {viralTypoError}
+              </div>
+            )}
+            {viralTypoResult && viralTypoResult.length > 0 && (
+              <div className="bg-orange-900/15 border border-orange-500/30 rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Zap size={12} className="text-orange-400" />
+                  <span className="text-[10px] font-black text-orange-300 uppercase">
+                    ✅ Applied — {viralTypoResult.length} segments styled
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {viralTypoResult.slice(0, 3).map((item, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="text-orange-400 text-[10px] font-bold mt-0.5 shrink-0">{i + 1}.</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-gray-300 truncate">{item.text}</p>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-orange-800/40 text-orange-300 font-bold">
+                            {item.style.template}
+                          </span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-orange-800/40 text-orange-300 font-bold">
+                            {item.style.animation.entry}
+                          </span>
+                          {item.style.emoji && (
+                            <span className="text-[10px]">{item.style.emoji}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {viralTypoResult.length > 3 && (
+                    <p className="text-[9px] text-gray-600 pl-4">+{viralTypoResult.length - 3} more segments</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Divider */}
+          <div className="border-t border-gray-800/60" />
+
           {/* AI Auto-Style */}
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
@@ -351,6 +479,9 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
               </div>
             )}
           </section>
+
+          {/* Bottom spacer */}
+          <div className="h-4" />
         </div>
       )}
 

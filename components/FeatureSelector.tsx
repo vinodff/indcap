@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Type, Globe, Share2, Zap, ChevronRight } from 'lucide-react';
+import { Sparkles, Type, Globe, Share2, Zap, ChevronRight, Image, Wand2, Film } from 'lucide-react';
 
 interface FeatureSelectorProps {
   setActiveFeature: (feature: string) => void;
@@ -7,10 +7,13 @@ interface FeatureSelectorProps {
 
 const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) => {
   const features = [
-    { id: 'CAPTIONS',   title: 'Viral Captions',         desc: 'Auto-transcribe & style with viral presets.',       icon: <Type size={32} />,        color: 'from-blue-500 to-cyan-400',     badge: null },
-    { id: 'SEO',        title: 'SEO Metadata',            desc: 'Generate viral titles, tags & descriptions.',       icon: <Globe size={32} />,       color: 'from-emerald-500 to-teal-400',  badge: null },
-    { id: 'PUBLISH',    title: 'Social Publisher',        desc: 'Post to IG, TikTok & YouTube with scheduler.',      icon: <Share2 size={32} />,      color: 'from-orange-500 to-yellow-400', badge: null },
-    { id: 'AUTOMATION', title: 'AI Automation',           desc: 'Smart DM & comment auto-replies.',                  icon: <Zap size={32} />,         color: 'from-indigo-500 to-blue-600',   badge: null },
+    { id: 'CAPTIONS',        title: 'Viral Captions',        desc: 'Auto-transcribe & style with viral presets.',                                        icon: <Type size={32} />,  color: 'from-blue-500 to-cyan-400',                        badge: null },
+    { id: 'TYPOGRAPHY_REEL', title: 'Typography Reel',       desc: 'Upload audio → AI transcribes → animated Devon Jatho style typography video.',       icon: <Film size={32} />,  color: 'from-violet-600 via-indigo-500 to-cyan-400',       badge: 'NEW' },
+    { id: 'THUMBNAIL',       title: 'AI Thumbnail',          desc: 'Upload image, add text, pick a template — AI generates a pro YouTube thumbnail.',    icon: <Image size={32} />, color: 'from-fuchsia-500 to-pink-500',                     badge: 'NEW' },
+    { id: 'MOTION',          title: 'Auto Motion Graphics',  desc: 'Paste a script. AI plans kinetic typography & icon bursts on a timeline.',            icon: <Wand2 size={32} />, color: 'from-fuchsia-500 via-pink-500 to-orange-500',      badge: 'NEW' },
+    { id: 'SEO',             title: 'SEO Metadata',          desc: 'Generate viral titles, tags & descriptions.',                                         icon: <Globe size={32} />, color: 'from-emerald-500 to-teal-400',                     badge: null },
+    { id: 'PUBLISH',         title: 'Social Publisher',      desc: 'Post to IG, TikTok & YouTube with scheduler.',                                        icon: <Share2 size={32} />,color: 'from-orange-500 to-yellow-400',                    badge: null },
+    { id: 'AUTOMATION',      title: 'AI Automation',         desc: 'Smart DM & comment auto-replies.',                                                    icon: <Zap size={32} />,   color: 'from-indigo-500 to-blue-600',                      badge: null },
   ];
 
   return (
@@ -21,8 +24,8 @@ const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) =
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest animate-pulse">
             <Sparkles size={14} /> Beta Access
           </div>
-          <h1 className="text-6xl md:text-8xl font-black tracking-tighter text-white leading-none">
-            SELECT YOUR <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">MAGIC</span>
+          <h1 className="text-6xl md:text-8xl font-black tracking-tighter text-white leading-none font-['Space_Grotesk']">
+            SELECT YOUR <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">MAGIC</span>
           </h1>
           <p className="text-gray-500 text-lg max-w-xl mx-auto font-medium">
             Choose a professional AI tool to start your creative journey.
@@ -30,7 +33,7 @@ const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) =
         </div>
 
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {features.map((f) => (
             <button
               key={f.id}

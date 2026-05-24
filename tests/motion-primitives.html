@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motion Primitives Playground</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+        background: #050505;
+        color: #f5f5f5;
+        min-height: 100vh;
+      }
+      header {
+        padding: 16px 24px;
+        background: #0a0a0a;
+        border-bottom: 1px solid #1f1f1f;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+      }
+      header .tag {
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #fb7185;
+      }
+      main {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        gap: 24px;
+        grid-template-columns: 1fr 320px;
+      }
+      @media (max-width: 900px) {
+        main { grid-template-columns: 1fr; }
+      }
+      .stage {
+        background: #0a0a0a;
+        border: 1px solid #1f1f1f;
+        border-radius: 24px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .stage-wrap {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: linear-gradient(135deg, #0f172a, #050505);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .progress-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        font-size: 12px;
+        color: #a3a3a3;
+      }
+      .progress-bar {
+        flex: 1;
+        height: 6px;
+        background: #1f1f1f;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #fb7185, #fbbf24);
+        width: 0%;
+        transition: width 60ms linear;
+      }
+      .controls {
+        background: #0a0a0a;
+        border: 1px solid #1f1f1f;
+        border-radius: 24px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .label {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #71717a;
+        margin-bottom: 6px;
+        display: block;
+      }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+      button.prim {
+        padding: 8px 12px;
+        background: #18181b;
+        border: 1px solid #27272a;
+        color: #f5f5f5;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      button.prim:hover { background: #27272a; }
+      button.prim.active {
+        background: linear-gradient(90deg, #fb7185, #fbbf24);
+        color: #0a0a0a;
+        border-color: transparent;
+      }
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        background: #050505;
+        border: 1px solid #27272a;
+        color: #f5f5f5;
+        border-radius: 10px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+      input[type="range"] { width: 100%; }
+      .btn-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .btn-row button {
+        padding: 10px;
+        background: #27272a;
+        border: none;
+        color: #f5f5f5;
+        border-radius: 10px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .btn-row button.primary {
+        background: linear-gradient(90deg, #fb7185, #fbbf24);
+        color: #0a0a0a;
+      }
+      .meta {
+        font-size: 11px;
+        color: #71717a;
+      }
+      .fps {
+        font-family: monospace;
+        font-size: 11px;
+        color: #22d3ee;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Motion Primitives Playground</h1>
+      <span class="tag">phase 2</span>
+      <span class="fps" id="fps">--- fps</span>
+      <span class="meta" id="status">ready</span>
+    </header>
+    <main>
+      <div class="stage">
+        <div class="stage-wrap">
+          <canvas id="stage" width="1280" height="720"></canvas>
+        </div>
+        <div class="progress-row">
+          <span id="t-readout">t=0.00</span>
+          <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+          <span id="primitive-readout">—</span>
+        </div>
+      </div>
+
+      <aside class="controls">
+        <div>
+          <span class="label">Primitive</span>
+          <div class="row" id="primitive-buttons"></div>
+        </div>
+
+        <div>
+          <span class="label">Text</span>
+          <input type="text" id="text-input" value="Big Idea Here" />
+        </div>
+
+        <div>
+          <span class="label">Icon (emoji or lucide name)</span>
+          <input type="text" id="icon-input" value="zap" />
+        </div>
+
+        <div>
+          <span class="label">Palette</span>
+          <select id="palette-select">
+            <option value="energetic">Energetic</option>
+            <option value="corporate">Corporate</option>
+            <option value="kids">Kids</option>
+            <option value="cinematic">Cinematic</option>
+          </select>
+        </div>
+
+        <div>
+          <span class="label">Anchor</span>
+          <select id="anchor-select">
+            <option value="center">Center</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+
+        <div>
+          <span class="label">Intensity (1=subtle · 3=loud)</span>
+          <input type="range" id="intensity-input" min="1" max="3" step="1" value="2" />
+        </div>
+
+        <div>
+          <span class="label">Duration (seconds)</span>
+          <input type="range" id="duration-input" min="1" max="6" step="0.5" value="2.5" />
+          <span class="meta" id="duration-readout">2.5s</span>
+        </div>
+
+        <div class="btn-row">
+          <button id="play-btn" class="primary">Play</button>
+          <button id="loop-btn">Loop: on</button>
+        </div>
+        <div class="btn-row">
+          <button id="play-all-btn">Play all in sequence</button>
+          <button id="reset-btn">Reset</button>
+        </div>
+
+        <p class="meta">
+          Each primitive draws onto the same 1280×720 canvas. The stage is letterboxed to 16:9 for preview only — math runs at native canvas pixels.
+        </p>
+      </aside>
+    </main>
+
+    <script type="module" src="./motion-primitives-playground.ts"></script>
+  </body>
+</html>

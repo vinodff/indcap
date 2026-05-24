@@ -51,30 +51,91 @@ interface StyleCustomizerProps {
 
 /* ─── category accent colors ─── */
 const CAT_COLORS: Record<string, string> = {
-  VIRAL:       '#f97316',
-  TRENDING:    '#3b82f6',
-  BOLD:        '#ef4444',
-  NEON:        '#22d3ee',
-  MINIMAL:     '#71717a',
-  ART:         '#a855f7',
-  GLOW:        '#eab308',
-  KINETIC:     '#f97316',
-  HIGHLIGHT:   '#22c55e',
-  EMOJI:       '#ec4899',
+  HYPER: '#a78bfa',
+  VIRAL: '#f97316',
+  TRENDING: '#3b82f6',
+  BOLD: '#ef4444',
+  NEON: '#22d3ee',
+  MINIMAL: '#71717a',
+  ART: '#a855f7',
+  GLOW: '#eab308',
+  KINETIC: '#f97316',
+  HIGHLIGHT: '#22c55e',
+  EMOJI: '#ec4899',
   TYPOGRAPHIC: '#e2b97e',
-  CUSTOM:      '#6b7280',
+  TYPOGRAPHY: '#d4a843',
+  CUSTOM: '#6b7280',
 };
 
 const CATEGORIES = [
-  'ALL', 'TRENDING', 'BOLD', 'VIRAL', 'NEON',
+  'ALL', 'HYPER', 'TRENDING', 'BOLD', 'VIRAL', 'NEON',
   'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC',
-  'EMOJI', 'TYPOGRAPHIC', 'CUSTOM'
+  'EMOJI', 'TYPOGRAPHIC', 'TYPOGRAPHY', 'CUSTOM'
 ];
 
+/* ─── hyper style preview descriptors ─── */
+const HYPER_PREVIEWS: Record<string, { label: string; bg: string; textStyle: React.CSSProperties }> = {
+  HYPER_GLITCH: {
+    label: 'GLITCH',
+    bg: 'linear-gradient(135deg, #0a0a0a 0%, #1a0010 100%)',
+    textStyle: {
+      color: '#fff',
+      textShadow: '2px 0 #ff0040, -2px 0 #00ffff',
+      fontWeight: 900,
+      letterSpacing: '0.05em',
+    },
+  },
+  HYPER_NEON_TUBE: {
+    label: 'NEON',
+    bg: 'linear-gradient(135deg, #050510 0%, #0a0a1a 100%)',
+    textStyle: {
+      color: '#ff6ec7',
+      textShadow: '0 0 6px #ff6ec7, 0 0 14px #ff6ec7, 0 0 30px #ff00aa',
+      fontWeight: 400,
+    },
+  },
+  HYPER_3D_EXTRUDE: {
+    label: '3D',
+    bg: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 100%)',
+    textStyle: {
+      color: '#fff',
+      textShadow: '2px 2px 0 #4f46e5, 4px 4px 0 #3730a3, 6px 6px 0 #1e1b4b',
+      fontWeight: 900,
+      letterSpacing: '0.04em',
+    },
+  },
+  HYPER_GLASS_FROST: {
+    label: 'GLASS',
+    bg: 'linear-gradient(135deg, #1a2a3a 0%, #0f1f2f 100%)',
+    textStyle: {
+      color: '#fff',
+      fontWeight: 700,
+      padding: '3px 10px',
+      borderRadius: 8,
+      background: 'rgba(255,255,255,0.12)',
+      border: '1px solid rgba(255,255,255,0.18)',
+    },
+  },
+  HYPER_GRADIENT_WAVE: {
+    label: 'WAVE',
+    bg: 'linear-gradient(135deg, #0a0a14 0%, #14001f 100%)',
+    textStyle: {
+      background: 'linear-gradient(90deg, #00f5ff, #ff00e0, #ffd700)',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      fontWeight: 800,
+    },
+  },
+};
+
 const NEW_KEYS = new Set([
+  'HYPER_GLITCH', 'HYPER_NEON_TUBE', 'HYPER_3D_EXTRUDE', 'HYPER_GLASS_FROST', 'HYPER_GRADIENT_WAVE',
   'BOLD_SHADOW', 'STORYTIME', 'CHROME_3D', 'AUTO_HIGHLIGHT',
   'GLITCH_RGB', 'RETRO_WAVE', 'GHOST_FADE', 'CINEMATIC_TITLES',
   'DUAL_COLOR', 'SHAKE_CAM', 'MINIMAL_BAR', 'LIQUID_CHROME',
+  'TYPO_SIZE_HIERARCHY', 'TYPO_MAGAZINE', 'TYPO_MIXED_FAMILY',
+  'TYPO_EDITORIAL_GOLD', 'TYPO_STREET_POSTER', 'TYPO_MINIMAL_STACK',
+  'TYPO_NEON_LAYERS', 'TYPO_CINEMATIC_TITLE',
 ]);
 
 /* ─── tiny helpers ─── */
@@ -230,9 +291,16 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                     const isActive = currentStyle === key;
                     const isNew = NEW_KEYS.has(key);
                     const sampleWord = config.displayMode === 'WORD' ? 'FIRE' : 'CAPTION';
+                    const isTypography = !!config.typographyLayout;
                     const gradBg = config.gradientColors && config.gradientColors.length >= 2
                       ? `linear-gradient(135deg, ${config.gradientColors.join(',')})`
-                      : 'linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 100%)';
+                      : isTypography
+                        ? (config.backgroundColor && config.backgroundColor !== 'rgba(0,0,0,0.0)'
+                          ? config.backgroundColor
+                          : 'linear-gradient(135deg, #111 0%, #1e1e1e 100%)')
+                        : 'linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 100%)';
+
+                    const hyperPreview = HYPER_PREVIEWS[key];
 
                     return (
                       <button
@@ -248,7 +316,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                         <div style={{
                           aspectRatio: '2/1',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: gradBg,
+                          background: hyperPreview ? hyperPreview.bg : gradBg,
                           borderRadius: '10px 10px 0 0',
                           overflow: 'hidden',
                           position: 'relative',
@@ -260,27 +328,96 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                               background: 'rgba(59,130,246,0.08)',
                             }} />
                           )}
-                          <span
-                            className="template-preview-span"
-                            data-animation={config.animation}
-                            style={{
-                              fontFamily: config.fontFamily,
-                              fontSize: 21,
-                              fontWeight: config.fontWeight || 900,
-                              color: config.activeTextColor || config.textColor,
-                              textShadow: config.shadowBlur
-                                ? `0 0 ${Math.min(config.shadowBlur, 18)}px ${config.shadowColor}`
-                                : 'none',
-                              WebkitTextStroke: config.strokeWidth && config.strokeWidth > 0
-                                ? `${Math.min(config.strokeWidth / 3, 2)}px ${config.strokeColor || '#000'}`
-                                : 'none',
-                              textTransform: config.uppercase ? 'uppercase' : 'none',
-                              letterSpacing: '0.01em',
+
+                          {/* HyperStyle preview */}
+                          {hyperPreview ? (
+                            <div style={{
+                              display: 'flex', flexDirection: 'column',
+                              alignItems: 'center', justifyContent: 'center',
+                              gap: 4, position: 'relative', zIndex: 1,
+                            }}>
+                              <span style={{
+                                fontSize: 18, fontFamily: config.fontFamily,
+                                fontWeight: config.fontWeight || 900,
+                                ...hyperPreview.textStyle,
+                              }}>
+                                {hyperPreview.label}
+                              </span>
+                              <span style={{
+                                fontSize: 7, fontWeight: 700, letterSpacing: '0.1em',
+                                color: '#a78bfa', textTransform: 'uppercase',
+                                background: 'rgba(167,139,250,0.12)',
+                                padding: '1px 6px', borderRadius: 4,
+                                border: '1px solid rgba(167,139,250,0.3)',
+                              }}>CSS+GSAP</span>
+                            </div>
+                          ) : isTypography && config.typographyLayout ? (
+                            <div style={{
+                              display: 'flex', flexDirection: 'column',
+                              alignItems: 'center', justifyContent: 'center',
+                              gap: 2, padding: '4px 8px',
                               position: 'relative', zIndex: 1,
-                            }}
-                          >
-                            {sampleWord}
-                          </span>
+                            }}>
+                              {config.typographyLayout.layers.map((layer, li) => {
+                                const PREVIEW_WORDS = ['small', 'BIG', 'text'];
+                                const previewText = li === 1
+                                  ? (layer.uppercase ? 'WORD' : 'Word')
+                                  : li === 0
+                                    ? (layer.uppercase ? 'SMALL' : 'small')
+                                    : (layer.uppercase ? 'TEXT' : 'text');
+                                const previewSize = layer.fontSize > 70
+                                  ? 19
+                                  : layer.fontSize > 40
+                                    ? 12
+                                    : 8;
+                                const previewColor = layer.gradientColors && layer.gradientColors.length >= 2
+                                  ? layer.gradientColors[0]
+                                  : layer.color;
+                                return (
+                                  <span key={li} style={{
+                                    fontFamily: layer.fontFamily,
+                                    fontSize: previewSize,
+                                    fontWeight: layer.fontWeight,
+                                    color: previewColor,
+                                    textTransform: layer.uppercase ? 'uppercase' : 'none',
+                                    fontStyle: layer.italic ? 'italic' : 'normal',
+                                    letterSpacing: li === 1 ? '0.05em' : '0.08em',
+                                    lineHeight: 1.1,
+                                    textShadow: layer.shadowColor
+                                      ? `0 0 ${Math.min((layer.shadowBlur || 8), 12)}px ${layer.shadowColor}`
+                                      : 'none',
+                                    WebkitTextStroke: layer.strokeColor && (layer.strokeWidth || 0) > 0
+                                      ? `${Math.min((layer.strokeWidth || 1) / 3, 1.5)}px ${layer.strokeColor}`
+                                      : 'none',
+                                  }}>
+                                    {previewText}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span
+                              className="template-preview-span"
+                              data-animation={config.animation}
+                              style={{
+                                fontFamily: config.fontFamily,
+                                fontSize: 21,
+                                fontWeight: config.fontWeight || 900,
+                                color: config.activeTextColor || config.textColor,
+                                textShadow: config.shadowBlur
+                                  ? `0 0 ${Math.min(config.shadowBlur, 18)}px ${config.shadowColor}`
+                                  : 'none',
+                                WebkitTextStroke: config.strokeWidth && config.strokeWidth > 0
+                                  ? `${Math.min(config.strokeWidth / 3, 2)}px ${config.strokeColor || '#000'}`
+                                  : 'none',
+                                textTransform: config.uppercase ? 'uppercase' : 'none',
+                                letterSpacing: '0.01em',
+                                position: 'relative', zIndex: 1,
+                              }}
+                            >
+                              {sampleWord}
+                            </span>
+                          )}
                         </div>
 
                         {/* Info row */}
@@ -441,7 +578,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                   background: 'var(--cc-surface-2)',
                 }}>
                   {(['left', 'center', 'right'] as const).map((a, i) => {
-                    const icons = [<AlignLeft size={13}/>, <AlignCenter size={13}/>, <AlignRight size={13}/>];
+                    const icons = [<AlignLeft size={13} />, <AlignCenter size={13} />, <AlignRight size={13} />];
                     return (
                       <button
                         key={a}

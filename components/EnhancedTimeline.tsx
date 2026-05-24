@@ -1,11 +1,10 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { Caption, StickerItem } from '../types';
-import { ZoomIn, ZoomOut, Scissors, Trash2, Copy, Smile } from 'lucide-react';
+import { Caption } from '../types';
+import { ZoomIn, ZoomOut, Scissors, Trash2, Copy } from 'lucide-react';
 
 interface EnhancedTimelineProps {
     videoRef: React.RefObject<HTMLVideoElement | null>;
     captions: Caption[];
-    currentTime: number;
     isPlaying: boolean;
     onSeek: (time: number) => void;
     onUpdateCaption: (id: string, updates: Partial<Caption>) => void;
@@ -14,13 +13,7 @@ interface EnhancedTimelineProps {
     onDuplicateCaption?: (id: string) => void;
     selectedCaptionId?: string | null;
     onSelectCaption?: (id: string | null) => void;
-    
-    stickers?: StickerItem[];
-    onUpdateSticker?: (id: string, updates: Partial<StickerItem>) => void;
-    onDeleteSticker?: (id: string) => void;
-    selectedStickerId?: string | null;
-    onSelectSticker?: (id: string | null) => void;
-    activeTool?: string;
+
 }
 
 const TRACK_HEIGHT = 36;
@@ -30,7 +23,6 @@ const MAX_ZOOM = 8;
 const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     videoRef,
     captions,
-    currentTime,
     isPlaying,
     onSeek,
     onUpdateCaption,
@@ -39,35 +31,46 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     onDuplicateCaption,
     selectedCaptionId,
     onSelectCaption,
-    stickers = [],
-    onUpdateSticker,
-    onDeleteSticker,
-    selectedStickerId,
-    onSelectSticker,
-    activeTool = 'CAPTIONS',
 }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isDraggingPlayhead = useRef(false);
     const isDraggingCaption = useRef<{ id: string; type: 'move' | 'left' | 'right'; startX: number; startTime: number; startEnd: number } | null>(null);
-    const isDraggingSticker = useRef<{ id: string; type: 'move' | 'left' | 'right'; startX: number; startTime: number; startEnd: number } | null>(null);
     const [zoom, setZoom] = useState(1);
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; itemId: string; type: 'caption' | 'sticker' } | null>(null);
-    // Bug 10 Fix: subscribe to real duration via loadedmetadata event
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; itemId: string; type: 'caption' } | null>(null);
+    const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(60);
 
+    // Attach timeupdate + metadata listeners — use stable ref identity, not .current
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
-        const update = () => { if (video.duration && isFinite(video.duration)) setDuration(video.duration); };
-        update(); // run immediately if already loaded
-        video.addEventListener('loadedmetadata', update);
-        video.addEventListener('durationchange', update);
+        const updateTime = () => setCurrentTime(video.currentTime);
+        const updateDuration = () => { if (video.duration && isFinite(video.duration)) setDuration(video.duration); };
+        video.addEventListener('timeupdate', updateTime);
+        video.addEventListener('loadedmetadata', updateDuration);
+        video.addEventListener('durationchange', updateDuration);
+        updateTime();
+        updateDuration();
         return () => {
-            video.removeEventListener('loadedmetadata', update);
-            video.removeEventListener('durationchange', update);
+            video.removeEventListener('timeupdate', updateTime);
+            video.removeEventListener('loadedmetadata', updateDuration);
+            video.removeEventListener('durationchange', updateDuration);
         };
     }, [videoRef]);
+
+    // RAF loop while playing for smooth playhead — timeupdate alone fires only ~4Hz
+    useEffect(() => {
+        if (!isPlaying) return;
+        let rafId: number;
+        const tick = () => {
+            const video = videoRef.current;
+            if (video) setCurrentTime(video.currentTime);
+            rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, videoRef]);
 
     const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -145,37 +148,11 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                     onUpdateCaption(id, { endTime: newEnd });
                 }
             }
-            if (isDraggingSticker.current && onUpdateSticker) {
-                const { id, type, startX, startTime, startEnd } = isDraggingSticker.current;
-                const track = trackRef.current; // Assuming same track width
-                if (!track) return;
-                const rect = track.getBoundingClientRect();
-                const dx = e.clientX - startX;
-                const dtRatio = dx / rect.width;
-                const dt = dtRatio * duration;
-
-                if (type === 'move') {
-                    const newStart = Math.max(0, startTime + dt);
-                    const stickerDuration = startEnd - startTime;
-                    const newEnd = Math.min(duration, newStart + stickerDuration);
-                    onUpdateSticker(id, {
-                        startTime: Math.max(0, newEnd - stickerDuration),
-                        endTime: newEnd,
-                    });
-                } else if (type === 'left') {
-                    const newStart = Math.max(0, Math.min(startEnd - 0.1, startTime + dt));
-                    onUpdateSticker(id, { startTime: newStart });
-                } else if (type === 'right') {
-                    const newEnd = Math.max(startTime + 0.1, Math.min(duration, startEnd + dt));
-                    onUpdateSticker(id, { endTime: newEnd });
-                }
-            }
         };
 
         const handleMouseUp = () => {
             isDraggingPlayhead.current = false;
             isDraggingCaption.current = null;
-            isDraggingSticker.current = null;
         };
 
         window.addEventListener('mousemove', handleMouseMove);
@@ -204,14 +181,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
         setContextMenu({ x, y, itemId: captionId, type: 'caption' });
     }, []);
 
-    const handleStickerRightClick = useCallback((e: React.MouseEvent, stickerId: string) => {
-        e.preventDefault();
-        const MENU_W = 170;
-        const MENU_H = 80; // Smaller menu for stickers (no split/duplicate yet)
-        const x = Math.min(e.clientX, window.innerWidth - MENU_W - 8);
-        const y = Math.min(e.clientY, window.innerHeight - MENU_H - 8);
-        setContextMenu({ x, y, itemId: stickerId, type: 'sticker' });
-    }, []);
+
 
     useEffect(() => {
         const close = () => setContextMenu(null);
@@ -410,83 +380,6 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                         </div>
                     </div>
 
-                    {/* Stickers Track */}
-                    {(stickers.length > 0 || activeTool === 'STICKERS') && (
-                        <div
-                            className="relative mx-4 mt-2 cursor-pointer"
-                            style={{ height: `${TRACK_HEIGHT + 8}px` }}
-                            onMouseDown={handleTrackMouseDown}
-                        >
-                            <div className="absolute inset-0 rounded-lg bg-gray-900/30 border border-gray-800/30 flex items-center px-2 pointer-events-none">
-                                <Smile size={12} className="text-gray-700 absolute -left-6" />
-                            </div>
-
-                            {stickers.map((sticker) => {
-                                const left = (sticker.startTime / duration) * 100;
-                                const width = ((sticker.endTime - sticker.startTime) / duration) * 100;
-                                const isSelected = selectedStickerId === sticker.id;
-
-                                return (
-                                    <div
-                                        key={sticker.id}
-                                        data-caption-block="true"
-                                        className={`absolute top-1 rounded-md border overflow-hidden group transition-all cursor-grab active:cursor-grabbing bg-indigo-500/30 border-indigo-500/50 ${isSelected ? 'ring-1 ring-white/50 shadow-lg z-10' : 'hover:brightness-125 z-0'}`}
-                                        style={{
-                                            left: `${left}%`,
-                                            width: `${Math.max(width, 0.5)}%`,
-                                            height: `${TRACK_HEIGHT}px`,
-                                        }}
-                                        onMouseDown={(e) => {
-                                            e.stopPropagation();
-                                            isDraggingSticker.current = {
-                                                id: sticker.id,
-                                                type: 'move',
-                                                startX: e.clientX,
-                                                startTime: sticker.startTime,
-                                                startEnd: sticker.endTime,
-                                            };
-                                            onSelectSticker?.(sticker.id);
-                                        }}
-                                        onContextMenu={(e) => handleStickerRightClick(e, sticker.id)}
-                                        onClick={(e) => { e.stopPropagation(); onSelectSticker?.(sticker.id); }}
-                                    >
-                                        <div
-                                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/20 hover:bg-white/40 transition-colors z-10 flex items-center justify-center"
-                                            onMouseDown={(e) => {
-                                                e.stopPropagation();
-                                                isDraggingSticker.current = { id: sticker.id, type: 'left', startX: e.clientX, startTime: sticker.startTime, startEnd: sticker.endTime };
-                                                onSelectSticker?.(sticker.id);
-                                            }}
-                                        >
-                                            <div className="w-px h-3 bg-white/60" />
-                                        </div>
-
-                                        <div className="absolute inset-0 flex items-center justify-center px-3 pointer-events-none">
-                                            <span className="text-[16px] truncate">{sticker.emoji}</span>
-                                        </div>
-
-                                        <div
-                                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/20 hover:bg-white/40 transition-colors z-10 flex items-center justify-center"
-                                            onMouseDown={(e) => {
-                                                e.stopPropagation();
-                                                isDraggingSticker.current = { id: sticker.id, type: 'right', startX: e.clientX, startTime: sticker.startTime, startEnd: sticker.endTime };
-                                                onSelectSticker?.(sticker.id);
-                                            }}
-                                        >
-                                            <div className="w-px h-3 bg-white/60" />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            
-                            {/* Playhead for Stickers Track (visual only) */}
-                            <div
-                                className="absolute top-0 h-full w-0.5 bg-red-500/50 pointer-events-none z-20"
-                                style={{ left: `${progress}%`, transform: 'translateX(-50%)' }}
-                            />
-                        </div>
-                    )}
-
                     {/* Bottom padding */}
                     <div className="h-4" />
                 </div>
@@ -527,22 +420,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                 </div>
             )}
 
-            {contextMenu && contextMenu.type === 'sticker' && (
-                <div
-                    className="fixed z-50 bg-[#1e1e1e] border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[160px]"
-                    style={{ left: contextMenu.x, top: contextMenu.y }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    {onDeleteSticker && (
-                        <button
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors"
-                            onClick={() => { onDeleteSticker(contextMenu.itemId); onSelectSticker?.(null); setContextMenu(null); }}
-                        >
-                            <Trash2 size={13} /> Delete Sticker
-                        </button>
-                    )}
-                </div>
-            )}
+
         </div>
     );
 };

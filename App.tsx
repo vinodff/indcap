@@ -58,7 +58,9 @@ const ExportPanel = lazy(() => import('./components/ExportPanel'));
 const KeyboardShortcutPanel = lazy(() => import('./components/KeyboardShortcutPanel'));
 const ThemePresetsPanel = lazy(() => import('./components/ThemePresetsPanel'));
 const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
-const ThumbnailGenerator = lazy(() => import('./components/ThumbnailGenerator').then(module => ({ default: module.ThumbnailGenerator })));
+const AiThumbnailGenerator = lazy(() => import('./components/AiThumbnailGenerator'));
+const MotionGraphicsPanel = lazy(() => import('./components/MotionGraphicsPanel').then(module => ({ default: module.MotionGraphicsPanel })));
+const TypographyReelStudio = lazy(() => import('./components/TypographyReelStudio'));
 import { ThemePreset, AIStyleSuggestion, THEME_PRESETS } from './services/aiStyleService';
 import { TemplateManager, CaptionTemplate } from './services/TemplateManager';
 import { applyAutoEmojis, removeAutoEmojis } from './services/emojiAutoMatcher';
@@ -388,6 +390,55 @@ const App: React.FC = () => {
       setHorizontalPos(50);
       setCurrentStyle(CaptionStyle.CLEAN_WHITE);
     }
+  };
+
+  const handleTestWithSampleText = async () => {
+    // Load sample video without calling Gemini at all
+    if (!videoSrc) {
+      try {
+        setStatus('UPLOADING');
+        let blob: Blob | null = null;
+        try {
+          const r = await fetch('/test video.mp4');
+          if (r.ok) blob = await r.blob();
+        } catch {/* fallback below */}
+        if (!blob) {
+          const r = await fetch('https://storage.googleapis.com/generativeai-downloads/images/test%20video.mp4');
+          if (r.ok) blob = await r.blob();
+        }
+        if (blob) {
+          const file = new File([blob], 'test video.mp4', { type: 'video/mp4' });
+          if (videoObjectUrlRef.current) URL.revokeObjectURL(videoObjectUrlRef.current);
+          const url = URL.createObjectURL(file);
+          videoObjectUrlRef.current = url;
+          setVideoFile(file);
+          setVideoSrc(url);
+        }
+      } catch {/* proceed with no video — captions still work on canvas */}
+    }
+
+    // Predefined sample captions — no API call needed
+    const sampleCaptions: Caption[] = [
+      { id: 's1',  startTime: 0.0,  endTime: 2.5,  text: "Welcome to Createrin",            confidence: 98, words: [{ text: "Welcome",   start: 0.0,  end: 0.7  }, { text: "to",       start: 0.7,  end: 0.9  }, { text: "Createrin", start: 0.9,  end: 2.5  }] },
+      { id: 's2',  startTime: 2.6,  endTime: 5.0,  text: "The ultimate caption tool",        confidence: 97, words: [{ text: "The",       start: 2.6,  end: 2.9  }, { text: "ultimate", start: 2.9,  end: 3.5  }, { text: "caption",  start: 3.5,  end: 4.0  }, { text: "tool",     start: 4.0,  end: 5.0  }] },
+      { id: 's3',  startTime: 5.1,  endTime: 7.5,  text: "Create viral captions in seconds", confidence: 96, words: [{ text: "Create",   start: 5.1,  end: 5.6  }, { text: "viral",    start: 5.6,  end: 6.1  }, { text: "captions", start: 6.1,  end: 6.7  }, { text: "in",       start: 6.7,  end: 6.9  }, { text: "seconds",  start: 6.9,  end: 7.5  }] },
+      { id: 's4',  startTime: 7.6,  endTime: 10.0, text: "No more manual typing ever",       confidence: 95, words: [{ text: "No",       start: 7.6,  end: 7.9  }, { text: "more",     start: 7.9,  end: 8.2  }, { text: "manual",   start: 8.2,  end: 8.7  }, { text: "typing",   start: 8.7,  end: 9.3  }, { text: "ever",     start: 9.3,  end: 10.0 }] },
+      { id: 's5',  startTime: 10.1, endTime: 13.0, text: "AI-powered captions that match your style", confidence: 97, words: [{ text: "AI-powered", start: 10.1, end: 10.8 }, { text: "captions", start: 10.8, end: 11.3 }, { text: "that",     start: 11.3, end: 11.5 }, { text: "match",    start: 11.5, end: 11.9 }, { text: "your",     start: 11.9, end: 12.2 }, { text: "style",    start: 12.2, end: 13.0 }] },
+      { id: 's6',  startTime: 13.1, endTime: 15.5, text: "Transform your content",           confidence: 96, words: [{ text: "Transform", start: 13.1, end: 13.8 }, { text: "your",     start: 13.8, end: 14.1 }, { text: "content",  start: 14.1, end: 15.5 }] },
+      { id: 's7',  startTime: 15.6, endTime: 18.0, text: "With just one click",              confidence: 98, words: [{ text: "With",     start: 15.6, end: 15.9 }, { text: "just",     start: 15.9, end: 16.2 }, { text: "one",      start: 16.2, end: 16.6 }, { text: "click",    start: 16.6, end: 18.0 }] },
+      { id: 's8',  startTime: 18.1, endTime: 21.0, text: "Beautiful animations included",    confidence: 95, words: [{ text: "Beautiful",  start: 18.1, end: 18.8 }, { text: "animations", start: 18.8, end: 19.6 }, { text: "included",   start: 19.6, end: 21.0 }] },
+      { id: 's9',  startTime: 21.1, endTime: 24.0, text: "Every word perfectly timed",       confidence: 97, words: [{ text: "Every",     start: 21.1, end: 21.6 }, { text: "word",     start: 21.6, end: 22.0 }, { text: "perfectly", start: 22.0, end: 22.7 }, { text: "timed",    start: 22.7, end: 24.0 }] },
+      { id: 's10', startTime: 24.1, endTime: 27.0, text: "Your audience will love it",       confidence: 96, words: [{ text: "Your",     start: 24.1, end: 24.5 }, { text: "audience",  start: 24.5, end: 25.1 }, { text: "will",     start: 25.1, end: 25.4 }, { text: "love",     start: 25.4, end: 25.8 }, { text: "it",       start: 25.8, end: 27.0 }] },
+      { id: 's11', startTime: 27.1, endTime: 30.0, text: "Start creating amazing videos today", confidence: 98, words: [{ text: "Start",    start: 27.1, end: 27.5 }, { text: "creating",  start: 27.5, end: 28.1 }, { text: "amazing",   start: 28.1, end: 28.6 }, { text: "videos",    start: 28.6, end: 29.1 }, { text: "today",     start: 29.1, end: 30.0 }] },
+    ];
+
+    resetCaptionsHistory(sampleCaptions);
+    setStats({ transcriptionTime: 0, wordCount: 47, confidenceScore: 97, languageDetected: 'English' });
+    setAspectRatio('9:16');
+    setVerticalPos(78);
+    setStatus('READY');
+    setActiveTab('PRESETS');
+    showToast('Sample text loaded — try any caption template!', 'info');
   };
 
   const handleGenerateCaptions = async () => {
@@ -1028,8 +1079,18 @@ const App: React.FC = () => {
 
       {/* Bug 1 Fix: Route each feature to its dedicated fullscreen component */}
       {activeFeature === 'THUMBNAIL' && (
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
-          <ThumbnailGenerator onBack={() => setActiveFeature(null)} />
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
+          <AiThumbnailGenerator onBack={() => setActiveFeature(null)} />
+        </Suspense>
+      )}
+      {activeFeature === 'MOTION' && (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
+          <MotionGraphicsPanel onBack={() => setActiveFeature(null)} />
+        </Suspense>
+      )}
+      {activeFeature === 'TYPOGRAPHY_REEL' && (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-violet-500 w-8 h-8" /></div>}>
+          <TypographyReelStudio onBack={() => setActiveFeature(null)} />
         </Suspense>
       )}
       {activeFeature === 'SEO' && (
@@ -1062,7 +1123,7 @@ const App: React.FC = () => {
           {/* Center: Video + Timeline */}
           <div className="shrink-0 md:flex-1 flex flex-col overflow-visible md:overflow-hidden relative z-10 w-full h-auto md:h-full md:min-h-0">
             {/* Video canvas area */}
-            <div className="w-full flex-shrink-0 relative bg-[#030303] overflow-hidden flex items-center justify-center h-[55vh] md:h-auto md:flex-1" style={{ flex: 'none' }}>
+            <div className="w-full relative bg-[#030303] overflow-hidden flex items-center justify-center h-[55vh] md:h-0 md:flex-1">
               <div className="cc-dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
                 <VideoPreviewArea
@@ -1071,6 +1132,7 @@ const App: React.FC = () => {
                   canvasRef={canvasRef}
                   handleFileUpload={handleFileUpload}
                   onLoadSampleVideo={startPreviewMode}
+                  onTestWithSampleText={handleTestWithSampleText}
                   setVideoSrc={setVideoSrc}
                   setVideoFile={setVideoFile}
                   setStatus={setStatus}
