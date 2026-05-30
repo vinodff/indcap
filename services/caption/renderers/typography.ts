@@ -148,7 +148,7 @@ export function drawTypographyCaption(
 
   // ── PRE-PASS: compute actual rendered font sizes for all layers (with auto-fit) ──
   // This lets us auto-stack Y positions based on real heights rather than fixed offsets.
-  const maxTextW = canvas.width * 0.88;
+  const maxTextW = canvas.width * 0.90;
   const spacing = (layout.verticalSpacing || 8) * scaleFactor;
 
   const layerMeta: Array<{ text: string; fontSize: number; lineH: number }> = layout.layers.map(layer => {
@@ -198,9 +198,9 @@ export function drawTypographyCaption(
   if (style.backgroundColor && style.backgroundColor !== 'rgba(0,0,0,0.0)') {
     const pad = (style.backgroundPadding || 24) * scaleFactor;
     const totalH = totalBlockH + pad * 2;
-    const totalW = dominantAlign === 'center' ? canvas.width * 0.88 : canvas.width * 0.92;
-    const bgX = dominantAlign === 'left' ? canvas.width * 0.04
-      : dominantAlign === 'right' ? canvas.width * 0.96 - totalW
+    const totalW = dominantAlign === 'center' ? canvas.width * 0.90 : canvas.width * 0.90;
+    const bgX = dominantAlign === 'left' ? canvas.width * 0.05
+      : dominantAlign === 'right' ? canvas.width * 0.95 - totalW
         : anchorX - totalW / 2;
     const bgY = anchorY - totalH / 2;
     const rad = (style.backgroundBorderRadius || 0) * scaleFactor;
@@ -278,8 +278,8 @@ export function drawTypographyCaption(
     const align = layer.textAlign || 'center';
 
     // ── X position: left-aligned layers use left margin; centered use anchorX ──
-    const leftMargin = canvas.width * 0.06;
-    const rightMargin = canvas.width * 0.94;
+    const leftMargin = canvas.width * 0.05;
+    const rightMargin = canvas.width * 0.95;
     let layerX: number;
     if (align === 'left') {
       layerX = leftMargin + (layer.xOffset || 0) * scaleFactor;

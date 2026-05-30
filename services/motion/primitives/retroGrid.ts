@@ -76,14 +76,22 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
   ctx.save();
   ctx.globalAlpha = visible;
 
+  // ── Create palette-aware grid colors ───────────────────────────────────────
+  const gridColors = {
+    primary: palette.primary,        // Grid lines primary
+    accent: palette.accent,          // Horizon glow and center lines
+    secondary: palette.secondary,    // Sky gradient accent
+    bg: palette.bg || '#000000',     // Ground and sky base
+  };
+
   // ── 2. Sky gradient (above horizon) ────────────────────────────────────────
   const horizonPt = proj(0, -1.5, -60);
   const horizonY  = horizonPt ? clamp01(horizonPt.y / height) * height : height * 0.42;
 
   const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
-  skyGrad.addColorStop(0,   hexA(palette.bg, 0.92));
-  skyGrad.addColorStop(0.7, hexA(palette.bg, 0.6));
-  skyGrad.addColorStop(1,   hexA(palette.primary, 0.25));
+  skyGrad.addColorStop(0,   hexA(gridColors.bg, 0.92));
+  skyGrad.addColorStop(0.7, hexA(gridColors.bg, 0.6));
+  skyGrad.addColorStop(1,   hexA(gridColors.secondary, 0.25));
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, width, horizonY);
 
@@ -107,17 +115,17 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
     }
   }
 
-  // ── 4. Synthwave sun at vanishing point ────────────────────────────────────
+  // ── 4. Animated sun at vanishing point (palette-aware glow) ──────────────────
   {
     const sunX  = width / 2;
     const sunY  = horizonY;
     const sunR  = Math.min(width, height) * (intensity === 3 ? 0.20 : 0.15);
 
-    // Outer glow
+    // Outer glow (palette-aware: uses accent for bright rim, primary for gradient)
     const glow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 2.4);
-    glow.addColorStop(0,   hexA(palette.accent, 0.75));
-    glow.addColorStop(0.35, hexA(palette.primary, 0.45));
-    glow.addColorStop(1,   hexA(palette.primary, 0));
+    glow.addColorStop(0,   hexA(gridColors.accent, 0.75));
+    glow.addColorStop(0.35, hexA(gridColors.primary, 0.45));
+    glow.addColorStop(1,   hexA(gridColors.primary, 0));
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = glow;
@@ -126,11 +134,11 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
     ctx.fill();
     ctx.restore();
 
-    // Sun disc (half circle above horizon, half below)
+    // Sun disc (half circle above horizon, half below) with palette colors
     const sunGrad = ctx.createLinearGradient(sunX, sunY - sunR, sunX, sunY + sunR * 0.5);
-    sunGrad.addColorStop(0,   hexA(palette.accent, 0.95));
-    sunGrad.addColorStop(0.4, hexA(palette.primary, 0.85));
-    sunGrad.addColorStop(1,   hexA(palette.secondary, 0.6));
+    sunGrad.addColorStop(0,   hexA(gridColors.accent, 0.95));
+    sunGrad.addColorStop(0.4, hexA(gridColors.primary, 0.85));
+    sunGrad.addColorStop(1,   hexA(gridColors.secondary, 0.6));
     ctx.fillStyle = sunGrad;
     ctx.beginPath();
     ctx.arc(sunX, sunY, sunR, Math.PI, 0); // upper half
@@ -158,11 +166,11 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
     ctx.fillRect(0, sunY - 1.5, width, 1.5);
   }
 
-  // ── 5. Floor gradient ─────────────────────────────────────────────────────
+  // ── 5. Floor gradient (palette-aware ground) ──────────────────────────────
   {
     const floorGrad = ctx.createLinearGradient(0, horizonY, 0, height);
-    floorGrad.addColorStop(0,   hexA(palette.bg, 0.65));
-    floorGrad.addColorStop(1,   hexA(palette.bg, 0.90));
+    floorGrad.addColorStop(0,   hexA(gridColors.bg, 0.65));
+    floorGrad.addColorStop(1,   hexA(gridColors.bg, 0.90));
     ctx.fillStyle = floorGrad;
     ctx.fillRect(0, horizonY, width, height - horizonY);
   }
@@ -196,10 +204,11 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
         const proximity = clamp01(1 + avgDepth / 35);  // 0 = far, 1 = near
         const lineAlpha = (isCenter ? 0.55 : 0.14) * proximity;
         if (lineAlpha < 0.008) continue;
-        ctx.strokeStyle = isCenter ? hexA(palette.accent, lineAlpha) : hexA(palette.primary, lineAlpha);
+        // Use palette-aware grid colors for center and regular lines
+        ctx.strokeStyle = isCenter ? hexA(gridColors.accent, lineAlpha) : hexA(gridColors.primary, lineAlpha);
         ctx.lineWidth   = isCenter ? 1.8 : Math.max(0.5, proximity * 1.0);
         if (isCenter) {
-          ctx.shadowColor = palette.accent;
+          ctx.shadowColor = gridColors.accent;
           ctx.shadowBlur  = 4;
         }
         ctx.beginPath();
@@ -223,10 +232,11 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
       const proximity = clamp01(1 + avgDepth / 35);
       const lineAlpha = (isCenter ? 0.55 : 0.11) * proximity;
       if (lineAlpha < 0.008) continue;
-      ctx.strokeStyle = isCenter ? hexA(palette.accent, lineAlpha) : hexA(palette.primary, lineAlpha);
+      // Use palette-aware grid colors
+      ctx.strokeStyle = isCenter ? hexA(gridColors.accent, lineAlpha) : hexA(gridColors.primary, lineAlpha);
       ctx.lineWidth   = isCenter ? 1.8 : Math.max(0.4, proximity * 0.8);
       if (isCenter) {
-        ctx.shadowColor = palette.accent;
+        ctx.shadowColor = gridColors.accent;
         ctx.shadowBlur  = 4;
       }
       ctx.beginPath();
@@ -239,13 +249,13 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
     ctx.restore();
   }
 
-  // ── 7. Scrolling horizontal scan-line sweep ───────────────────────────────
+  // ── 7. Scrolling horizontal scan-line sweep (palette-aware glow) ────────────
   if (intensity >= 2) {
     const scanY  = horizonY + (height - horizonY) * ((t01 * 1.4) % 1);
     const scanH  = Math.max(2, (height - horizonY) * 0.018);
     const scanGr = ctx.createLinearGradient(0, scanY - scanH, 0, scanY + scanH);
     scanGr.addColorStop(0,   'rgba(0,0,0,0)');
-    scanGr.addColorStop(0.5, hexA(palette.accent, 0.28));
+    scanGr.addColorStop(0.5, hexA(gridColors.accent, 0.28));
     scanGr.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -254,11 +264,11 @@ export const retroGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
     ctx.restore();
   }
 
-  // ── 8. Horizon glow band ───────────────────────────────────────────────────
+  // ── 8. Horizon glow band (palette-aware accent glow) ──────────────────────
   {
     const hg = ctx.createLinearGradient(0, horizonY - height * 0.12, 0, horizonY + height * 0.06);
     hg.addColorStop(0,   'rgba(0,0,0,0)');
-    hg.addColorStop(0.5, hexA(palette.accent, 0.14));
+    hg.addColorStop(0.5, hexA(gridColors.accent, 0.14));
     hg.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';

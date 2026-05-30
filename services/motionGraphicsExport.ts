@@ -14,6 +14,7 @@ import type { MotionBeat, PrimitiveType } from './motionGraphicsService';
 export interface ExportOptions {
   canvas: HTMLCanvasElement;
   videoEl: HTMLVideoElement | null;
+  audioStream?: MediaStream;
   durationSec: number;
   fps: number;
   videoBitsPerSecond?: number;
@@ -60,6 +61,7 @@ export const exportMotionVideo = async (opts: ExportOptions): Promise<ExportResu
   const {
     canvas,
     videoEl,
+    audioStream: extAudioStream,
     durationSec,
     fps,
     videoBitsPerSecond = 8_000_000,
@@ -88,8 +90,9 @@ export const exportMotionVideo = async (opts: ExportOptions): Promise<ExportResu
     captureStream: (frameRate?: number) => MediaStream;
   }).captureStream(fps);
   const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
-  let audioStream: MediaStream | null = null;
-  if (videoEl) {
+  let audioStream: MediaStream | null = extAudioStream || null;
+  
+  if (!audioStream && videoEl) {
     type CapturableVideo = HTMLVideoElement & {
       captureStream?: () => MediaStream;
       mozCaptureStream?: () => MediaStream;
@@ -99,12 +102,16 @@ export const exportMotionVideo = async (opts: ExportOptions): Promise<ExportResu
     if (cap) {
       try {
         audioStream = cap.call(v);
-        if (audioStream) tracks.push(...audioStream.getAudioTracks());
       } catch (e) {
         console.warn('[export] could not capture audio from video:', e);
       }
     }
   }
+  
+  if (audioStream) {
+    tracks.push(...audioStream.getAudioTracks());
+  }
+  
   const combined = new MediaStream(tracks);
 
   const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond });

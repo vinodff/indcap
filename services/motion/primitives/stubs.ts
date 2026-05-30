@@ -59,10 +59,6 @@ const drawStub = (pc: PrimitiveContext, p: PrimitiveParams, label: string) => {
   ctx.restore();
 };
 
-export const quoteCard = (pc: PrimitiveContext, p: PrimitiveParams) => drawStub(pc, p, 'Quote');
-export const bulletListReveal = (pc: PrimitiveContext, p: PrimitiveParams) => drawStub(pc, p, 'Bullets');
-export const calloutArrow = (pc: PrimitiveContext, p: PrimitiveParams) => drawStub(pc, p, 'Callout');
-export const barReveal = (pc: PrimitiveContext, p: PrimitiveParams) => drawStub(pc, p, 'Bar');
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();

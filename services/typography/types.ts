@@ -84,6 +84,9 @@ export type AnimationType =
   | 'typewriter'
   | 'bounce-in'
   | 'rotate-in'
+  | 'pop-slide-up'
+  | 'whip-pan'
+  | 'mask-reveal'
   // Emphasis Animations
   | 'scale-pop'
   | 'color-flash'
@@ -104,8 +107,8 @@ export interface AnimationTiming {
   entryDuration: number;       // Seconds
   holdDuration: number;
   exitDuration: number;
-  entryEasing: 'ease-out' | 'ease-in' | 'ease-in-out' | 'linear';
-  exitEasing: 'ease-out' | 'ease-in' | 'ease-in-out' | 'linear';
+  entryEasing: 'ease-out' | 'ease-in' | 'ease-in-out' | 'linear' | 'overshoot-ease-out';
+  exitEasing: 'ease-out' | 'ease-in' | 'ease-in-out' | 'linear' | 'overshoot-ease-out';
 }
 
 export interface TextStyle {
@@ -118,6 +121,10 @@ export interface TextStyle {
   strokeWidth?: number;        // Outline thickness
   shadowColor?: string;        // Drop shadow
   shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  textCase?: 'uppercase' | 'lowercase' | 'capitalize' | 'normal';
+  opacity?: number;
 }
 
 export interface WordAnimation {
@@ -148,6 +155,12 @@ export interface LayoutConfiguration {
   textAlignment: 'center' | 'left' | 'right';
   verticalPosition: 'top' | 'center' | 'bottom';
   padding: number;
+  layoutStyle?: 'center' | 'scattered' | 'stacking';
+  watermarkText?: string;
+  backgroundType?: 'solid' | 'textured_solid';
+  backgroundTexture?: 'subtle_paper_grain' | string;
+  backgroundTextureOpacity?: number;
+  emphasisStyle?: 'bold' | 'color' | 'scale' | 'glow' | 'composite' | 'bg-box';
 }
 
 export interface AnimationSequence {
@@ -169,6 +182,11 @@ export interface ThemeProfile {
   fontFamily: string;
   fontWeightBold: number;      // Usually 700-900
   fontWeightRegular: number;   // Usually 400-600
+  
+  // Custom font pairing overrides for kinetic/Instagram style:
+  headlineFontFamily?: string;
+  connectiveFontFamily?: string;
+  expressiveFontFamily?: string;
 
   // Color palette
   primaryColor: string;        // Main text color
@@ -176,10 +194,22 @@ export interface ThemeProfile {
   backgroundColor: string;
   gradients?: string[];        // Multiple gradient options
 
+  // Color palette overrides
+  accentColorUrgent?: string;  // Red
+  accentColorTrendy?: string;  // Purple
+  accentColorInfo?: string;    // Blue
+
+  // Background and Layout overrides
+  backgroundType?: 'solid' | 'textured_solid';
+  backgroundTexture?: 'subtle_paper_grain' | string;
+  backgroundTextureOpacity?: number;
+  layoutStyle?: 'center' | 'scattered' | 'stacking';
+  watermarkText?: string;
+
   // Animation preferences
   defaultAnimationType: AnimationType;
   animationSpeed: 'slow' | 'normal' | 'fast';
-  emphasisStyle: 'bold' | 'color' | 'scale' | 'glow' | 'composite';
+  emphasisStyle: 'bold' | 'color' | 'scale' | 'glow' | 'composite' | 'bg-box';
 
   // Emotion-specific overrides
   emotionMappings: Record<SegmentEmotion, {
@@ -195,55 +225,74 @@ export const THEME_PRESETS: Record<string, ThemeProfile> = {
   'cinematic-poet': {
     id: 'cinematic-poet',
     name: 'Cinematic Poet',
-    description: 'Elegant serif with golden accents',
-    previewGradient: 'from-amber-900 to-yellow-700',
-    fontFamily: 'Cinzel',
+    description: 'Elegant & Poetic style with script highlights',
+    previewGradient: 'from-amber-950 to-yellow-900',
+    fontFamily: 'Playfair Display',
+    headlineFontFamily: 'Montserrat',
+    connectiveFontFamily: 'Playfair Display',
+    expressiveFontFamily: 'Satisfy',
     fontWeightBold: 700,
     fontWeightRegular: 400,
-    primaryColor: '#FFFFFF',
-    accentColor: '#FFD700',
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#F5F2EB', // warm cream background
+    primaryColor: '#1A1A1A', // charcoal primary text
+    accentColor: '#E63946', // deep red
+    accentColorUrgent: '#E63946',
+    accentColorTrendy: '#008080', // teal
+    accentColorInfo: '#3A86FF', // blue
+    layoutStyle: 'scattered',
+    watermarkText: '@your_handle',
     animationSpeed: 'slow',
     defaultAnimationType: 'fade-in',
     emphasisStyle: 'composite',
     emotionMappings: {
-      joy: { animationType: 'bounce-in', color: '#FFD700', intensity: 3 },
-      shock: { animationType: 'shake', color: '#FF6B6B', intensity: 3 },
-      awe: { animationType: 'fade-in', color: '#87CEEB', intensity: 2 },
-      anger: { animationType: 'shake', color: '#FF4444', intensity: 3 },
-      sadness: { animationType: 'slide-down', color: '#B0C4DE', intensity: 1 },
-      tension: { animationType: 'typewriter', color: '#FFFFFF', intensity: 2 },
-      inspiration: { animationType: 'scale-up', color: '#FFD700', intensity: 3 },
-      humor: { animationType: 'bounce-in', color: '#FFEB3B', intensity: 2 },
-      authority: { animationType: 'fade-in', color: '#FFFFFF', intensity: 2 },
-      neutral: { animationType: 'fade-in', color: '#FFFFFF', intensity: 1 },
+      joy: { animationType: 'bounce-in', color: '#E63946', intensity: 3 },
+      shock: { animationType: 'shake', color: '#E63946', intensity: 3 },
+      awe: { animationType: 'fade-in', color: '#008080', intensity: 2 },
+      anger: { animationType: 'shake', color: '#E63946', intensity: 3 },
+      sadness: { animationType: 'slide-down', color: '#555555', intensity: 1 },
+      tension: { animationType: 'typewriter', color: '#1A1A1A', intensity: 2 },
+      inspiration: { animationType: 'scale-up', color: '#E63946', intensity: 3 },
+      humor: { animationType: 'bounce-in', color: '#D4A373', intensity: 2 },
+      authority: { animationType: 'fade-in', color: '#1A1A1A', intensity: 2 },
+      neutral: { animationType: 'fade-in', color: '#1A1A1A', intensity: 1 },
     },
   },
   'viral-hook': {
     id: 'viral-hook',
     name: 'Viral Hook',
-    description: 'Bold sans-serif with neon vibes',
+    description: 'Trendy & fast-paced style with textured solid background',
     previewGradient: 'from-pink-600 to-purple-600',
-    fontFamily: 'Space Grotesk',
+    fontFamily: 'Montserrat',
+    headlineFontFamily: 'Montserrat',
+    connectiveFontFamily: 'Inter',
+    expressiveFontFamily: 'Montserrat',
     fontWeightBold: 900,
     fontWeightRegular: 600,
+    backgroundColor: '#1E1E1E', // textured grey
     primaryColor: '#FFFFFF',
     accentColor: '#FF006E',
-    backgroundColor: '#0D0221',
+    accentColorUrgent: '#E63946',
+    accentColorTrendy: '#8338EC',
+    accentColorInfo: '#3A86FF',
+    backgroundType: 'textured_solid',
+    backgroundTexture: 'subtle_paper_grain',
+    backgroundTextureOpacity: 0.15,
+    layoutStyle: 'stacking',
+    watermarkText: '@your_handle',
     animationSpeed: 'fast',
-    defaultAnimationType: 'scale-pop',
-    emphasisStyle: 'composite',
+    defaultAnimationType: 'pop-slide-up',
+    emphasisStyle: 'bg-box',
     emotionMappings: {
-      joy: { animationType: 'scale-pop', color: '#FF006E', intensity: 3 },
+      joy: { animationType: 'pop-slide-up', color: '#FF006E', intensity: 3 },
       shock: { animationType: 'shake', color: '#FF006E', intensity: 3 },
       awe: { animationType: 'scale-up', color: '#00D9FF', intensity: 2 },
       anger: { animationType: 'bounce-in', color: '#FF006E', intensity: 3 },
       sadness: { animationType: 'fade-in', color: '#B0B0B0', intensity: 1 },
       tension: { animationType: 'typewriter', color: '#FF006E', intensity: 3 },
-      inspiration: { animationType: 'scale-pop', color: '#FFD700', intensity: 3 },
-      humor: { animationType: 'scale-pop', color: '#FFEB3B', intensity: 3 },
+      inspiration: { animationType: 'pop-slide-up', color: '#FFD700', intensity: 3 },
+      humor: { animationType: 'pop-slide-up', color: '#FFEB3B', intensity: 3 },
       authority: { animationType: 'scale-up', color: '#FF006E', intensity: 2 },
-      neutral: { animationType: 'fade-in', color: '#FFFFFF', intensity: 1 },
+      neutral: { animationType: 'pop-slide-up', color: '#FFFFFF', intensity: 1 },
     },
   },
   'tech-bold': {
@@ -335,7 +384,7 @@ export const THEME_PRESETS: Record<string, ThemeProfile> = {
     fontFamily: 'Inter',
     fontWeightBold: 700,
     fontWeightRegular: 400,
-    primaryColor: '#F5F5F5',
+    primaryColor: '#1A1A1A',
     accentColor: '#000000',
     backgroundColor: '#FAFAFA',
     animationSpeed: 'normal',

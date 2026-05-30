@@ -1,19 +1,23 @@
 /**
- * transition-wipe — diagonal wipe between two solid colors.
+ * transition-wipe — multi-directional wipe between two solid colors with optional text.
  * Two phases: cover screen with palette.primary, then reveal back to transparent
  * so the next beat shows through.
+ *
+ * Supports multiple wipe directions via params.direction:
+ *   'diagonal' (default), 'left-to-right', 'top-to-bottom', 'circle-expand'
  */
 
 import type { PrimitiveContext, PrimitiveParams } from '../types';
-import { easeInOutCubic } from '../easing';
+import { easeInOutCubic, clamp01, remap } from '../easing';
 
 export const transitionWipe = (pc: PrimitiveContext, p: PrimitiveParams): void => {
   const { ctx, width, height, t01, palette } = pc;
   const intensity = p.intensity || 2;
-  void intensity;
+  const direction = (p.direction as string) || 'diagonal';
+  const text = p.text || '';
 
-  // Phase A (0 → 0.5): primary color sweeps in from top-left, covers screen.
-  // Phase B (0.5 → 1): the same band sweeps off bottom-right, revealing.
+  // Phase A (0 → 0.5): primary color sweeps in, covers screen.
+  // Phase B (0.5 → 1): the band sweeps off, revealing.
   const phase = t01 < 0.5 ? easeInOutCubic(t01 / 0.5) : 1 - easeInOutCubic((t01 - 0.5) / 0.5);
 
   // Envelope fade — soften the in/out so we don't pop a hard black/primary
@@ -23,35 +27,161 @@ export const transitionWipe = (pc: PrimitiveContext, p: PrimitiveParams): void =
   else if (t01 > 0.95) envelope = (1 - t01) / 0.05;
   if (envelope <= 0.01) return;
 
-  // The band's leading edge moves along the screen diagonal.
-  // We draw a thick parallelogram, then fill behind it depending on phase.
-  const diag = Math.hypot(width, height);
-  const bandW = diag * 0.45;
-  const leading = phase * (diag + bandW) - bandW;
-
   ctx.save();
   ctx.globalAlpha = envelope;
 
-  // Solid fill behind the leading edge during cover phase
-  if (t01 < 0.5) {
-    ctx.fillStyle = palette.primary;
-    ctx.beginPath();
-    // Fill from origin out to the diagonal cutoff.
-    drawDiagonalRegion(ctx, leading, width, height, 'before');
-    ctx.fill();
+  // Direction-specific rendering
+  if (direction === 'left-to-right') {
+    drawLeftToRightWipe(ctx, phase, t01, width, height, palette, intensity);
+  } else if (direction === 'top-to-bottom') {
+    drawTopToBottomWipe(ctx, phase, t01, width, height, palette, intensity);
+  } else if (direction === 'circle-expand') {
+    drawCircleExpandWipe(ctx, phase, t01, width, height, palette, intensity);
   } else {
-    ctx.fillStyle = palette.primary;
-    ctx.beginPath();
-    drawDiagonalRegion(ctx, leading, width, height, 'after');
-    ctx.fill();
+    // Default diagonal
+    const diag = Math.hypot(width, height);
+    const bandW = diag * 0.45;
+    const leading = phase * (diag + bandW) - bandW;
+
+    if (t01 < 0.5) {
+      ctx.fillStyle = palette.primary;
+      ctx.beginPath();
+      drawDiagonalRegion(ctx, leading, width, height, 'before');
+      ctx.fill();
+    } else {
+      ctx.fillStyle = palette.primary;
+      ctx.beginPath();
+      drawDiagonalRegion(ctx, leading, width, height, 'after');
+      ctx.fill();
+    }
+
+    // Trailing accent stripe along the leading edge
+    ctx.fillStyle = palette.accent;
+    drawDiagonalBand(ctx, leading - bandW * 0.18, leading, width, height);
   }
 
-  // Trailing accent stripe along the leading edge
-  ctx.fillStyle = palette.accent;
-  drawDiagonalBand(ctx, leading - bandW * 0.18, leading, width, height);
+  // Optional text overlay - wrapped and centered
+  if (text) {
+    drawWipeText(ctx, text, width, height, palette, envelope);
+  }
 
   ctx.restore();
 };
+
+function drawLeftToRightWipe(
+  ctx: CanvasRenderingContext2D,
+  phase: number,
+  t01: number,
+  w: number,
+  h: number,
+  palette: any,
+  intensity: number,
+) {
+  const leading = phase * w;
+  if (t01 < 0.5) {
+    ctx.fillStyle = palette.primary;
+    ctx.fillRect(0, 0, leading, h);
+  } else {
+    ctx.fillStyle = palette.primary;
+    ctx.fillRect(leading, 0, w - leading, h);
+  }
+  ctx.fillStyle = palette.accent;
+  ctx.fillRect(leading - 8, 0, 12, h);
+}
+
+function drawTopToBottomWipe(
+  ctx: CanvasRenderingContext2D,
+  phase: number,
+  t01: number,
+  w: number,
+  h: number,
+  palette: any,
+  intensity: number,
+) {
+  const leading = phase * h;
+  if (t01 < 0.5) {
+    ctx.fillStyle = palette.primary;
+    ctx.fillRect(0, 0, w, leading);
+  } else {
+    ctx.fillStyle = palette.primary;
+    ctx.fillRect(0, leading, w, h - leading);
+  }
+  ctx.fillStyle = palette.accent;
+  ctx.fillRect(0, leading - 8, w, 12);
+}
+
+function drawCircleExpandWipe(
+  ctx: CanvasRenderingContext2D,
+  phase: number,
+  t01: number,
+  w: number,
+  h: number,
+  palette: any,
+  intensity: number,
+) {
+  const cx = w / 2;
+  const cy = h / 2;
+  const maxDist = Math.hypot(w / 2, h / 2);
+  const radius = phase * maxDist;
+
+  ctx.fillStyle = palette.primary;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = palette.accent;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawWipeText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  w: number,
+  h: number,
+  palette: any,
+  alpha: number,
+) {
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.font = `bold ${Math.min(w, h) * 0.1}px 'Inter', 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = palette.text;
+
+  const maxWidth = w * 0.8;
+  const lines = wrapText(text, ctx, maxWidth);
+  const lineHeight = Math.min(w, h) * 0.12;
+  const totalHeight = lines.length * lineHeight;
+  const startY = (h - totalHeight) / 2;
+
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, w / 2, startY + idx * lineHeight);
+  });
+
+  ctx.restore();
+}
+
+function wrapText(text: string, ctx: CanvasRenderingContext2D, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const measured = ctx.measureText(testLine).width;
+    if (measured > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
 
 function drawDiagonalRegion(
   ctx: CanvasRenderingContext2D,

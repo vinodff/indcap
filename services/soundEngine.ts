@@ -70,6 +70,28 @@ export class SoundEngine {
     osc.stop(t + 0.15);
   }
 
+  connectToNode(node: AudioNode): void {
+    if (this.masterGain) {
+      try {
+        this.masterGain.disconnect();
+        this.masterGain.connect(node);
+      } catch (e) {
+        console.error('[SoundEngine] Failed to connect to node:', e);
+      }
+    }
+  }
+
+  disconnectFromNode(): void {
+    if (this.masterGain && this.ctx) {
+      try {
+        this.masterGain.disconnect();
+        this.masterGain.connect(this.ctx.destination);
+      } catch (e) {
+        console.error('[SoundEngine] Failed to disconnect from node:', e);
+      }
+    }
+  }
+
   destroy(): void {
     if (this.ctx) {
       this.ctx.close().catch(() => {});
@@ -78,5 +100,9 @@ export class SoundEngine {
       this.noiseBuffer = null;
       this.initialized = false;
     }
+  }
+
+  getAudioContext(): AudioContext | null {
+    return this.ctx;
   }
 }

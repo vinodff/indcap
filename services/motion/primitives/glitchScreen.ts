@@ -64,9 +64,10 @@ export const glitchScreen = (pc: PrimitiveContext, p: PrimitiveParams): void => 
 
     ctx.save();
     ctx.globalAlpha = activity * lerp(0.15, 0.55, rand());
-    ctx.fillStyle = `rgba(255,0,60,0.6)`;
+    // Use palette-aware aberration colors for RGB channel split
+    ctx.fillStyle = hexA(palette.primary, 0.6);
     ctx.fillRect(-splitX * 1.5, bandY, width + Math.abs(splitX * 1.5), bandH);
-    ctx.fillStyle = `rgba(0,255,220,0.5)`;
+    ctx.fillStyle = hexA(palette.accent, 0.5);
     ctx.fillRect(splitX, bandY, width, bandH);
     ctx.restore();
   }
@@ -125,11 +126,11 @@ export const glitchScreen = (pc: PrimitiveContext, p: PrimitiveParams): void => 
       const iconName = GLITCH_ICONS[Math.floor(iconRand() * GLITCH_ICONS.length)];
       const iconAlpha = activity * lerp(0.25, 0.75, iconRand());
 
-      // Draw icon twice with RGB split offset for glitch look
-      drawLucideIcon(ctx, iconName, ix - 3, iy, iSize, `rgba(255,0,60,${iconAlpha * 0.7})`, {
+      // Draw icon twice with RGB split offset for glitch look (palette-aware colors)
+      drawLucideIcon(ctx, iconName, ix - 3, iy, iSize, hexA(palette.primary, iconAlpha * 0.7), {
         stroke: true, strokeWidth: 1.5, alpha: iconAlpha * 0.8,
       });
-      drawLucideIcon(ctx, iconName, ix + 3, iy, iSize, `rgba(0,255,220,${iconAlpha * 0.7})`, {
+      drawLucideIcon(ctx, iconName, ix + 3, iy, iSize, hexA(palette.accent, iconAlpha * 0.7), {
         stroke: true, strokeWidth: 1.5, alpha: iconAlpha * 0.8,
       });
       drawLucideIcon(ctx, iconName, ix, iy, iSize, palette.text, {

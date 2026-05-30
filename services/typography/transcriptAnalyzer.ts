@@ -95,6 +95,10 @@ RULES:
    - 2: Normal, balanced
    - 3: Strong, aggressive
 
+7. EMOJI INJECTION (CRITICAL FOR VISUALS)
+   - Inject contextually relevant Unicode emojis directly at the end of key nouns, active verbs, CTAs, numbers, and high-emphasis words (e.g. "growth🚀", "stop🛑", "success🔥", "money💰", "crazy🤯").
+   - Do this for at least 15-20% of the words to make the typography visually engaging. Put the emoji directly adjacent to the word text without extra spaces.
+
 OUTPUT ONLY VALID JSON. NO EXPLANATIONS. NO MARKDOWN.
 `;
 
@@ -216,7 +220,8 @@ export async function analyzeTranscript(
           ],
           generationConfig: {
             temperature: 0.3, // Low temp for consistency
-            maxOutputTokens: 4000,
+            maxOutputTokens: 8192,
+            responseMimeType: 'application/json',
           },
         }),
       }
@@ -237,22 +242,19 @@ export async function analyzeTranscript(
     // Parse JSON response
     let parsed: any;
     try {
-      // Handle case where response might have markdown code blocks
       let jsonStr = textContent.trim();
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.slice(7); // Remove ```json
-      }
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.slice(3); // Remove ```
-      }
-      if (jsonStr.endsWith('```')) {
-        jsonStr = jsonStr.slice(0, -3); // Remove trailing ```
+      
+      // Extract brace content as fallback in case of markdown wrapping or conversational prefixes
+      const firstBrace = jsonStr.indexOf('{');
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
       }
 
       parsed = JSON.parse(jsonStr);
     } catch (err) {
       console.error('Failed to parse Gemini response:', textContent);
-      throw new Error('Invalid JSON from Gemini');
+      throw new Error(`Invalid JSON from Gemini: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Normalize response
@@ -260,17 +262,7 @@ export async function analyzeTranscript(
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('[typography] Gemini transcription failed:', errorMsg);
-
-    // Check if it's an API key issue
-    if (errorMsg.includes('API key') || errorMsg.includes('not found')) {
-      throw new Error(
-        'Gemini API key not configured. Set VITE_GEMINI_API_KEY environment variable or save API key in localStorage.'
-      );
-    }
-
-    // For other errors, fall back to demo but warn the user
-    console.warn('Using demo transcript as fallback. Original error:', errorMsg);
-    return createDemoTranscript();
+    throw new Error(`Transcription failed: ${errorMsg}`);
   }
 }
 
@@ -294,13 +286,14 @@ async function fileToBase64(file: File): Promise<string> {
 function getGeminiApiKey(): string {
   const key =
     import.meta.env.VITE_GEMINI_API_KEY ||
+    import.meta.env.VITE_API_KEY ||
     (typeof localStorage !== 'undefined'
-      ? localStorage.getItem('gemini_api_key')
+      ? (localStorage.getItem('createrin_api_key') || localStorage.getItem('gemini_api_key'))
       : null);
 
   if (!key) {
     throw new Error(
-      'Gemini API key not found. Set VITE_GEMINI_API_KEY or save in localStorage.'
+      'Gemini API key not found. Please log in or set VITE_GEMINI_API_KEY.'
     );
   }
 
@@ -379,21 +372,21 @@ export function createDemoTranscript(): EnrichedTranscript {
         emotionIntensity: 3,
         words: [
           {
-            text: 'Create',
+            text: 'Create🎬',
             startTime: 0,
             endTime: 0.6,
             role: 'action',
             emphasisScore: 90,
           },
           {
-            text: 'amazing',
+            text: 'amazing🔥',
             startTime: 0.7,
             endTime: 1.2,
             role: 'emotion',
             emphasisScore: 75,
           },
           {
-            text: 'videos',
+            text: 'videos🚀',
             startTime: 1.3,
             endTime: 2,
             role: 'subject',
@@ -417,14 +410,14 @@ export function createDemoTranscript(): EnrichedTranscript {
             emphasisScore: 20,
           },
           {
-            text: 'coding',
+            text: 'coding💻',
             startTime: 2.6,
             endTime: 3.2,
             role: 'tech',
             emphasisScore: 70,
           },
           {
-            text: 'required',
+            text: 'required🛑',
             startTime: 3.3,
             endTime: 3.8,
             role: 'emotion',
@@ -441,14 +434,14 @@ export function createDemoTranscript(): EnrichedTranscript {
         emotionIntensity: 3,
         words: [
           {
-            text: 'Start',
+            text: 'Start⚡',
             startTime: 3.9,
             endTime: 4.4,
             role: 'action',
             emphasisScore: 85,
           },
           {
-            text: 'today',
+            text: 'today💰',
             startTime: 4.5,
             endTime: 5,
             role: 'cta',

@@ -12,6 +12,7 @@ import type {
   EmotionIntensity,
   SegmentEmotion,
   TextStyle,
+  ThemeProfile,
   WordRole,
 } from './types';
 
@@ -209,6 +210,24 @@ const ANIMATION_CHARACTERISTICS: Record<
     duration: 0.35,
     supportedIntensities: [2, 3],
   },
+  'pop-slide-up': {
+    intensity: 3,
+    energy: 'high',
+    duration: 0.35,
+    supportedIntensities: [2, 3],
+  },
+  'whip-pan': {
+    intensity: 3,
+    energy: 'high',
+    duration: 0.3,
+    supportedIntensities: [2, 3],
+  },
+  'mask-reveal': {
+    intensity: 2,
+    energy: 'medium',
+    duration: 0.45,
+    supportedIntensities: [1, 2, 3],
+  },
 };
 
 // ─── Main Decision Engine ────────────────────────────────────────────────────
@@ -280,6 +299,7 @@ function selectHighEmphasisAnimation(recent: AnimationType[]): AnimationType {
     'glow-pulse',
     'shake',
     'spin',
+    'pop-slide-up',
   ];
 
   // Avoid repetition
@@ -319,35 +339,84 @@ export function generateTextStyle(params: {
   fontFamily: string;
   baseColor: string;
   accentColor: string;
+  wordRole?: WordRole;
+  theme?: ThemeProfile;
 }): TextStyle {
-  const { emotion, emphasisScore, fontFamily, baseColor, accentColor } = params;
+  const { emotion, emphasisScore, fontFamily, baseColor, accentColor, wordRole, theme } = params;
 
-  const isEmphasized = emphasisScore >= 50;
-  const isHeroWord = emphasisScore >= 85;
+  const isConnector = wordRole === 'connector';
+  const isHeroWord = emphasisScore >= 80 || wordRole === 'cta';
+  const isExpressive = wordRole === 'emotion' || wordRole === 'action';
 
-  // Base style
+  // Determine correct font family
+  let selectedFontFamily = fontFamily;
+  if (theme) {
+    if (isHeroWord && theme.headlineFontFamily) {
+      selectedFontFamily = theme.headlineFontFamily;
+    } else if (isConnector && theme.connectiveFontFamily) {
+      selectedFontFamily = theme.connectiveFontFamily;
+    } else if (isExpressive && theme.expressiveFontFamily) {
+      selectedFontFamily = theme.expressiveFontFamily;
+    }
+  }
+
+  // Determine size & weight hierarchy
+  let fontSize = 52;
+  let fontWeight = 700;
+  let textCase: TextStyle['textCase'] = 'normal';
+  let opacity = 1.0;
+
+  if (isHeroWord) {
+    fontSize = 145;
+    fontWeight = 900;
+    textCase = 'uppercase';
+  } else if (isConnector) {
+    fontSize = 65; // Much larger connector font size (was 36) for legibility
+    fontWeight = 500;
+    textCase = 'lowercase';
+    opacity = 0.85; // Raised opacity (was 0.7) to prevent blending with background
+  } else if (isExpressive) {
+    fontSize = 95;
+    fontWeight = 700;
+    textCase = 'capitalize';
+  } else {
+    fontSize = 115;
+    fontWeight = 800;
+  }
+
+  // Accent color rules (Apply accent colors exclusively to keywords)
+  let color = baseColor;
+  if (isHeroWord) {
+    color = accentColor;
+    if (theme) {
+      if (emotion === 'shock' || emotion === 'anger') {
+        color = theme.accentColorUrgent || accentColor;
+      } else if (emotion === 'joy' || emotion === 'humor') {
+        color = theme.accentColorTrendy || accentColor;
+      } else if (theme.accentColorInfo) {
+        color = theme.accentColorInfo;
+      }
+    }
+  }
+
   const style: TextStyle = {
-    fontFamily,
-    fontSize: isHeroWord ? 72 : isEmphasized ? 60 : 48,
-    fontWeight: isHeroWord ? 900 : isEmphasized ? 700 : 600,
-    letterSpacing: isHeroWord ? 2 : isEmphasized ? 1 : 0,
-    color: isHeroWord ? accentColor : baseColor,
+    fontFamily: selectedFontFamily,
+    fontSize,
+    fontWeight,
+    letterSpacing: isHeroWord ? 2 : 0,
+    color,
+    opacity,
+    textCase,
   };
 
-  // Add emphasis effects for hero words
+  // Add contrasting outline stroke border to ensure readability on any background
   if (isHeroWord) {
-    switch (emotion) {
-      case 'shock':
-      case 'anger':
-      case 'joy':
-        style.strokeColor = accentColor;
-        style.strokeWidth = 3;
-        break;
-      case 'awe':
-      case 'inspiration':
-        style.shadowColor = accentColor;
-        style.shadowBlur = 20;
-        break;
+    style.strokeColor = theme && theme.backgroundColor === '#F5F2EB' ? '#FFFFFF' : '#000000';
+    style.strokeWidth = 6; // 6px thick stroke for high readability
+
+    if (emotion === 'awe' || emotion === 'inspiration') {
+      style.shadowColor = color;
+      style.shadowBlur = 15;
     }
   }
 

@@ -252,15 +252,11 @@ export function snapWordsWithConstraints(
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
-    const tolerance =
-      word.emphasisScore >= 85 ? HERO_WORD_TOLERANCE : BEAT_SNAP_TOLERANCE;
-
-    let snappedStart = findNearestBeat(word.startTime, beatGrid.beats, tolerance);
-
-    // Constraint: don't overlap with previous word
-    snappedStart = Math.max(snappedStart, lastEndTime + 0.05);
-
-    // Keep original duration
+    
+    // Maintain absolute alignment with the transcribed audio timing.
+    // Snapping speech to arbitrary grids causes noticeable voiceover desync.
+    // Only enforce non-overlapping constraint to prevent visual collision.
+    const snappedStart = Math.max(word.startTime, lastEndTime + 0.02);
     const duration = word.endTime - word.startTime;
     const snappedEnd = snappedStart + duration;
 

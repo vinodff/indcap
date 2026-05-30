@@ -52,6 +52,7 @@ import type {
   PipelineStage,
 } from '../services/typography';
 import { TypographyRenderer } from '../services/typography/typographyRenderer';
+import { SoundEngine } from '../services/soundEngine';
 import {
   exportMotionVideo,
   triggerDownload,
@@ -88,6 +89,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [themeId, setThemeId] = useState<string>('cinematic-poet');
+  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1' | '4:5'>('9:16');
   const [isDragging, setIsDragging] = useState(false);
 
   // ── Pipeline state ─────────────────────────────────────────────────────────
@@ -104,11 +106,26 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   // ── Playback ───────────────────────────────────────────────────────────────
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [fpsMetrics, setFpsMetrics] = useState({ fps: 60, droppedFrames: 0 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<TypographyRenderer | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
+  const metricsCheckRef = useRef<any>(null);
+  const soundEngineRef = useRef<SoundEngine | null>(null);
+  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  // Initialize SoundEngine on mount
+  useEffect(() => {
+    const se = new SoundEngine();
+    soundEngineRef.current = se;
+    se.init();
+    return () => {
+      se.destroy();
+      soundEngineRef.current = null;
+    };
+  }, []);
 
   // ── Audio element lifecycle ───────────────────────────────────────────────
   useEffect(() => {
@@ -116,6 +133,9 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     const a = new Audio(audioUrl);
     a.preload = 'auto';
     a.onloadedmetadata = () => setAudioDuration(a.duration);
+    a.ontimeupdate = () => {
+      setCurrentTime(a.currentTime);
+    };
     a.onended = () => {
       setPlaying(false);
       setCurrentTime(0);
@@ -180,7 +200,17 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       const renderer = rendererRef.current;
       const audio = audioRef.current;
       if (renderer && audio) {
-        renderer.render(0, audio); // Pass audio element for sync
+        renderer.render(0, audio, (word) => {
+          if (soundEngineRef.current && !audio.paused) {
+            const isHero = word.style.fontSize >= 80 || word.intensity === 3;
+            const isPop = word.type === 'pop-slide-up' || word.type === 'bounce-in' || word.type === 'scale-pop';
+            if (isHero || isPop) {
+              soundEngineRef.current.playPop();
+            } else {
+              soundEngineRef.current.playWhoosh();
+            }
+          }
+        });
       }
       animationFrameRef.current = requestAnimationFrame(animate);
     };
@@ -193,6 +223,26 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       }
     };
   }, []);
+
+  // Monitor FPS metrics and display warnings
+  useEffect(() => {
+    const checkMetrics = () => {
+      const renderer = rendererRef.current;
+      if (renderer && playing) {
+        const metrics = renderer.getMetrics();
+        setFpsMetrics({ fps: metrics.fps, droppedFrames: metrics.droppedFrames });
+      }
+      metricsCheckRef.current = setTimeout(checkMetrics, 500);
+    };
+
+    if (playing) {
+      metricsCheckRef.current = setTimeout(checkMetrics, 500);
+    }
+
+    return () => {
+      if (metricsCheckRef.current) clearTimeout(metricsCheckRef.current);
+    };
+  }, [playing]);
 
   // ── File handling ──────────────────────────────────────────────────────────
   const handleFile = useCallback((file: File) => {
@@ -276,10 +326,24 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       const theme: ThemeProfile = THEME_PRESETS[themeId] as ThemeProfile;
       if (!theme) throw new Error(`Theme ${themeId} not found`);
 
+      let width = 1080;
+      let height = 1920;
+      if (aspectRatio === '16:9') {
+        width = 1920;
+        height = 1080;
+      } else if (aspectRatio === '1:1') {
+        width = 1080;
+        height = 1080;
+      } else if (aspectRatio === '4:5') {
+        width = 1080;
+        height = 1350;
+      }
+
       const sequence = choreograph({
         transcript: enriched,
         beatGrid: grid,
         theme,
+        layout: { width, height },
       });
 
       setAnimationSequence(sequence);
@@ -320,10 +384,43 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
     audio.currentTime = 0;
 
+    let destStream: MediaStream | undefined;
+    let sourceNode: MediaElementAudioSourceNode | null = null;
+    let audioCtx: AudioContext | null = null;
+
     try {
+      // Set up audio mixer using SoundEngine's AudioContext
+      if (soundEngineRef.current) {
+        soundEngineRef.current.init();
+        audioCtx = soundEngineRef.current.getAudioContext();
+
+        if (audioCtx) {
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+          }
+
+          if (!mediaSourceRef.current || mediaSourceRef.current.mediaElement !== audio) {
+            mediaSourceRef.current = audioCtx.createMediaElementSource(audio);
+          }
+          sourceNode = mediaSourceRef.current;
+
+          const destNode = audioCtx.createMediaStreamDestination();
+          destStream = destNode.stream;
+
+          // Connect voice audio element to both speakers and recording stream
+          sourceNode.disconnect();
+          sourceNode.connect(audioCtx.destination);
+          sourceNode.connect(destNode);
+
+          // Connect SoundEngine masterGain to the recording stream
+          soundEngineRef.current.connectToNode(destNode);
+        }
+      }
+
       const { blob, extension } = await exportMotionVideo({
         canvas,
         videoEl: audio as unknown as HTMLVideoElement, // export helper uses captureStream() — works on <audio> too
+        audioStream: destStream, // Pass the custom mixed audio stream!
         durationSec: Math.min(timelineDuration, audioDuration),
         fps: REEL_LIMITS.fps,
         videoBitsPerSecond: REEL_LIMITS.videoBitsPerSecond,
@@ -347,6 +444,15 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg !== 'Export aborted.') setErrorMsg('Export failed: ' + msg);
       setStage('idle');
+    } finally {
+      // Revert connections to restore normal playback defaults
+      if (soundEngineRef.current) {
+        soundEngineRef.current.disconnectFromNode();
+      }
+      if (sourceNode && audioCtx) {
+        sourceNode.disconnect();
+        sourceNode.connect(audioCtx.destination);
+      }
     }
   };
 
@@ -477,7 +583,37 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
               </div>
             </section>
 
-            {/* Step 3: generate */}
+            {/* Step 3: Aspect Ratio */}
+            <section>
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+                3 — Aspect Ratio
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: '9:16', label: '9:16 (Portrait)', desc: '1080 × 1920' },
+                  { value: '16:9', label: '16:9 (Landscape)', desc: '1920 × 1080' },
+                  { value: '1:1', label: '1:1 (Square)', desc: '1080 × 1080' },
+                  { value: '4:5', label: '4:5 (Vertical)', desc: '1080 × 1350' },
+                ].map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setAspectRatio(r.value as any)}
+                    className={`
+                      flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all
+                      ${aspectRatio === r.value
+                        ? 'border-violet-500 bg-violet-500/10 text-white font-bold'
+                        : 'border-gray-800 hover:border-gray-600 bg-gray-900/50 text-gray-400'}
+                    `}
+                  >
+                    <span className="text-xs">{r.label}</span>
+                    <span className="text-[9px] text-gray-500 mt-0.5">{r.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Step 4: generate */}
             <section>
               <button
                 type="button"
@@ -554,13 +690,37 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         <main className="flex-1 flex flex-col items-center justify-center gap-4 p-6 bg-[#080808] overflow-hidden min-h-0">
 
           {/* Canvas container */}
-          <div className="w-full max-w-[360px] flex-1 min-h-0 flex items-center justify-center">
+          <div className="w-full max-w-[360px] flex-1 min-h-0 flex items-center justify-center relative">
             {animationSequence ? (
-              <canvas
-                ref={canvasRef}
-                className="w-full h-auto max-h-full rounded-lg shadow-lg bg-black"
-                style={{ aspectRatio: `${REEL_LIMITS.width} / ${REEL_LIMITS.height}` }}
-              />
+              <>
+                <canvas
+                  ref={canvasRef}
+                  className="w-full h-auto max-h-full rounded-lg shadow-lg bg-black"
+                  style={{
+                    aspectRatio: animationSequence
+                      ? `${animationSequence.layout.width} / ${animationSequence.layout.height}`
+                      : `${REEL_LIMITS.width} / ${REEL_LIMITS.height}`
+                  }}
+                />
+                {/* FPS indicator and frame drop warning */}
+                {playing && (
+                  <div className="absolute top-3 right-3 flex flex-col gap-2">
+                    {/* FPS display */}
+                    <div className={`px-2.5 py-1.5 text-xs font-bold rounded-lg backdrop-blur-sm ${
+                      fpsMetrics.fps >= 28 ? 'bg-green-500/80 text-white' : 'bg-red-500/80 text-white'
+                    }`}>
+                      {fpsMetrics.fps} FPS
+                    </div>
+                    {/* Frame drop warning */}
+                    {fpsMetrics.fps < 30 && fpsMetrics.droppedFrames > 0 && (
+                      <div className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-yellow-500/80 text-black flex items-center gap-1.5">
+                        <AlertCircle size={12} />
+                        {fpsMetrics.droppedFrames} drops
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center">
                 <div className="text-6xl mb-3">🎬</div>

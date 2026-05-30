@@ -41,6 +41,8 @@ import { __iconNode as _wifiOffNode }  from 'lucide-react/dist/esm/icons/wifi-of
 import { __iconNode as _tvNode }       from 'lucide-react/dist/esm/icons/tv.js';
 // @ts-ignore
 import { __iconNode as _alertNode }    from 'lucide-react/dist/esm/icons/triangle-alert.js';
+// @ts-ignore
+import { __iconNode as _checkNode }    from 'lucide-react/dist/esm/icons/check.js';
 
 type IconNodeEntry = [string, Record<string, string>];
 type IconNodes = IconNodeEntry[];
@@ -61,6 +63,7 @@ const ICON_REGISTRY: Record<string, IconNodes> = {
   'wifi-off':_wifiOffNode,
   tv:        _tvNode,
   alert:     _alertNode,
+  check:     _checkNode,
 };
 
 // ── Build Path2D at module import (ONCE, synchronous) ────────────────

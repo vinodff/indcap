@@ -60,8 +60,11 @@ export const circularProgress = (pc: PrimitiveContext, p: PrimitiveParams): void
   const isComplete = arcFillT >= 1;
   const displayPercent = Math.round(lerp(0, targetPercent, counterT));
 
-  // ── Layout ────────────────────────────────────────────────────────────────
-  const ringR = Math.min(width, height) * 0.15;
+  // ── Layout with responsive sizing ────────────────────────────────────────
+  const aspectRatio = width / height;
+  // Responsive ring radius - larger on desktop, smaller on mobile/portrait
+  const baseRingR = Math.min(width, height) * 0.15;
+  const ringR = aspectRatio < 0.6 ? baseRingR * 0.85 : baseRingR;
   const ringWidth = ringR * 0.18;
   const cx = width / 2;
   let cy = height * 0.45;
@@ -143,7 +146,9 @@ export const circularProgress = (pc: PrimitiveContext, p: PrimitiveParams): void
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  const percentSize = ringR * 0.55;
+  // Responsive font sizing - smaller on small screens
+  const basePercentSize = ringR * 0.55;
+  const percentSize = aspectRatio < 0.6 ? basePercentSize * 0.9 : basePercentSize;
   ctx.font = `800 ${percentSize}px ${FONT}`;
 
   // Counter shake on each digit change
@@ -182,16 +187,31 @@ export const circularProgress = (pc: PrimitiveContext, p: PrimitiveParams): void
   ctx.restore(); // shake
   ctx.restore(); // text align
 
-  // ── Label below percentage ────────────────────────────────────────────────
+  // ── Label below percentage with responsive sizing and truncation ──────────
   if (label) {
     ctx.save();
     ctx.globalAlpha = globalAlpha * labelRevealT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    const labelSize = ringR * 0.18;
+
+    // Responsive label size - scale down on small screens
+    const baseLabelSize = ringR * 0.18;
+    const labelSize = aspectRatio < 0.6 ? baseLabelSize * 0.85 : baseLabelSize;
     ctx.font = `600 ${labelSize}px ${FONT}`;
+
+    // Responsive padding - 20px on desktop, 10px on mobile
+    const padding = aspectRatio < 0.6 ? 10 : 20;
+    const maxLabelWidth = ringR * 1.2; // 60% of circle diameter
+
+    // Truncate or wrap label if too long
+    const truncatedLabel = truncateLabelText(label.toUpperCase(), ctx, maxLabelWidth);
+
     ctx.fillStyle = hexA('#ffffff', 0.6);
-    ctx.fillText(label.toUpperCase(), cx, cy + percentSize * 0.65 + (1 - labelRevealT) * 10);
+    ctx.fillText(
+      truncatedLabel,
+      cx,
+      cy + percentSize * 0.65 + (1 - labelRevealT) * 10 + padding,
+    );
     ctx.restore();
   }
 
@@ -261,3 +281,17 @@ export const circularProgress = (pc: PrimitiveContext, p: PrimitiveParams): void
 
   ctx.restore(); // global
 };
+
+function truncateLabelText(
+  text: string,
+  ctx: CanvasRenderingContext2D,
+  maxWidth: number,
+): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+
+  let truncated = text;
+  while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return truncated + (truncated.length > 0 ? '...' : '');
+}

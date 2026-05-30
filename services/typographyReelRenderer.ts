@@ -142,15 +142,15 @@ const STYLE_CFGS: Record<ReelStyleId, StyleCfg> = {
     accentColors: ['#F0ABFC', '#FFFFFF'],
     accentGlow: '#E879F9',
     entryStyle: 'scale-back',
-    entryDur: 0.14,
+    entryDur: 0.22,
     exitStyle: 'fade',
-    exitDur: 0.09,
+    exitDur: 0.25,
     sweepEnabled: true,
     sweepWidth: 0.06,   // fraction of canvas width
     sweepOpacity: 0.18,
     sweepSpeed: 0.55,
     wordByWord: true,
-    wordEntryDur: 0.11,
+    wordEntryDur: 0.22,
     wordStagger: 0.04,
   },
 
@@ -171,11 +171,11 @@ const STYLE_CFGS: Record<ReelStyleId, StyleCfg> = {
     shadowOffsetY: 5,
     accentColors: ['#FACC15', '#FDE68A'],
     entryStyle: 'stamp',
-    entryDur: 0.09,
+    entryDur: 0.18,
     exitStyle: 'fade',
-    exitDur: 0.06,
+    exitDur: 0.20,
     wordByWord: true,
-    wordEntryDur: 0.08,
+    wordEntryDur: 0.18,
     wordStagger: 0.03,
   },
 
@@ -222,11 +222,11 @@ const STYLE_CFGS: Record<ReelStyleId, StyleCfg> = {
     accentColors: ['#F0ABFC', '#E879F9'],
     accentGlow: '#C026D3',
     entryStyle: 'flicker',
-    entryDur: 0.18,
+    entryDur: 0.24,
     exitStyle: 'fade',
-    exitDur: 0.10,
+    exitDur: 0.28,
     wordByWord: true,
-    wordEntryDur: 0.12,
+    wordEntryDur: 0.24,
     wordStagger: 0.06,
   },
 
@@ -368,7 +368,7 @@ export class TypographyReelRenderer {
     ctx.scale(globalScale, globalScale);
     ctx.translate(-W / 2, -H / 2);
 
-    this.drawCaption(ctx, caption, currentTime, elapsed, cfg, styleId, W, H);
+    this.drawCaption(ctx, caption, currentTime, elapsed, cfg, styleId, W, H, globalOpacity);
 
     ctx.restore();
 
@@ -417,7 +417,8 @@ export class TypographyReelRenderer {
     cfg: StyleCfg,
     styleId: ReelStyleId,
     W: number,
-    H: number
+    H: number,
+    globalOpacity: number
   ): void {
     const fontSize = Math.round(cfg.fontSizeRatio * H);
     ctx.font = `${cfg.fontWeight} ${fontSize}px ${cfg.fontFamily}`;
@@ -429,7 +430,7 @@ export class TypographyReelRenderer {
     const words = caption.words ?? [];
 
     if (cfg.wordByWord && words.length > 0) {
-      this.drawWordByWord(ctx, text, words, currentTime, elapsed, cfg, styleId, W, H, fontSize);
+      this.drawWordByWord(ctx, text, words, currentTime, elapsed, cfg, styleId, W, H, fontSize, globalOpacity);
     } else {
       this.drawPhraseBlock(ctx, text, elapsed, cfg, styleId, W, H, fontSize);
     }
@@ -447,10 +448,11 @@ export class TypographyReelRenderer {
     styleId: ReelStyleId,
     W: number,
     H: number,
-    fontSize: number
+    fontSize: number,
+    globalOpacity: number
   ): void {
     const lineHeight = fontSize * cfg.lineHeightRatio;
-    const maxLineW = W * 0.86;
+    const maxLineW = W * 0.90;
 
     // --- Build lines from words ---
     const wordTokens = text.split(/\s+/).filter(Boolean);
@@ -496,7 +498,7 @@ export class TypographyReelRenderer {
         if (!appeared) {
           // Dim placeholder — shows future words faintly
           ctx.save();
-          ctx.globalAlpha = 0.12;
+          ctx.globalAlpha = 0.12 * globalOpacity;
           ctx.fillStyle = cfg.textColor;
           ctx.fillText(token, tokenCenterX, lineY);
           ctx.restore();
@@ -528,7 +530,7 @@ export class TypographyReelRenderer {
         }
 
         ctx.save();
-        ctx.globalAlpha = Math.max(0, Math.min(1, wOpacity));
+        ctx.globalAlpha = Math.max(0, Math.min(1, wOpacity * globalOpacity));
         ctx.translate(tokenCenterX, lineY);
         ctx.scale(wScale, wScale);
         ctx.translate(-tokenCenterX, -lineY);
@@ -586,7 +588,7 @@ export class TypographyReelRenderer {
     fontSize: number
   ): void {
     const lineHeight = fontSize * cfg.lineHeightRatio;
-    const maxLineW = W * 0.86;
+    const maxLineW = W * 0.90;
     const lines = this.wrapText(ctx, text, maxLineW);
 
     const totalLines = lines.length;

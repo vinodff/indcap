@@ -289,7 +289,18 @@ export const bentoGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
       const tickProgress = easeOutCubic(clamp01(remap(t01, delay + 0.28, delay + 0.75)));
       const displayText = formatMetric(label, tickProgress);
 
-      const desiredPx = h * 0.28;
+      // Icon at top of hero panel (rocket icon)
+      const heroIconSize = h * 0.20;
+      const heroIconY = y + h * 0.18;
+      drawLucideIcon(ctx, 'rocket', cx, heroIconY, heroIconSize, hexA(accent, 0.6), {
+        stroke: true,
+        strokeWidth: 1.5,
+        glowColor: hexA(accent, 0.4),
+        glowBlur: 10,
+        alpha: holdT,
+      });
+
+      const desiredPx = h * 0.24;
       const fontPx = fitSingleLine(ctx, displayText, px => `800 ${px}px ${FONT_DISPLAY}`, w - pad * 2, desiredPx, 18);
       ctx.font = `800 ${fontPx}px ${FONT_DISPLAY}`;
       ctx.textAlign = 'center';
@@ -303,14 +314,14 @@ export const bentoGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
       ctx.fillStyle = textGrad;
       ctx.shadowColor = hexA(accent, 0.5);
       ctx.shadowBlur = 30;
-      ctx.fillText(displayText, cx, cy - h * 0.05);
+      ctx.fillText(displayText, cx, cy + h * 0.08);
       ctx.shadowBlur = 0;
 
       // Subtitle label
       const subPx = fontPx * 0.22;
       ctx.font = `500 ${subPx}px ${FONT_DISPLAY}`;
       ctx.fillStyle = hexA('#ffffff', 0.5);
-      ctx.fillText('Total Views', cx, cy + fontPx * 0.62);
+      ctx.fillText('Total Views', cx, cy + fontPx * 0.65);
 
       // Subtle shimmer scanline across hero panel
       const shimmerX = x + (t01 * 2.4 % 1.4 - 0.2) * (w + 40) - 20;
@@ -329,11 +340,23 @@ export const bentoGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
       // ── Gradient text label with shimmer ──────────────────────────────
       const { px: fontPx, lines } = fitMultiline(
         ctx, label, px => `700 ${px}px ${FONT_DISPLAY}`,
-        w - pad * 2, h * 0.7, h * 0.25, 2, 1.2, 12,
+        w - pad * 2, h * 0.6, h * 0.22, 2, 1.2, 12,
       );
       ctx.font = `700 ${fontPx}px ${FONT_DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+
+      // Icon at top (star for label type)
+      const labelIconSize = h * 0.20;
+      const labelIconY = y + h * 0.16;
+      drawLucideIcon(ctx, 'star', cx, labelIconY, labelIconSize, hexA(accent, 0.5), {
+        stroke: true,
+        strokeWidth: 1.6,
+        fill: false,
+        glowColor: hexA(accent, 0.3),
+        glowBlur: 8,
+        alpha: holdT,
+      });
 
       const totalTH = lines.length * fontPx * 1.2;
       const startY = cy - totalTH / 2 + fontPx * 0.6;
@@ -349,14 +372,14 @@ export const bentoGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
       });
 
       // Small category chip
-      const chipPx = fontPx * 0.32;
+      const chipPx = fontPx * 0.28;
       const chipLabel = 'FEATURE';
       ctx.font = `600 ${chipPx}px ${FONT_DISPLAY}`;
       ctx.letterSpacing = '0.08em';
       const chipW = ctx.measureText(chipLabel).width + chipPx * 1.6;
-      const chipH = chipPx * 1.8;
+      const chipH = chipPx * 1.6;
       const chipX = cx - chipW / 2;
-      const chipY = y + pad * 0.7;
+      const chipY = y + h - pad - chipH;
       roundRect(ctx, chipX, chipY, chipW, chipH, chipH / 2);
       ctx.fillStyle = hexA(accent, 0.2);
       ctx.fill();
@@ -368,7 +391,9 @@ export const bentoGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
 
     } else if (type === 'icon') {
       // ── Icon + label row ──────────────────────────────────────────────
-      const iconName = 'sparkles';
+      // Derive icon name from slot index (varied visual interest)
+      const iconNames = ['sparkles', 'star', 'zap'];
+      const iconName = iconNames[si % iconNames.length];
       const iconSize = Math.min(w, h) * 0.34;
       const iconX = cx - iconSize * 1.0;
       const iconY = cy;
@@ -401,24 +426,36 @@ export const bentoGrid = (pc: PrimitiveContext, p: PrimitiveParams): void => {
       // ── Animated progress bar ─────────────────────────────────────────
       const barProgress = easeOutCubic(clamp01(remap(t01, delay + 0.30, delay + 0.75)));
 
-      const barH = h * 0.18;
-      const barY = cy - barH / 2 + h * 0.06;
+      const barH = h * 0.16;
+      const barY = cy + h * 0.08;
       const barX = x + pad;
       const barW = w - pad * 2;
       const barR = barH / 2;
 
+      // Icon for progress bar (activity icon)
+      const progressIconSize = h * 0.18;
+      const progressIconY = y + h * 0.18;
+      drawLucideIcon(ctx, 'activity', cx - w * 0.12, progressIconY, progressIconSize, hexA(accent, 0.4), {
+        stroke: true,
+        strokeWidth: 1.4,
+        fill: false,
+        glowColor: hexA(accent, 0.2),
+        glowBlur: 6,
+        alpha: holdT,
+      });
+
       // Label above bar
-      const labelPx = fitSingleLine(ctx, label, px => `600 ${px}px ${FONT_DISPLAY}`, barW, h * 0.22, 8);
+      const labelPx = fitSingleLine(ctx, label, px => `600 ${px}px ${FONT_DISPLAY}`, barW * 0.7, h * 0.18, 8);
       ctx.font = `600 ${labelPx}px ${FONT_DISPLAY}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillText(label, barX, barY - barH * 1.1);
+      ctx.fillText(label, barX, barY - barH * 1.2);
 
       // Percentage label right
       ctx.textAlign = 'right';
       ctx.fillStyle = hexA(accent, 0.9);
-      ctx.fillText(`${Math.round(barProgress * 100)}%`, barX + barW, barY - barH * 1.1);
+      ctx.fillText(`${Math.round(barProgress * 100)}%`, barX + barW, barY - barH * 1.2);
       ctx.textAlign = 'left';
 
       // Track

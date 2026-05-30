@@ -54,9 +54,12 @@ export const scrollRevealStack = (pc: PrimitiveContext, p: PrimitiveParams): voi
   const maxCards = Math.min(cards.length, intensity === 3 ? 5 : intensity === 1 ? 3 : 4);
   const activeCards = cards.slice(0, maxCards);
 
-  // Layout
+  // Layout with responsive sizing for extreme aspect ratios
+  const aspectRatio = width / height;
   const cardW = Math.min(width * 0.78, 380);
-  const cardH = Math.min(height * 0.2, 88);
+  // Responsive card height: reduce on portrait (9:16), maintain on landscape
+  const baseCardH = aspectRatio < 0.7 ? Math.min(height * 0.12, 60) : Math.min(height * 0.2, 88);
+  const cardH = baseCardH;
   const stackGap = cardH * 0.15;
   const totalH = maxCards * (cardH + stackGap) - stackGap;
   const startY = (height - totalH) / 2;
@@ -131,17 +134,30 @@ export const scrollRevealStack = (pc: PrimitiveContext, p: PrimitiveParams): voi
     roundRect(ctx, -cardW / 2, -barH / 2, 3, barH, 1.5);
     ctx.fill();
 
-    // Title
-    ctx.font = `700 ${cardH * 0.22}px ${FONT}`;
+    // Title with responsive sizing and word wrapping
+    const titleFontSize = Math.max(10, cardH * 0.22);
+    ctx.font = `700 ${titleFontSize}px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(card.title, -cardW / 2 + 20, -cardH * 0.12);
 
-    // Body
-    ctx.font = `500 ${cardH * 0.15}px ${FONT}`;
+    const maxTextWidth = cardW - 40;
+    const wrappedTitle = wrapStackText(card.title, ctx, maxTextWidth);
+    const titleLineHeight = titleFontSize * 1.1;
+    wrappedTitle.forEach((line, idx) => {
+      ctx.fillText(line, -cardW / 2 + 20, -cardH * 0.12 + idx * titleLineHeight);
+    });
+
+    // Body with responsive sizing
+    const bodyFontSize = Math.max(8, cardH * 0.15);
+    ctx.font = `500 ${bodyFontSize}px ${FONT}`;
     ctx.fillStyle = hexA('#ffffff', 0.6);
-    ctx.fillText(card.body, -cardW / 2 + 20, cardH * 0.22);
+
+    const wrappedBody = wrapStackText(card.body, ctx, maxTextWidth);
+    const bodyLineHeight = bodyFontSize * 1.1;
+    wrappedBody.forEach((line, idx) => {
+      ctx.fillText(line, -cardW / 2 + 20, cardH * 0.22 + idx * bodyLineHeight);
+    });
 
     // Glowing indicator dot on the latest card (most front)
     if (i === 0 && intensity >= 2) {
@@ -160,3 +176,26 @@ export const scrollRevealStack = (pc: PrimitiveContext, p: PrimitiveParams): voi
 
   ctx.restore();
 };
+
+function wrapStackText(
+  text: string,
+  ctx: CanvasRenderingContext2D,
+  maxWidth: number,
+): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const measured = ctx.measureText(testLine).width;
+    if (measured > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines.length > 0 ? lines : [text];
+}

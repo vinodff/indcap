@@ -21,6 +21,7 @@
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { hexA, mixHex, roundRect } from '../decorations';
 import { clamp01, remap, easeOutBack, easeInOutCubic, easeOutCubic, lerp } from '../easing';
+import { drawLucideIcon } from '../iconRenderer';
 
 const FONT = `'Outfit', 'Inter', 'SF Pro Display', 'Roboto', sans-serif`;
 
@@ -258,25 +259,21 @@ export const pricingTable = (pc: PrimitiveContext, p: PrimitiveParams): void => 
       ctx.globalAlpha = featT;
       ctx.translate(lerp(-8, 0, featT), 0);
 
-      // Checkmark circle
-      const checkR = featureSize * 0.4;
-      ctx.beginPath();
-      ctx.arc(fx, fy + featureSize * 0.25, checkR, 0, Math.PI * 2);
-      ctx.fillStyle = plan.isPopular ? hexA(palette.accent, 0.4) : 'rgba(255,255,255,0.15)';
-      ctx.fill();
+      // Lucide check icon (16-20px)
+      const checkSize = featureSize * 0.9;
+      const checkIconColor = plan.isPopular ? palette.accent : hexA('#ffffff', 0.6);
 
-      // Checkmark tick
-      ctx.strokeStyle = plan.isPopular ? palette.accent : 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(fx - checkR * 0.3, fy + featureSize * 0.25);
-      ctx.lineTo(fx - checkR * 0.05, fy + featureSize * 0.45);
-      ctx.lineTo(fx + checkR * 0.4, fy + featureSize * 0.05);
-      ctx.stroke();
+      drawLucideIcon(ctx, 'check', fx + checkSize * 0.3, fy + featureSize * 0.25, checkSize, checkIconColor, {
+        stroke: true,
+        strokeWidth: 2,
+        fill: false,
+      });
 
       // Feature text
       ctx.fillStyle = hexA('#ffffff', 0.7);
-      ctx.fillText(plan.features[fi], fx + checkR * 2, fy);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(plan.features[fi], fx + checkSize * 2.5, fy);
       ctx.restore();
     }
 

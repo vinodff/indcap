@@ -112,32 +112,50 @@ export const paperTear = (pc: PrimitiveContext, p: PrimitiveParams): void => {
   }
   ctx.globalCompositeOperation = 'source-over';
 
-  // 2. Draw Text (Stamped/Printed look)
+  // 2. Draw Text (Stamped/Printed look) with word wrapping
   const fontPx = Math.min(paperW * 0.15, paperH * 0.3);
   ctx.font = `900 ${fontPx}px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  
+
+  // Word wrapping for long text - ~30 chars per line on portrait
+  const wrappedLines = wrapTextForTear(text, ctx, paperW * 0.85, fontPx);
+  const lineHeight = fontPx * 1.3;
+  const totalTextHeight = wrappedLines.length * lineHeight;
+  const textStartY = -totalTextHeight / 2;
+
   // Slight misalignment for print offset effect (CMYK separation)
   if (intensity >= 2) {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = hexA(palette.primary, 0.8);
-    ctx.fillText(text, -2 + rng()*4, -2 + rng()*4);
+    wrappedLines.forEach((line, idx) => {
+      const y = textStartY + idx * lineHeight;
+      ctx.fillText(line, -2 + rng()*4, y - 2 + rng()*4);
+    });
     ctx.fillStyle = hexA(palette.accent, 0.8);
-    ctx.fillText(text, 2 + rng()*4, 2 + rng()*4);
+    wrappedLines.forEach((line, idx) => {
+      const y = textStartY + idx * lineHeight;
+      ctx.fillText(line, 2 + rng()*4, y + 2 + rng()*4);
+    });
   }
 
   // Main text
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = '#18181B'; // Dark ink
-  
+
   // Rough edges on text
   if (intensity === 3) {
+    wrappedLines.forEach((line, idx) => {
+      const y = textStartY + idx * lineHeight;
       for(let i=0; i<3; i++) {
-        ctx.fillText(text, (rng()-0.5)*3, (rng()-0.5)*3);
+        ctx.fillText(line, (rng()-0.5)*3, y + (rng()-0.5)*3);
       }
+    });
   } else {
-      ctx.fillText(text, 0, 0);
+    wrappedLines.forEach((line, idx) => {
+      const y = textStartY + idx * lineHeight;
+      ctx.fillText(line, 0, y);
+    });
   }
   
   // Highlight tape (accent color)
@@ -150,3 +168,56 @@ export const paperTear = (pc: PrimitiveContext, p: PrimitiveParams): void => {
 
   ctx.restore();
 };
+
+function wrapTextForTear(
+  text: string,
+  ctx: CanvasRenderingContext2D,
+  maxWidth: number,
+  fontSize: number,
+): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
+function drawTornPaperTexture(
+  ctx: CanvasRenderingContext2D,
+  rng: () => number,
+  paperW: number,
+  paperH: number,
+) {
+  // Draw torn paper edge texture with canvas noise pattern
+  ctx.save();
+  ctx.globalCompositeOperation = 'overlay';
+
+  // Add diagonal scratches for torn texture
+  const scratches = 8 + Math.floor(rng() * 4);
+  for (let i = 0; i < scratches; i++) {
+    const x1 = (rng() - 0.5) * paperW * 1.2;
+    const y1 = -paperH / 2 - 5;
+    const x2 = x1 + (rng() - 0.5) * 20;
+    const y2 = y1 + (rng() - 0.5) * 15;
+
+    ctx.strokeStyle = `rgba(0,0,0,${0.05 + rng() * 0.1})`;
+    ctx.lineWidth = 0.5 + rng() * 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}

@@ -54,13 +54,63 @@ export function choreograph(params: {
     words: segment.words.map(() => snappedWords[wordIndex++]),
   }));
 
+  // Generate emotion context map for each word correctly based on segments
+  const wordEmotionContexts: Array<{ emotion: SegmentEmotion; intensity: EmotionIntensity }> = [];
+  const flatWords: TranscriptWord[] = [];
+
+  segmentsWithSnappedWords.forEach((seg) => {
+    seg.words.forEach((word) => {
+      flatWords.push(word);
+      wordEmotionContexts.push({ emotion: seg.emotion, intensity: seg.emotionIntensity });
+    });
+  });
+
   // Generate animations for each word
-  const animations = generateWordAnimations(
-    segmentsWithSnappedWords.flatMap((s) => s.words),
-    segmentsWithSnappedWords.map((s) => ({ emotion: s.emotion, intensity: s.emotionIntensity })),
+  let animations = generateWordAnimations(
+    flatWords,
+    wordEmotionContexts,
     theme,
     beatGrid.bpm
   );
+
+  // Extend word durations to fill gaps (prevent dead space / canvas clears during pauses)
+  for (let i = 0; i < animations.length - 1; i++) {
+    const curr = animations[i];
+    const next = animations[i + 1];
+    const gap = next.startTime - curr.startTime;
+    
+    // If the gap is less than 3.0 seconds, extend the duration to match the next start time
+    if (gap > 0 && gap < 3.0) {
+      curr.duration = gap;
+      // Recalculate hold duration to fill the extended time
+      const entryAndExit = curr.timing.entryDuration + curr.timing.exitDuration;
+      curr.timing.holdDuration = Math.max(curr.timing.holdDuration, gap - entryAndExit);
+    }
+  }
+
+  // Extend the last word duration to the end of the transcription duration
+  if (animations.length > 0) {
+    const last = animations[animations.length - 1];
+    const gap = transcript.duration - last.startTime;
+    if (gap > 0 && gap < 3.0) {
+      last.duration = gap;
+      const entryAndExit = last.timing.entryDuration + last.timing.exitDuration;
+      last.timing.holdDuration = Math.max(last.timing.holdDuration, gap - entryAndExit);
+    }
+  }
+
+  // Validate and auto-extend hold durations for emphasized words
+  const holdValidation = validateHoldDuration(animations, 1500);
+  if (!holdValidation.valid) {
+    console.warn(
+      `[choreography] Hold duration validation: ${holdValidation.summary.belowThreshold} words below 1.5s threshold`
+    );
+    console.warn('[choreography] Issues:', holdValidation.issues);
+
+    // Auto-extend emphasized words to meet minimum visibility time
+    animations = autoExtendHoldDurations(animations, 1500);
+    console.log('[choreography] Auto-extended animations to ensure emphasized word visibility');
+  }
 
   // Create layout configuration
   const finalLayout: LayoutConfiguration = {
@@ -70,7 +120,13 @@ export function choreograph(params: {
     maxWordsPerLine: 8,
     textAlignment: 'center',
     verticalPosition: 'center',
-    padding: 60,
+    padding: 54,
+    layoutStyle: theme.layoutStyle || 'center',
+    watermarkText: theme.watermarkText,
+    backgroundType: theme.backgroundType || 'solid',
+    backgroundTexture: theme.backgroundTexture,
+    backgroundTextureOpacity: theme.backgroundTextureOpacity,
+    emphasisStyle: theme.emphasisStyle || 'bold',
     ...layout,
   };
 
@@ -86,7 +142,7 @@ export function choreograph(params: {
 
 function generateWordAnimations(
   words: TranscriptWord[],
-  emotionContext: Array<{ emotion: string; intensity: EmotionIntensity }>,
+  emotionContext: Array<{ emotion: SegmentEmotion; intensity: EmotionIntensity }>,
   theme: ThemeProfile,
   bpm: number
 ): WordAnimation[] {
@@ -95,12 +151,11 @@ function generateWordAnimations(
   const RECENT_WINDOW = 5; // Track last 5 animations for fatigue prevention
 
   words.forEach((word, index) => {
-    const segmentIdx = index; // Simplified: 1 segment = 1 emotion context
-    const emotionCtx = emotionContext[Math.min(segmentIdx, emotionContext.length - 1)];
+    const emotionCtx = emotionContext[Math.min(index, emotionContext.length - 1)];
 
     // Select animation based on emotion, role, emphasis
     const animationType = selectAnimation({
-      emotion: emotionCtx.emotion as SegmentEmotion,
+      emotion: emotionCtx.emotion,
       emotionIntensity: emotionCtx.intensity,
       wordRole: word.role,
       emphasisScore: word.emphasisScore,
@@ -114,7 +169,7 @@ function generateWordAnimations(
     ) {
       // Substitute with simpler animation
       const substitute = selectAnimation({
-        emotion: emotionCtx.emotion as SegmentEmotion,
+        emotion: emotionCtx.emotion,
         emotionIntensity: 1, // Force lower intensity
         wordRole: word.role,
         emphasisScore: word.emphasisScore,
@@ -127,7 +182,7 @@ function generateWordAnimations(
       }
 
       animations.push(
-        createWordAnimation(word, substitute, emotionCtx.intensity, theme, bpm)
+        createWordAnimation(word, substitute, emotionCtx.intensity, theme, bpm, emotionCtx.emotion)
       );
     } else {
       recentAnimations.push(animationType);
@@ -136,7 +191,7 @@ function generateWordAnimations(
       }
 
       animations.push(
-        createWordAnimation(word, animationType, emotionCtx.intensity, theme, bpm)
+        createWordAnimation(word, animationType, emotionCtx.intensity, theme, bpm, emotionCtx.emotion)
       );
     }
   });
@@ -151,15 +206,18 @@ function createWordAnimation(
   animationType: AnimationType,
   intensity: EmotionIntensity,
   theme: ThemeProfile,
-  bpm: number
+  bpm: number,
+  emotion: SegmentEmotion
 ): WordAnimation {
   // Generate visual style
   const style = generateTextStyle({
-    emotion: 'neutral', // This would come from segment emotion
+    emotion,
     emphasisScore: word.emphasisScore,
     fontFamily: theme.fontFamily,
     baseColor: theme.primaryColor,
     accentColor: theme.accentColor,
+    wordRole: word.role,
+    theme,
   });
 
   // Calculate animation timing
@@ -184,15 +242,15 @@ function createWordAnimation(
     intensity,
     timing: {
       ...timing,
-      entryEasing: 'ease-out',
+      entryEasing: animationType === 'pop-slide-up' ? 'overshoot-ease-out' : 'ease-out',
       exitEasing: 'ease-in',
     },
 
     style,
-    scaleAmount: animationType.includes('scale') || animationType === 'bounce-in'
+    scaleAmount: animationType.includes('scale') || animationType === 'bounce-in' || animationType === 'pop-slide-up'
       ? scaleAmount
       : 1.0,
-    colorTransition: word.emphasisScore >= 70 ? theme.accentColor : undefined,
+    colorTransition: word.emphasisScore >= 80 ? theme.accentColor : undefined,
     glowIntensity: intensity >= 2 && word.emphasisScore >= 50 ? 0.5 * intensity : 0,
   };
 }
@@ -250,6 +308,99 @@ export function groupAnimationsIntoScenes(
   return scenes;
 }
 
+// ─── Hold Duration Validation (ensure emphasized words visible >= 1.5s) ──────
+
+export interface HoldDurationValidationResult {
+  valid: boolean;
+  issues: string[];
+  summary: {
+    totalAnimations: number;
+    belowThreshold: number;
+    minDuration: number;
+  };
+}
+
+/**
+ * Validates that emphasized words (fontWeight >= 700 AND emphasisScore >= 85)
+ * are held visible for a minimum duration (default 1.5 seconds).
+ *
+ * Emphasized words need adequate time for viewers to read and absorb.
+ *
+ * @param animations - Array of word animations to validate
+ * @param minHoldMs - Minimum hold duration in milliseconds (default 1500ms = 1.5s)
+ * @returns Validation result with detailed issues and summary
+ */
+export function validateHoldDuration(
+  animations: WordAnimation[],
+  minHoldMs: number = 1500
+): HoldDurationValidationResult {
+  const issues: string[] = [];
+  const minHoldSeconds = minHoldMs / 1000;
+  let belowThreshold = 0;
+
+  animations.forEach((anim, idx) => {
+    // Hero words: high font weight (bold) AND high emphasis score
+    const isHeroWord = anim.style.fontWeight >= 700 && anim.intensity >= 2;
+
+    if (isHeroWord && anim.duration < minHoldSeconds) {
+      belowThreshold++;
+      const durationMs = Math.round(anim.duration * 1000);
+      issues.push(
+        `[Word ${idx}] "${anim.text}" (intensity: ${anim.intensity}) ` +
+        `duration: ${durationMs}ms, minimum required: ${minHoldMs}ms`
+      );
+    }
+  });
+
+  return {
+    valid: issues.length === 0,
+    issues,
+    summary: {
+      totalAnimations: animations.length,
+      belowThreshold,
+      minDuration: minHoldMs,
+    },
+  };
+}
+
+/**
+ * Auto-extends emphasized word durations to meet minimum hold time.
+ * Extends short emphasized words and shifts subsequent animations accordingly.
+ *
+ * @param animations - Array of word animations to process
+ * @param minHoldMs - Minimum hold duration in milliseconds (default 1500ms)
+ * @returns Modified animations with extended hero word durations
+ */
+export function autoExtendHoldDurations(
+  animations: WordAnimation[],
+  minHoldMs: number = 1500
+): WordAnimation[] {
+  const minHoldSeconds = minHoldMs / 1000;
+  const modified: WordAnimation[] = [];
+  let cumulativeShift = 0;
+
+  animations.forEach((anim) => {
+    const isHeroWord = anim.style.fontWeight >= 700 && anim.intensity >= 2;
+
+    if (isHeroWord && anim.duration < minHoldSeconds) {
+      const extensionAmount = minHoldSeconds - anim.duration;
+      cumulativeShift += extensionAmount;
+
+      modified.push({
+        ...anim,
+        duration: minHoldSeconds,
+      });
+    } else {
+      modified.push({
+        ...anim,
+        startTime: anim.startTime + cumulativeShift,
+      });
+    }
+  });
+
+  return modified;
+}
+
 // ─── Pacing Validation (ensure 70% static, 30% emphasized) ────────────────
 
 export function validateAnimationPacing(
@@ -273,12 +424,138 @@ export function validateAnimationPacing(
   };
 }
 
+// ─── Hero Word Visibility Validation (minimum 1.5s for emphasized words) ────
+
+export interface HeroWordValidationResult {
+  valid: boolean;
+  warnings: string[];
+  suggestions: Array<{
+    wordId: string;
+    text: string;
+    currentDuration: number;
+    recommendedDuration: number;
+    emphasisScore: number;
+  }>;
+}
+
+/**
+ * Validates that all emphasized words (emphasisScore >= 80) are visible for minimum 1.5s.
+ *
+ * Hero words need sufficient time for viewers to read and process them.
+ * This validation ensures important words meet visibility duration requirements.
+ *
+ * @param animations - Array of word animations to validate
+ * @returns Validation result with warnings and suggestions for duration adjustments
+ */
+export function validateHeroWordVisibility(
+  animations: WordAnimation[]
+): HeroWordValidationResult {
+  const MIN_HERO_DURATION = 1.5; // Minimum 1.5 seconds
+  const HERO_EMPHASIS_THRESHOLD = 80;
+
+  const warnings: string[] = [];
+  const suggestions: HeroWordValidationResult['suggestions'] = [];
+
+  // Scan all animations for emphasis words
+  animations.forEach((anim) => {
+    // Extract emphasis score from animation (stored in style fontWeight as proxy)
+    // We'll check if this is a hero word by intensity and style indicators
+    const isHeroWord = anim.intensity >= 2 ||
+                      (anim.style.fontWeight >= 700 && anim.glowIntensity !== undefined && anim.glowIntensity > 0);
+
+    if (isHeroWord && anim.duration < MIN_HERO_DURATION) {
+      const warning = `Hero word '${anim.text}' only visible for ${anim.duration.toFixed(2)}s - recommend >= ${MIN_HERO_DURATION}s`;
+      warnings.push(warning);
+
+      suggestions.push({
+        wordId: anim.wordId,
+        text: anim.text,
+        currentDuration: anim.duration,
+        recommendedDuration: MIN_HERO_DURATION,
+        emphasisScore: anim.intensity === 3 ? 90 : anim.intensity === 2 ? 85 : 50,
+      });
+    }
+  });
+
+  return {
+    valid: warnings.length === 0,
+    warnings,
+    suggestions,
+  };
+}
+
+/**
+ * Extended validation that optionally extends animation durations for hero words.
+ * This is useful during the export phase when you want to ensure all hero words
+ * meet the visibility requirement.
+ *
+ * @param animations - Array of word animations to process
+ * @param autoExtend - If true, automatically extend short hero word durations to 1.5s
+ * @returns Modified animations (if autoExtend is true) and validation result
+ */
+export function validateAndFixHeroWordVisibility(
+  animations: WordAnimation[],
+  autoExtend: boolean = false
+): {
+  animations: WordAnimation[];
+  validation: HeroWordValidationResult;
+} {
+  const validation = validateHeroWordVisibility(animations);
+
+  if (!autoExtend || validation.suggestions.length === 0) {
+    return { animations, validation };
+  }
+
+  // Create a map of word IDs that need extension
+  const wordsToExtend = new Map(
+    validation.suggestions.map((s) => [s.wordId, s.recommendedDuration])
+  );
+
+  // Extend animations and adjust subsequent animations' start times
+  const modifiedAnimations: WordAnimation[] = [];
+  let timeShift = 0;
+
+  animations.forEach((anim) => {
+    const extensionNeeded = wordsToExtend.get(anim.wordId);
+
+    if (extensionNeeded) {
+      const originalDuration = anim.duration;
+      const newDuration = extensionNeeded;
+      const durationIncrease = newDuration - originalDuration;
+
+      modifiedAnimations.push({
+        ...anim,
+        duration: newDuration,
+      });
+
+      timeShift += durationIncrease;
+    } else {
+      // Shift start time based on cumulative extensions from previous words
+      modifiedAnimations.push({
+        ...anim,
+        startTime: anim.startTime + timeShift,
+      });
+    }
+  });
+
+  return { animations: modifiedAnimations, validation };
+}
+
 // ─── Export Validation ────────────────────────────────────────────────────
 
+export interface AnimationSequenceValidation {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  heroWordValidation?: HeroWordValidationResult;
+}
+
 export function validateAnimationSequence(
-  sequence: AnimationSequence
-): { valid: boolean; errors: string[] } {
+  sequence: AnimationSequence,
+  includeHeroWordValidation: boolean = true
+): AnimationSequenceValidation {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   // Check for gaps (should be mostly continuous)
   let lastEndTime = 0;
@@ -301,9 +578,18 @@ export function validateAnimationSequence(
     errors.push(`Duplicate word IDs: ${duplicates.join(', ')}`);
   }
 
+  // Validate hero word visibility (new validation)
+  let heroWordValidation: HeroWordValidationResult | undefined;
+  if (includeHeroWordValidation) {
+    heroWordValidation = validateHeroWordVisibility(sequence.animations);
+    warnings.push(...heroWordValidation.warnings);
+  }
+
   return {
     valid: errors.length === 0,
     errors,
+    warnings,
+    heroWordValidation,
   };
 }
 
