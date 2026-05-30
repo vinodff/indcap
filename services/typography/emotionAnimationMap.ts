@@ -386,9 +386,28 @@ export function generateTextStyle(params: {
 
   // Accent color rules (Apply accent colors exclusively to keywords)
   let color = baseColor;
+  let gradientColors: string[] | undefined = undefined;
+
   if (isHeroWord) {
     color = accentColor;
     if (theme) {
+      if (theme.gradients && theme.gradients.length > 0) {
+        gradientColors = theme.gradients;
+      } else {
+        // Fallback premium gradients
+        if (emotion === 'shock' || emotion === 'anger') {
+          gradientColors = ['#FF3366', '#FF0055', '#FF8C00']; // Electric coral/red-orange
+        } else if (emotion === 'joy' || emotion === 'humor') {
+          gradientColors = ['#FFE000', '#FF9F0A', '#FFCC00']; // Vibrant gold
+        } else if (emotion === 'inspiration' || emotion === 'awe') {
+          gradientColors = ['#00F5D4', '#67E8F9', '#A78BFA']; // Neon cyan/purple
+        } else if (emotion === 'tension') {
+          gradientColors = ['#FFFFFF', '#D1D5DB', '#9CA3AF']; // High-contrast silver/gray
+        } else {
+          gradientColors = [accentColor, baseColor];
+        }
+      }
+
       if (emotion === 'shock' || emotion === 'anger') {
         color = theme.accentColorUrgent || accentColor;
       } else if (emotion === 'joy' || emotion === 'humor') {
@@ -405,6 +424,7 @@ export function generateTextStyle(params: {
     fontWeight,
     letterSpacing: isHeroWord ? 2 : 0,
     color,
+    gradientColors,
     opacity,
     textCase,
   };

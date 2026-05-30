@@ -250,13 +250,22 @@ export function snapWordsWithConstraints(
   const snapped: TranscriptWord[] = [];
   let lastEndTime = 0;
 
+  // Use vocal syllable onsets if available (podcast/voiceover sync), fallback to musical beats
+  const onsets = beatGrid.syllabeTimings && beatGrid.syllabeTimings.length > 0
+    ? beatGrid.syllabeTimings
+    : beatGrid.beats;
+
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
     
-    // Maintain absolute alignment with the transcribed audio timing.
-    // Snapping speech to arbitrary grids causes noticeable voiceover desync.
-    // Only enforce non-overlapping constraint to prevent visual collision.
-    const snappedStart = Math.max(word.startTime, lastEndTime + 0.02);
+    // Snap to the nearest actual acoustic onset (speech peak) if within 250ms tolerance
+    let snappedStart = word.startTime;
+    if (onsets && onsets.length > 0) {
+      snappedStart = findNearestBeat(word.startTime, onsets, 0.25);
+    }
+
+    // Enforce non-overlapping constraint to prevent visual collision
+    snappedStart = Math.max(snappedStart, lastEndTime + 0.02);
     const duration = word.endTime - word.startTime;
     const snappedEnd = snappedStart + duration;
 

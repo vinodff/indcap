@@ -21,6 +21,7 @@ export interface PrimitiveParams {
   customColors?: string[];
   anchor?: Anchor;
   intensity: 1 | 2 | 3;
+  direction?: string;
 }
 
 export interface PrimitiveContext {

@@ -251,3 +251,51 @@ export const PRIMITIVES: PrimitivesRegistry = {
 export { PALETTES, getPalette } from './palettes';
 export type { PaletteColors } from './palettes';
 export type { PrimitiveContext, PrimitiveParams, PrimitiveRenderer, PrimitivesRegistry } from './types';
+
+// Professional Color & Text System
+export {
+  PROFESSIONAL_PALETTES,
+  selectPaletteForContent,
+  validatePaletteContrast,
+  getProfessionalPalette,
+} from './professionalPalettes';
+export type { ProfessionalPalette } from './professionalPalettes';
+
+export {
+  SIZING_STANDARDS,
+  getResponsiveSize,
+  getSizeCategory,
+  getTierSize,
+  validateSizingTier,
+  getLineHeightMultiplier,
+  getLetterSpacing,
+} from './sizingStandards';
+export type { SizingTier } from './sizingStandards';
+
+export {
+  PREMIUM_TEXT_STYLES,
+  applyPremiumTextStyle,
+  drawPremiumText,
+  validateTextStyle,
+  scaleTextStyle,
+} from './premiumTextStyle';
+export type { PremiumTextStyle } from './premiumTextStyle';
+
+export {
+  getContrastRatio,
+  getWCAGLevel,
+  validateTextRendering,
+  validatePaletteForText,
+  validateFontSizeForContext,
+  getReadabilityScore,
+} from './textValidation';
+export type { TextValidationResult, ValidationIssue, ValidationWarning } from './textValidation';
+
+export {
+  runRenderingPipeline,
+  filterTemplatesByQuality,
+  getRecommendedTemplates,
+  getRecommendedTextStyle,
+  generateQualityReport,
+} from './renderingPipeline';
+export type { RenderingPipelineConfig, PipelineValidation, ValidationError } from './renderingPipeline';

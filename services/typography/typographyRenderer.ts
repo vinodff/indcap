@@ -36,6 +36,11 @@ export class TypographyRenderer {
   lastDropWarningTime = 0;
   lastHealthCheckFrame = 0;
   private prevMemoryMB = 0;
+  
+  // Audio playback clock interpolation
+  private lastAudioTime = -1;
+  private lastAudioSystemTime = 0;
+  private interpolatedTime = 0;
 
   // Metrics
   metrics: RenderMetrics = {
@@ -199,10 +204,32 @@ export class TypographyRenderer {
       this.lastHealthCheckFrame = this.frameCount;
     }
 
-    // Sync with audio if provided
-    const playbackTime = audioElement
-      ? audioElement.currentTime
-      : currentTime / 1000;
+    // High-precision clock interpolation to bypass coarse 4Hz-10Hz audio thread updates
+    let playbackTime = currentTime / 1000;
+    if (audioElement) {
+      if (!audioElement.paused) {
+        const sysNow = performance.now();
+        // Check if the HTML5 audio element updated its time coordinate
+        if (this.lastAudioTime !== audioElement.currentTime) {
+          this.lastAudioTime = audioElement.currentTime;
+          this.lastAudioSystemTime = sysNow;
+          this.interpolatedTime = audioElement.currentTime;
+        } else if (this.lastAudioSystemTime > 0) {
+          const elapsed = (sysNow - this.lastAudioSystemTime) / 1000;
+          const rate = audioElement.playbackRate || 1.0;
+          // Interpolate using system timer
+          this.interpolatedTime = this.lastAudioTime + elapsed * rate;
+        } else {
+          this.interpolatedTime = audioElement.currentTime;
+        }
+        playbackTime = this.interpolatedTime;
+      } else {
+        // Paused/scrubbing - use direct currentTime clock
+        this.lastAudioTime = -1;
+        this.lastAudioSystemTime = 0;
+        playbackTime = audioElement.currentTime;
+      }
+    }
 
     // Clear canvas with background color
     this.ctx.fillStyle = this.layout.backgroundColor || '#000000';
@@ -416,6 +443,7 @@ export class TypographyRenderer {
       fontSize: anim.style.fontSize || 52,
       fontFamily: anim.style.fontFamily || 'Space Grotesk',
       fontWeight: anim.style.fontWeight || 700,
+      gradientColors: anim.style.gradientColors,
     };
 
     // Apply animation type
@@ -690,7 +718,23 @@ export class TypographyRenderer {
     const fontSizeNum = Math.max(8, Math.min(200, adjustedFontSize));
     const fontWeightNum = Math.max(100, Math.min(900, fontWeight));
     this.ctx.font = `${fontWeightNum} ${fontSizeNum}px "${fontFamily}"`;
-    this.ctx.fillStyle = color || '#FFFFFF';
+
+    let textWidth = 0;
+    if (cleanText.length > 0) {
+      textWidth = this.ctx.measureText(displayText).width;
+    }
+
+    let textFillStyle: string | CanvasGradient = color || '#FFFFFF';
+    if (properties.gradientColors && Array.isArray(properties.gradientColors) && properties.gradientColors.length > 0 && textWidth > 0) {
+      const grad = this.ctx.createLinearGradient(-textWidth / 2, -fontSizeNum * 0.4, textWidth / 2, fontSizeNum * 0.4);
+      const n = properties.gradientColors.length;
+      properties.gradientColors.forEach((c: string, idx: number) => {
+        grad.addColorStop(idx / Math.max(1, n - 1), c);
+      });
+      textFillStyle = grad;
+    }
+
+    this.ctx.fillStyle = textFillStyle;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
 
@@ -701,11 +745,6 @@ export class TypographyRenderer {
 
     // Determine highlight box styling
     const isBgBox = this.layout.emphasisStyle === 'bg-box' && fontSizeNum >= 80 && cleanText.length > 0;
-
-    let textWidth = 0;
-    if (cleanText.length > 0) {
-      textWidth = this.ctx.measureText(displayText).width;
-    }
 
     if (isBgBox) {
       this.ctx.save();

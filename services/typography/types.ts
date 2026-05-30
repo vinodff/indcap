@@ -117,6 +117,7 @@ export interface TextStyle {
   fontWeight: number;          // 400-900
   letterSpacing: number;       // Pixels, usually 0-2
   color: string;               // Hex color #RRGGBB
+  gradientColors?: string[];   // Multi-color linear gradient on word text
   strokeColor?: string;        // Outline color, optional
   strokeWidth?: number;        // Outline thickness
   shadowColor?: string;        // Drop shadow

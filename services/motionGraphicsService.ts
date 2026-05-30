@@ -9,6 +9,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
+import { getSubstitute, QUALITY_SCORES } from './motion/qualityScoring';
 
 export type PrimitiveType =
   | 'big-text-reveal'
@@ -284,6 +285,41 @@ export const PRIMITIVE_TYPES: PrimitiveType[] = [
 
 const PALETTES: Palette[] = ['energetic', 'corporate', 'kids', 'cinematic', 'neon-bright', 'pastel-pop', 'gradient-blast', 'custom'];
 
+/**
+ * QUALITY FILTERING CONFIGURATION
+ * Templates marked for removal are filtered from the primary registry.
+ * Deprecated templates are available separately for reference.
+ */
+const TEMPLATE_QUALITY_FILTER = {
+  REMOVAL_CANDIDATES: [
+    'paper-tear',              // Score 2.0 - Niche/outdated aesthetic
+    'elastic-slider',          // Score 2.5 - Poor UX pattern
+    'particle-trail-cursor',   // Score 2.0 - Not viable for video
+    'flip-clock',              // Score 2.5 - Retro novelty effect
+  ],
+  DEPRECATED_TEMPLATES: [
+    'infinite-logo-marquee',   // Score 3.0 - Extremely niche
+    'polaroid-stack',          // Score 3.5 - Outdated trend
+  ],
+};
+
+/**
+ * PRODUCTION REGISTRY - Only high-quality templates (score >= 8.0)
+ * These are safe to use in production and are actively maintained.
+ */
+export const PRODUCTION_PRIMITIVE_TYPES: PrimitiveType[] = PRIMITIVE_TYPES.filter(
+  (t) =>
+    !TEMPLATE_QUALITY_FILTER.REMOVAL_CANDIDATES.includes(t as string) &&
+    !TEMPLATE_QUALITY_FILTER.DEPRECATED_TEMPLATES.includes(t as string)
+);
+
+/**
+ * EXPERIMENTAL REGISTRY - Deprecated but maintained for reference
+ */
+export const EXPERIMENTAL_PRIMITIVE_TYPES: PrimitiveType[] = PRIMITIVE_TYPES.filter(
+  (t) => TEMPLATE_QUALITY_FILTER.DEPRECATED_TEMPLATES.includes(t as string)
+) as PrimitiveType[];
+
 const SYSTEM_INSTRUCTION = `You are a senior motion graphics director planning kinetic typography and motion-graphic shots for a short-form video.
 
 You receive a script (user-supplied) and a target duration in seconds. You return a MotionPlan: a list of timed BEATS, each beat triggers ONE motion-graphic PRIMITIVE that visualizes the corresponding moment of the script.
@@ -492,11 +528,19 @@ const sanitizePlan = (raw: RawPlan, durationSec: number, requestedPalette: Palet
         ? (pIn.anchor as MotionBeatParams['anchor'])
         : 'center') as MotionBeatParams['anchor'];
 
+      // QUALITY FILTER: Substitute removed templates with production-ready alternatives
+      let primitiveType = b.primitive as PrimitiveType;
+      const qualityCheck = QUALITY_SCORES[primitiveType];
+      if (qualityCheck && qualityCheck.overallScore < 4) {
+        // Template is marked for removal - use fallback
+        primitiveType = getSubstitute(primitiveType) as PrimitiveType;
+      }
+
       return {
         id: typeof b.id === 'string' && b.id ? b.id : `beat-${i}-${Math.random().toString(36).slice(2, 8)}`,
         startTime,
         endTime,
-        primitive: b.primitive as PrimitiveType,
+        primitive: primitiveType,
         rationale: typeof b.rationale === 'string' ? b.rationale : undefined,
         params: {
           text: typeof pIn.text === 'string' ? pIn.text.slice(0, 120) : undefined,

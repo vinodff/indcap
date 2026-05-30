@@ -420,7 +420,7 @@ export class TypographyReelRenderer {
     H: number,
     globalOpacity: number
   ): void {
-    const fontSize = Math.round(cfg.fontSizeRatio * H);
+    const fontSize = Math.max(20, Math.round(cfg.fontSizeRatio * H)); // Ensure minimum readable size
     ctx.font = `${cfg.fontWeight} ${fontSize}px ${cfg.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -562,11 +562,18 @@ export class TypographyReelRenderer {
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
           }
+        }
 
-          // Light sweep overlay (Devon Jatho)
-          if (cfg.sweepEnabled && appeared) {
-            this.drawLightSweep(ctx, token, tokenCenterX, lineY, tokenW, fontSize, cfg);
-          }
+        // Outline stroke for readability (contrast based on background)
+        ctx.save();
+        ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.05));
+        ctx.strokeStyle = '#000'; // black outline works on bright text
+        ctx.strokeText(token, tokenCenterX, lineY);
+        ctx.restore();
+
+        // Light sweep overlay (Devon Jatho)
+        if (cfg.sweepEnabled && appeared) {
+          this.drawLightSweep(ctx, token, tokenCenterX, lineY, tokenW, fontSize, cfg);
         }
 
         ctx.restore();
