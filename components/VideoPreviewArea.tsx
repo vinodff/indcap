@@ -105,6 +105,8 @@ interface VideoPreviewAreaProps {
   fontScale?: number;
   verticalPos?: number;
   horizontalPos?: number;
+  isSandboxMode?: boolean;
+  onSandboxModeToggle?: (val: boolean) => void;
 }
 
 // Map aspect ratio enum to CSS class
@@ -144,6 +146,8 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   fontScale = 1,
   verticalPos = 82,
   horizontalPos = 50,
+  isSandboxMode = false,
+  onSandboxModeToggle,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedCaptionId, setDraggedCaptionId] = useState<string | null>(null);
@@ -237,7 +241,7 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
 
   return (
     <>
-      {!videoSrc ? (
+      {!videoSrc && !isSandboxMode && status !== 'READY' ? (
         <div 
           className={`relative max-w-sm w-full text-center p-1 rounded-[32px] overflow-hidden transition-all duration-300 ${
             isDragging ? 'scale-105 shadow-2xl shadow-blue-500/20' : ''
@@ -286,16 +290,18 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
                 <Zap size={16} className="text-yellow-500 group-hover:scale-110 transition-transform" />
                 Use Sample Video
               </button>
-              {onTestWithSampleText && (
-                <button
-                  type="button"
-                  onClick={onTestWithSampleText}
-                  className="group w-full bg-[#0d1117] hover:bg-[#161b22] text-emerald-400 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-emerald-500/30 hover:border-emerald-400/60"
-                >
-                  <Type size={16} className="group-hover:scale-110 transition-transform" />
-                  Test with Sample Text
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSandboxModeToggle) {
+                    onSandboxModeToggle(true);
+                  }
+                }}
+                className="group w-full bg-gradient-to-r from-amber-600/20 to-yellow-600/20 hover:from-amber-600/30 hover:to-yellow-600/30 text-yellow-300 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-yellow-500/20 hover:border-yellow-500/30"
+              >
+                <span>🧪</span>
+                Sandbox Preview Mode
+              </button>
             </div>
           </div>
         </div>
@@ -303,31 +309,41 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
         /* Bug 6 Fix: Add `group` class so group-hover:opacity-100 on controls works.
            Bug 16 Fix: Apply dynamically chosen aspect ratio class or inline style. */
         <div 
+          ref={(node) => {
+            // If no video is present, force canvas initialization once the element mounts
+            if (node && !videoSrc && canvasRef.current && canvasRef.current.width === 300) {
+              canvasRef.current.width = 1080;
+              canvasRef.current.height = 1920;
+              if (setVideoIntrinsicRatio) setVideoIntrinsicRatio(1080 / 1920);
+            }
+          }}
           className={`group relative h-full max-h-[85vh] max-w-full ${aspectClass} bg-black rounded-[2rem] shadow-2xl overflow-hidden border-[6px] border-[#222] ring-1 ring-white/10 z-20 transition-all duration-300`}
           style={inlineStyle}
         >
-          {/* Bug 5 Fix: use onLoadedMetadata (fires after dimensions are confirmed) instead
-              of onLoadedData. Also removed forced seek to 0.1 (Bug 15). */}
-          <video 
-            ref={videoRef as any} 
-            src={videoSrc} 
-            className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none" 
-            onTimeUpdate={handleTimeUpdate} 
-            onLoadedMetadata={() => {
-              if (videoRef.current && canvasRef.current) {
-                const vw = videoRef.current.videoWidth;
-                const vh = videoRef.current.videoHeight;
-                if (vw > 0 && vh > 0) {
-                  canvasRef.current.width = vw;
-                  canvasRef.current.height = vh;
-                  if (setVideoIntrinsicRatio) setVideoIntrinsicRatio(vw / vh);
+          {/* Render video only if videoSrc is provided. Otherwise, it's pure black screen testing */}
+          {videoSrc && (
+            <video 
+              ref={videoRef as any} 
+              src={videoSrc} 
+              className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none" 
+              onTimeUpdate={handleTimeUpdate} 
+              onLoadedMetadata={() => {
+                if (videoRef.current && canvasRef.current) {
+                  const vw = videoRef.current.videoWidth;
+                  const vh = videoRef.current.videoHeight;
+                  if (vw > 320 && vh > 320) {
+                    canvasRef.current.width = vw;
+                    canvasRef.current.height = vh;
+                    if (setVideoIntrinsicRatio) setVideoIntrinsicRatio(vw / vh);
+                  }
                 }
-              }
-            }}
-            crossOrigin="anonymous"
-            playsInline
-            preload="auto"
-          />
+              }}
+              crossOrigin="anonymous"
+              playsInline
+              preload="auto"
+              loop
+            />
+          )}
           <canvas 
             ref={canvasRef as any} 
             className={`w-full h-full object-contain ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} z-10 relative`} 
@@ -658,13 +674,7 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
           )}
 
           
-          {/* Overlay Controls — Bug 6 Fix: group class on parent makes this work */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 px-6 py-3 bg-black/60 backdrop-blur-md rounded-full border border-white/10 transition-opacity hover:opacity-100 opacity-0 group-hover:opacity-100">
-              <button onClick={togglePlay} className="text-white hover:text-blue-400 transition-colors">
-                {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-              </button>
-          </div>
-
+          {/* Processing status overlay */}
           {(status === 'UPLOADING' || status === 'TRANSCRIBING' || status === 'EXPORTING') && (
             <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center text-center p-8 backdrop-blur-md">
               <div className="relative mb-6">
@@ -679,10 +689,14 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
               </p>
             </div>
           )}
-          
+
+          {/* Single play/pause overlay — replaces the old dual-button setup */}
           {status === 'READY' && !isPlaying && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-              <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 shadow-2xl animate-pulse">
+            <div 
+              className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer z-30"
+              onClick={togglePlay}
+            >
+              <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 shadow-2xl hover:bg-white/30 hover:scale-110 transition-all">
                 <Play size={36} className="text-white fill-white ml-2" />
               </div>
             </div>

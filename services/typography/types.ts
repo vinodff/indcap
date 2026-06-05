@@ -113,6 +113,7 @@ export interface AnimationTiming {
 
 export interface TextStyle {
   fontFamily: string;          // e.g. "Space Grotesk", "Playfair Display"
+  fontStyle?: 'normal' | 'italic'; // Italic for elegant script connectives
   fontSize: number;            // Pixels
   fontWeight: number;          // 400-900
   letterSpacing: number;       // Pixels, usually 0-2
@@ -146,6 +147,9 @@ export interface WordAnimation {
   scaleAmount?: number;        // For scale-pop: 1.3 = 30% larger
   colorTransition?: string;    // For color-flash: target color
   glowIntensity?: number;      // For glow-pulse: 0-1
+
+  // Sentence emotion — carried through for animated icon selection
+  emotion?: SegmentEmotion;
 }
 
 export interface LayoutConfiguration {

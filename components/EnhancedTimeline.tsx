@@ -39,13 +39,28 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     const [zoom, setZoom] = useState(1);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; itemId: string; type: 'caption' } | null>(null);
     const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(60);
+    const [duration, setDuration] = useState(10);
+
+    // Compute virtual duration: max of video duration and latest caption endTime
+    // This ensures the timeline covers all captions even when using a short/blank video
+    const captionMaxTime = captions.length > 0
+        ? Math.max(...captions.map(c => c.endTime)) + 2 // +2s padding after last caption
+        : 0;
+
+    const effectiveDuration = videoRef.current && duration > 0 ? duration : (
+        captions.length > 0
+            ? Math.max(...captions.map(c => c.endTime)) + 2
+            : 10
+    );
+    const isSyntheticMode = !videoRef.current || !isFinite(duration) || duration < captionMaxTime;
 
     // Attach timeupdate + metadata listeners — use stable ref identity, not .current
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
-        const updateTime = () => setCurrentTime(video.currentTime);
+        const updateTime = () => {
+            if (!isSyntheticMode) setCurrentTime(video.currentTime);
+        };
         const updateDuration = () => { if (video.duration && isFinite(video.duration)) setDuration(video.duration); };
         video.addEventListener('timeupdate', updateTime);
         video.addEventListener('loadedmetadata', updateDuration);
@@ -57,22 +72,48 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
             video.removeEventListener('loadedmetadata', updateDuration);
             video.removeEventListener('durationchange', updateDuration);
         };
-    }, [videoRef]);
+    }, [videoRef, isSyntheticMode]);
 
-    // RAF loop while playing for smooth playhead — timeupdate alone fires only ~4Hz
+    // RAF loop while playing for smooth playhead
+    // In synthetic mode (blank/short video), drive a wall-clock timer instead of video.currentTime
+    const syntheticStartRef = useRef<{ wallStart: number; timeStart: number } | null>(null);
+
     useEffect(() => {
-        if (!isPlaying) return;
+        if (!isPlaying) {
+            syntheticStartRef.current = null;
+            return;
+        }
         let rafId: number;
-        const tick = () => {
-            const video = videoRef.current;
-            if (video) setCurrentTime(video.currentTime);
-            rafId = requestAnimationFrame(tick);
-        };
-        rafId = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(rafId);
-    }, [isPlaying, videoRef]);
 
-    const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+        if (isSyntheticMode) {
+            // Synthetic clock: advance currentTime using wall-clock elapsed time
+            if (!syntheticStartRef.current) {
+                syntheticStartRef.current = { wallStart: performance.now(), timeStart: currentTime };
+            }
+            const tick = () => {
+                const elapsed = (performance.now() - syntheticStartRef.current!.wallStart) / 1000;
+                const newTime = syntheticStartRef.current!.timeStart + elapsed;
+                if (newTime >= effectiveDuration) {
+                    setCurrentTime(0);
+                    syntheticStartRef.current = { wallStart: performance.now(), timeStart: 0 };
+                } else {
+                    setCurrentTime(newTime);
+                }
+                rafId = requestAnimationFrame(tick);
+            };
+            rafId = requestAnimationFrame(tick);
+        } else {
+            const tick = () => {
+                const video = videoRef.current;
+                if (video) setCurrentTime(video.currentTime);
+                rafId = requestAnimationFrame(tick);
+            };
+            rafId = requestAnimationFrame(tick);
+        }
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, videoRef, isSyntheticMode, effectiveDuration]);
+
+    const progress = effectiveDuration > 0 ? (currentTime / effectiveDuration) * 100 : 0;
 
     const formatTime = (t: number): string => {
         const m = Math.floor(t / 60);
@@ -86,21 +127,25 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
         if (!track) return 0;
         const rect = track.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        return ratio * duration;
-    }, [duration]);
+        return ratio * effectiveDuration;
+    }, [effectiveDuration]);
 
     // Playhead drag
     const handlePlayheadMouseDown = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
         isDraggingPlayhead.current = true;
-        onSeek(getTimeFromX(e.clientX));
+        const t = getTimeFromX(e.clientX);
+        setCurrentTime(t);
+        onSeek(t);
     }, [getTimeFromX, onSeek]);
 
     // Track click to seek
     const handleTrackMouseDown = useCallback((e: React.MouseEvent) => {
         if ((e.target as HTMLElement).closest('[data-caption-block]')) return;
         isDraggingPlayhead.current = true;
-        onSeek(getTimeFromX(e.clientX));
+        const t = getTimeFromX(e.clientX);
+        setCurrentTime(t);
+        onSeek(t);
         onSelectCaption?.(null);
     }, [getTimeFromX, onSeek, onSelectCaption]);
 
@@ -120,7 +165,9 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             if (isDraggingPlayhead.current) {
-                onSeek(getTimeFromX(e.clientX));
+                const t = getTimeFromX(e.clientX);
+                setCurrentTime(t);
+                onSeek(t);
                 return;
             }
             if (isDraggingCaption.current) {
@@ -130,12 +177,12 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                 const rect = track.getBoundingClientRect();
                 const dx = e.clientX - startX;
                 const dtRatio = dx / rect.width;
-                const dt = dtRatio * duration;
+                const dt = dtRatio * effectiveDuration;
 
                 if (type === 'move') {
                     const newStart = Math.max(0, startTime + dt);
                     const captionDuration = startEnd - startTime;
-                    const newEnd = Math.min(duration, newStart + captionDuration);
+                    const newEnd = Math.min(effectiveDuration, newStart + captionDuration);
                     onUpdateCaption(id, {
                         startTime: Math.max(0, newEnd - captionDuration),
                         endTime: newEnd,
@@ -144,7 +191,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                     const newStart = Math.max(0, Math.min(startEnd - 0.1, startTime + dt));
                     onUpdateCaption(id, { startTime: newStart });
                 } else if (type === 'right') {
-                    const newEnd = Math.max(startTime + 0.1, Math.min(duration, startEnd + dt));
+                    const newEnd = Math.max(startTime + 0.1, Math.min(effectiveDuration, startEnd + dt));
                     onUpdateCaption(id, { endTime: newEnd });
                 }
             }
@@ -161,7 +208,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [getTimeFromX, onSeek, onUpdateCaption, duration]);
+    }, [getTimeFromX, onSeek, onUpdateCaption, effectiveDuration]);
 
     // Zoom with scroll wheel
     const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -193,20 +240,20 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     useEffect(() => {
         const scroll = scrollRef.current;
         if (!scroll || !isPlaying) return;
-        const playheadX = (currentTime / duration) * scroll.scrollWidth;
+        const playheadX = (currentTime / effectiveDuration) * scroll.scrollWidth;
         const viewLeft = scroll.scrollLeft;
         const viewRight = viewLeft + scroll.clientWidth;
         if (playheadX < viewLeft + 50 || playheadX > viewRight - 50) {
             scroll.scrollLeft = playheadX - scroll.clientWidth / 2;
         }
-    }, [currentTime, duration, isPlaying]);
+    }, [currentTime, effectiveDuration, isPlaying]);
 
     // Generate time ruler ticks
     const generateTicks = () => {
         const ticks = [];
         const step = zoom < 1 ? 10 : zoom < 2 ? 5 : zoom < 4 ? 2 : 1;
-        for (let t = 0; t <= duration; t += step) {
-            const left = (t / duration) * 100;
+        for (let t = 0; t <= effectiveDuration; t += step) {
+            const left = (t / effectiveDuration) * 100;
             ticks.push(
                 <div
                     key={t}
@@ -240,7 +287,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800/50">
                 <div className="flex items-center gap-1">
                     <span className="text-[10px] font-mono text-gray-500 mr-2">
-                        {formatTime(currentTime)} / {formatTime(duration)}
+                        {formatTime(currentTime)} / {formatTime(effectiveDuration)}
                     </span>
                     {selectedCaptionId && (
                         <>
@@ -322,8 +369,8 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
 
                         {/* Caption blocks */}
                         {captions.map((cap) => {
-                            const left = (cap.startTime / duration) * 100;
-                            const width = ((cap.endTime - cap.startTime) / duration) * 100;
+                            const left = (cap.startTime / effectiveDuration) * 100;
+                            const width = ((cap.endTime - cap.startTime) / effectiveDuration) * 100;
                             const isSelected = selectedCaptionId === cap.id;
                             const colors = getCaptionColor(cap);
 

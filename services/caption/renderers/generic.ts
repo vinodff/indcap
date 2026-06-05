@@ -1,6 +1,7 @@
 import { Caption, StyleConfig, RendererState } from '../../../types';
 import { RenderHelpers } from '../types';
 import { isEmojiWord, emojiToNotoUrl } from '../emojiUtils';
+import { KEYWORD_ICON_MAP } from '../../iconWordMapper';
 
 const lerp = (start: number, end: number, t: number): number => start * (1 - t) + end * t;
 
@@ -43,7 +44,19 @@ export function drawGeneric(
     // Measure widest possible word in this caption
     helpers.setFont(ctx, `${style.fontWeight} ${fontSize}px ${style.fontFamily}`);
     let maxW = 0;
-    allWords.forEach(w => { maxW = Math.max(maxW, helpers.getMixedTextWidth(ctx, w, fontSize)); });
+    allWords.forEach((w, idx) => {
+      const cleanW = w.toLowerCase().replace(/[^a-z]/g, '');
+      let isIcon = false;
+      if (state?.iconCaptionsEnabled) {
+        let match = KEYWORD_ICON_MAP[cleanW];
+        if (!match && cleanW.endsWith('s')) {
+          match = KEYWORD_ICON_MAP[cleanW.slice(0, -1)];
+        }
+        isIcon = !!match;
+      }
+      const wWidth = isIcon ? (fontSize * 1.35) : helpers.getMixedTextWidth(ctx, w, fontSize);
+      maxW = Math.max(maxW, wWidth);
+    });
     const strokeMargin = style.strokeWidth ? (style.strokeWidth * scaleFactor * 2) : 0;
     const allowed = canvas.width * 0.80 - strokeMargin;
     if (maxW > allowed) {
@@ -199,6 +212,52 @@ export function drawGeneric(
       ctx.globalAlpha = style.opacityInactive;
     }
 
+    const wordTiming = caption.words?.[idx - emojiPrefixOffset];
+    const iconUrl = wordTiming?.iconUrl;
+
+    if (state?.iconCaptionsEnabled && iconUrl) {
+      const img = helpers.getOrLoadImage(iconUrl);
+      if (img && img.naturalWidth > 0) {
+        const iconSize = fontSize * 1.35;
+        const elapsed = renderTime - caption.startTime;
+        const entryT = Math.min(elapsed / 0.3, 1);
+        
+        let popScale = 1;
+        if (active) {
+          popScale = 1 + elasticOut(Math.min(wordProgress / 0.35, 1)) * 0.25;
+        }
+
+        ctx.globalAlpha = entryT;
+        if (!active && style.opacityInactive !== undefined) {
+          ctx.globalAlpha *= style.opacityInactive;
+        } else if (!active) {
+          ctx.globalAlpha *= 0.45;
+        }
+
+        ctx.save();
+        ctx.translate(0, -iconSize * 0.05);
+        
+        // Premium shadow / glow
+        if (active) {
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
+          ctx.shadowBlur = 24 * scaleFactor;
+        } else {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+          ctx.shadowBlur = 6 * scaleFactor;
+        }
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 3 * scaleFactor;
+
+        ctx.scale(popScale, popScale);
+        ctx.drawImage(img, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+        ctx.restore();
+        
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        return;
+      }
+    }
+
     // Background drawing
     const isWordMode = style.displayMode === 'WORD';
     if (isWordMode) {
@@ -326,14 +385,21 @@ export function drawGeneric(
       }
       if (active && style.activeTextColor) fill = style.activeTextColor;
     } else {
-      if (active && style.activeTextColor) {
+      if (active && style.activeGradientColors && style.activeGradientColors.length >= 2) {
+        // Hyper-Impact Bold (Hormozi Gradient): emphasized word gets the orange→yellow gradient.
+        fill = helpers.applyGradientFill(ctx, word, fontSize, style.activeGradientColors);
+      } else if (active && style.activeTextColor) {
         fill = style.activeTextColor;
       } else if (style.gradientColors && style.gradientColors.length >= 2) {
         fill = helpers.applyGradientFill(ctx, word, fontSize, style.gradientColors);
       } else {
         fill = style.textColor;
       }
-      if (caption.wordColors && caption.wordColors[idx] && caption.wordColors[idx] !== 'default') {
+      // Per-word AI colors override the base fill — but never the active gradient keyword.
+      if (
+        !(active && style.activeGradientColors && style.activeGradientColors.length >= 2) &&
+        caption.wordColors && caption.wordColors[idx] && caption.wordColors[idx] !== 'default'
+      ) {
         fill = caption.wordColors[idx];
       }
     }
@@ -468,7 +534,14 @@ export function drawGeneric(
   if (style.displayMode === 'WORD') {
     if (activeWordIndex >= 0 && activeWordIndex < words.length) {
       const currWord = words[activeWordIndex];
-      const halfW = helpers.getMixedTextWidth(ctx, currWord, fontSize) / 2;
+      const wordTiming = caption.words?.[activeWordIndex - emojiPrefixOffset];
+      const iconUrl = wordTiming?.iconUrl || KEYWORD_ICON_MAP[currWord.toLowerCase()];
+      let halfW;
+      if (state?.iconCaptionsEnabled && iconUrl) {
+        halfW = (fontSize * 1.35) / 2;
+      } else {
+        halfW = helpers.getMixedTextWidth(ctx, currWord, fontSize) / 2;
+      }
       const safeLeft = halfW + canvas.width * 0.04;
       const safeRight = canvas.width - halfW - canvas.width * 0.04;
       const clampedX = Math.max(safeLeft, Math.min(safeRight, anchorX));
@@ -487,7 +560,14 @@ export function drawGeneric(
     let currentLineStartIndex = 0;
 
     words.forEach((word, index) => {
-      const wWidth = helpers.getMixedTextWidth(ctx, word, fontSize);
+      const wordTiming = caption.words?.[index - emojiPrefixOffset];
+      const iconUrl = wordTiming?.iconUrl;
+      let wWidth;
+      if (state?.iconCaptionsEnabled && iconUrl) {
+        wWidth = fontSize * 1.35;
+      } else {
+        wWidth = helpers.getMixedTextWidth(ctx, word, fontSize);
+      }
       const newWidth = currentLineWidth + wWidth + (currentLineWords.length > 0 ? spaceWidth : 0);
 
       if (newWidth > maxWidth && currentLineWords.length > 0) {
@@ -516,7 +596,18 @@ export function drawGeneric(
     let startY = effectiveY - totalHeight / 2 + lineHeight / 2;
 
     lines.forEach((line) => {
-      const lineWidth = helpers.getMixedTextWidth(ctx, line.text, fontSize);
+      let lineWidth = 0;
+      line.words.forEach((w, i) => {
+        const globalIndex = line.startIndex + i;
+        const wordTiming = caption.words?.[globalIndex - emojiPrefixOffset];
+        const iconUrl = wordTiming?.iconUrl;
+        if (state?.iconCaptionsEnabled && iconUrl) {
+          lineWidth += fontSize * 1.35;
+        } else {
+          lineWidth += helpers.getMixedTextWidth(ctx, w, fontSize);
+        }
+        if (i > 0) lineWidth += spaceWidth;
+      });
       let curX = anchorX - (style.textAlign === 'center' ? lineWidth / 2 : style.textAlign === 'right' ? lineWidth : 0);
 
       if (style.backgroundColor) {
@@ -568,7 +659,14 @@ export function drawGeneric(
 
       line.words.forEach((w, i) => {
         const globalIndex = line.startIndex + i;
-        const wWidth = helpers.getMixedTextWidth(ctx, w, fontSize);
+        const wordTiming = caption.words?.[globalIndex - emojiPrefixOffset];
+        const iconUrl = wordTiming?.iconUrl;
+        let wWidth;
+        if (state?.iconCaptionsEnabled && iconUrl) {
+          wWidth = fontSize * 1.35;
+        } else {
+          wWidth = helpers.getMixedTextWidth(ctx, w, fontSize);
+        }
         drawWord(w, curX + wWidth / 2, startY, globalIndex === activeWordIndex, globalIndex);
         curX += wWidth + spaceWidth;
       });

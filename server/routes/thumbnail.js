@@ -76,6 +76,11 @@ function generateSvgThumbnail(imgB64, imgMime, textOverlay, promptData, ar) {
   const hook = '';
   const templateName = sanitize(promptData.template || 'viral');
 
+  // ── Hyper-Impact Bold (Hormozi Gradient) — dedicated 3-line gradient layout ──
+  if (templateName === 'hyper-impact-bold' || templateName === 'hyper_impact_bold') {
+    return generateHyperImpactSvg(imgB64, imgMime, promptData.hyperLines || {}, ar);
+  }
+
   const templateStyles = {
     'mrbeast': { gradient: ['#FFD700','#FF4500'], textColor: '#FFFFFF', stroke: '#000000', shadow: 'rgba(0,0,0,0.7)' },
     'viral-reaction': { gradient: ['#FF1493','#4B0082'], textColor: '#FFFFFF', stroke: '#000000', shadow: 'rgba(0,0,0,0.6)' },
@@ -118,6 +123,71 @@ function generateSvgThumbnail(imgB64, imgMime, textOverlay, promptData, ar) {
 
 function escapeXml(s) {
   return String(s).replace(/[<>&'"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','\'':'&apos;','"':'&quot;'})[c]);
+}
+
+// ─── Hyper-Impact Bold server-side SVG (3-line gradient layout) ─────────
+// Mirrors components/HyperImpactPreview.tsx so the rasterized fallback matches
+// the live client preview. Keyword line uses a vertical orange→yellow gradient
+// with a heavy black stroke (paint-order: stroke) and drop shadow.
+
+function generateHyperImpactSvg(imgB64, imgMime, lines, ar) {
+  const dims = { '1:1': [800,800], '3:4': [600,800], '4:3': [800,600], '9:16': [450,800], '16:9': [800,450], 'ORIGINAL': [800,450] };
+  const [w, h] = dims[ar] || [800, 450];
+
+  const hook    = escapeXml(sanitize(lines.hook || 'UNLOCK').toUpperCase());
+  const keyword = escapeXml(sanitize(lines.keyword || 'CLAUDE').toUpperCase());
+  const benefit = escapeXml(sanitize(lines.benefit || '$200 PLAN FREE').toUpperCase());
+
+  // Fit font sizes to width (rough heuristic — the client canvas renderer is exact).
+  const widthFor = (text, base) => Math.min(base, Math.floor((w * 0.88) / (Math.max(text.length, 1) * 0.62)));
+  const frameSize = widthFor(hook.length > benefit.length ? hook : benefit, Math.floor(w / 9));
+  const keywordSize = widthFor(keyword, Math.floor(w / 3.2));
+
+  const gap = h * 0.03;
+  const total = frameSize + keywordSize + frameSize + gap * 2;
+  let y = h * 0.92 - total; // lower-middle anchor
+  const cx = w / 2;
+
+  const yHook = (y += frameSize) - frameSize * 0.18;
+  const yKeyword = (y += gap + keywordSize) - keywordSize * 0.2;
+  const yBenefit = (y += gap + frameSize) - frameSize * 0.18;
+
+  const skew = 'skewX(-7)';
+  const frameStroke = Math.max(2, frameSize * 0.06);
+  const keywordStroke = Math.max(3, keywordSize * 0.05);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <linearGradient id="hiKeyword" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F97316" />
+      <stop offset="50%" stop-color="#FBBF24" />
+      <stop offset="100%" stop-color="#FDE047" />
+    </linearGradient>
+    <linearGradient id="hiScrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(0,0,0,0.30)" />
+      <stop offset="50%" stop-color="rgba(0,0,0,0.05)" />
+      <stop offset="100%" stop-color="rgba(0,0,0,0.55)" />
+    </linearGradient>
+    <filter id="hiShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="${Math.max(2, keywordSize*0.04)}" stdDeviation="${Math.max(2, keywordSize*0.03)}" flood-color="#000" flood-opacity="0.9" />
+    </filter>
+    <clipPath id="hiClip"><rect x="0" y="0" width="${w}" height="${h}" rx="12" /></clipPath>
+  </defs>
+  <rect width="${w}" height="${h}" fill="#08080a" rx="12" />
+  ${imgB64 ? `<image href="data:${imgMime};base64,${imgB64}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#hiClip)" />` : ''}
+  <rect width="${w}" height="${h}" fill="url(#hiScrim)" rx="12" />
+  <g font-family="Anton, 'Arial Black', Impact, sans-serif" font-weight="900" text-anchor="middle" font-style="italic" paint-order="stroke" stroke-linejoin="round">
+    <g transform="translate(${cx} ${yHook}) ${skew} translate(${-cx} ${-yHook})" filter="url(#hiShadow)">
+      <text x="${cx}" y="${yHook}" font-size="${frameSize}" fill="#FFFFFF" stroke="#000" stroke-width="${frameStroke}">${hook}</text>
+    </g>
+    <g transform="translate(${cx} ${yKeyword}) ${skew} translate(${-cx} ${-yKeyword})" filter="url(#hiShadow)">
+      <text x="${cx}" y="${yKeyword}" font-size="${keywordSize}" fill="url(#hiKeyword)" stroke="#000" stroke-width="${keywordStroke}">${keyword}</text>
+    </g>
+    <g transform="translate(${cx} ${yBenefit}) ${skew} translate(${-cx} ${-yBenefit})" filter="url(#hiShadow)">
+      <text x="${cx}" y="${yBenefit}" font-size="${frameSize}" fill="#FFFFFF" stroke="#000" stroke-width="${frameStroke}">${benefit}</text>
+    </g>
+  </g>
+</svg>`;
 }
 
 // ─── Generate thumbnail from image + text + template ────────────────────
@@ -260,6 +330,63 @@ router.post('/v2/hooks', async (req, res) => {
     return res.json({ success: true, hooks: parsed.hooks || [] });
   } catch (err) {
     console.error('[Thumbnail v2] Hook generation error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Hyper-Impact Bold: 3-line structured text (Hormozi Gradient) ──────
+
+router.post('/v2/hyper-lines', async (req, res) => {
+  try {
+    const videoTopic = sanitize(req.body.videoTopic);
+    if (!videoTopic) {
+      return res.status(400).json({ success: false, error: 'videoTopic is required' });
+    }
+
+    const ai = getClient(req);
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: `Video / offer topic: ${videoTopic}` }] }],
+      config: {
+        // Step C — instruct the model to split copy into the exact 3-line layout
+        // the "Hyper-Impact Bold" template renders.
+        systemInstruction: `You write text for "Hyper-Impact Bold" (Hormozi Gradient) thumbnails.
+The thumbnail stacks EXACTLY three ALL-CAPS lines:
+  • Line 1 (hook): a punchy action verb / curiosity hook — rendered WHITE + italic.
+  • Line 2 (keyword): the single core subject / keyword — rendered as a vibrant ORANGE→YELLOW gradient hero. This is the oversized focal word.
+  • Line 3 (benefit): the high-value benefit / outcome — rendered WHITE + italic.
+
+Rules:
+- Each line is 1–3 words. Line 2 (keyword) is ideally a SINGLE word or a tight 2-word phrase — it must be short because it is the largest.
+- ALL CAPS. No emojis. No trailing punctuation except a leading $ for money values.
+- The three lines must read as one cohesive, high-impact message top-to-bottom.
+- Make it concrete and desirable (money, speed, access, transformation).
+Return ONLY valid JSON: { "hook": string, "keyword": string, "benefit": string }.`,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            hook: { type: 'STRING' },
+            keyword: { type: 'STRING' },
+            benefit: { type: 'STRING' },
+          },
+          required: ['hook', 'keyword', 'benefit'],
+        },
+      },
+    });
+
+    const parsed = JSON.parse(response.text || 'null');
+    if (!parsed || !parsed.keyword) {
+      return res.status(502).json({ success: false, error: 'Model returned no usable lines' });
+    }
+    // Normalize to ALL CAPS so the client preview/render is consistent.
+    const upper = (s) => String(s || '').toUpperCase().trim();
+    return res.json({
+      success: true,
+      lines: { hook: upper(parsed.hook), keyword: upper(parsed.keyword), benefit: upper(parsed.benefit) },
+    });
+  } catch (err) {
+    console.error('[Thumbnail v2] Hyper-lines error:', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

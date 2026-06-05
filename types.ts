@@ -7,6 +7,8 @@ export interface WordTiming {
   text: string;
   start: number;
   end: number;
+  iconEmoji?: string;
+  iconUrl?: string;
 }
 
 export interface Caption {
@@ -41,6 +43,7 @@ export enum CaptionStyle {
   // ─── BOLD ───
   BOLD_IMPACT = 'BOLD_IMPACT',
   HORMOZI = 'HORMOZI',
+  HYPER_IMPACT_BOLD = 'HYPER_IMPACT_BOLD', // Hormozi Gradient — white italic words, orange→yellow gradient on the emphasized word
   BEAST_MODE = 'BEAST_MODE',
   VIRAL_SLAM = 'VIRAL_SLAM',
 
@@ -307,6 +310,8 @@ export interface StyleConfig {
   textColor: string;
   textAlign?: TextAlign;
   gradientColors?: string[];
+  /** Gradient applied to the ACTIVE/emphasized word only (inactive words use textColor). Used by Hyper-Impact Bold. */
+  activeGradientColors?: string[];
   activeTextColor?: string;
   strokeColor?: string;
   strokeWidth?: number;
@@ -560,7 +565,8 @@ export type ThumbnailTemplateId =
   | 'documentary'
   | 'anime'
   | 'dark-cinematic'
-  | 'viral-reaction';
+  | 'viral-reaction'
+  | 'hyper-impact-bold';
 
 export interface ThumbnailTemplate {
   id: ThumbnailTemplateId;
@@ -573,6 +579,23 @@ export interface ThumbnailTemplate {
   textStyle: 'bold' | 'outlined' | 'gradient' | 'neon' | 'minimal';
   bgTreatment: string;
   composition: string;
+  /** Premium templates render a badge and may use the deterministic text-overlay pipeline. */
+  premium?: boolean;
+  /**
+   * Templates whose text is composited deterministically on the client (canvas/DOM)
+   * for pixel-exact typography, instead of being baked into the AI-generated image.
+   */
+  deterministicText?: boolean;
+}
+
+/**
+ * Three-line text structure for the "Hyper-Impact Bold" (Hormozi Gradient) template:
+ * white italic hook → vibrant orange/yellow gradient keyword → white italic benefit.
+ */
+export interface HyperImpactLines {
+  hook: string;     // Line 1 — punchy action verb / hook (white, italic)
+  keyword: string;  // Line 2 — core subject / keyword (orange→yellow gradient focus)
+  benefit: string;  // Line 3 — high-value benefit / outcome (white, italic)
 }
 
 export interface ThumbnailInput {
@@ -582,6 +605,8 @@ export interface ThumbnailInput {
   templateId: ThumbnailTemplateId;
   customPrompt?: string;
   aspectRatio?: AspectRatio;
+  /** Populated when templateId === 'hyper-impact-bold' to drive the 3-line layout. */
+  hyperLines?: HyperImpactLines;
 }
 
 export interface ThumbnailOutput {
@@ -605,6 +630,8 @@ export interface AIPromptPackage {
   positivePrompt: string;
   negativePrompt?: string;
   aspectRatio: AspectRatio;
+  /** 3-line text for the Hyper-Impact Bold template (forwarded to the server fallback). */
+  hyperLines?: HyperImpactLines;
 }
 
 // ─── VIRAL TYPOGRAPHY CAPTIONS ─────────────────────────────────────────────
@@ -662,6 +689,7 @@ export interface ViralTypographyCaption {
 }
 
 export interface RendererState {
+  currentTime?: number;
   captions: Caption[];
   activeConfig: StyleConfig;
   currentStyle: CaptionStyle;
@@ -685,6 +713,11 @@ export interface RendererState {
   aspectRatio?: AspectRatio;
   // Phase H: HyperCaption — skip canvas caption draw when HTML overlay is active
   skipCaptionDraw?: boolean;
+  // AI Enhancements
+  iconCaptionsEnabled?: boolean;
+  smartBrevityEnabled?: boolean;
+  autoFramingEnabled?: boolean;
+  autoFrameSafeY?: { min: number; max: number };
 }
 
 export interface RendererCallbacks {

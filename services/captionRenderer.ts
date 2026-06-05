@@ -233,7 +233,7 @@ export class CaptionRenderer implements RenderHelpers {
    * Main render method. Draws video frame + captions onto canvas.
    */
   render(
-    video: HTMLVideoElement,
+    video: HTMLVideoElement | null,
     canvas: HTMLCanvasElement,
     state: RendererState,
     callbacks?: RendererCallbacks
@@ -244,7 +244,8 @@ export class CaptionRenderer implements RenderHelpers {
     // Clear font cache at start of frame to ensure context sync
     this.cachedFont = '';
 
-    const renderTime = video.currentTime;
+    // Prefer state.currentTime if provided (for synthetic playback), fallback to video.currentTime
+    const renderTime = state.currentTime !== undefined ? state.currentTime : (video?.currentTime || 0);
 
     // --- Preload emoji GIFs for EMOJI_AUTO mode ---
     if (state.currentStyle === CaptionStyle.EMOJI_AUTO && state.captions) {
@@ -262,6 +263,17 @@ export class CaptionRenderer implements RenderHelpers {
             this.getOrLoadImage(gifUrl);
           }
         }
+      });
+    }
+
+    // --- Preload premium PNG icons for Icon Captions ---
+    if (state.iconCaptionsEnabled && state.captions) {
+      state.captions.forEach(caption => {
+        caption.words?.forEach(word => {
+          if (word.iconUrl) {
+            this.getOrLoadImage(word.iconUrl);
+          }
+        });
       });
     }
 
@@ -287,12 +299,14 @@ export class CaptionRenderer implements RenderHelpers {
 
     // --- Draw video frame ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(this.currentZoom, this.currentZoom);
-    ctx.translate(-canvas.width / 2, -canvas.height / 2);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    if (video) {
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.scale(this.currentZoom, this.currentZoom);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
 
     // --- Draw captions (skipped when HyperCaption HTML overlay is active) ---
     if (activeCaption && !state.skipCaptionDraw) {
@@ -479,7 +493,10 @@ export class CaptionRenderer implements RenderHelpers {
     let finalVPos = state.verticalPos;
     let finalHPos = state.horizontalPos;
 
-    if (state.autoAdjustEnabled) {
+    const isAutoFraming = state.autoFramingEnabled || state.autoAdjustEnabled;
+    if (isAutoFraming && state.autoFrameSafeY) {
+      finalVPos = Math.max(state.autoFrameSafeY.min, Math.min(state.autoFrameSafeY.max, finalVPos));
+    } else if (state.autoAdjustEnabled) {
       if (caption.customScale) finalFontScale *= caption.customScale;
       if (caption.customPosition === 'TOP') finalVPos = 15;
       else if (caption.customPosition === 'MIDDLE') finalVPos = 50;

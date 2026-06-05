@@ -12,10 +12,20 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react(), tailwindcss()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // SECURITY NOTE — read carefully before "fixing" the key handling:
+      //
+      // The Gemini API key is currently a CLIENT-SIDE secret. Both the old
+      // `define` block AND `import.meta.env.VITE_GEMINI_API_KEY` cause Vite to
+      // inline the key as a plain string literal into the production bundle
+      // (verified: `grep AQ.Ab8 dist/assets/*.js` finds it). ANY browser-side
+      // Vite app that reads the key will leak it — there is no client-only fix.
+      //
+      // The ONLY real fix is a SERVER-SIDE PROXY: the browser calls our Express
+      // backend (`npm run server`), which holds GEMINI_API_KEY (un-prefixed, so
+      // Vite never sees it) and forwards requests to Gemini. Until that proxy
+      // exists, treat the deployed key as public and scope/rotate it
+      // accordingly. The `define` block was removed because it was a second,
+      // redundant inlining path using non-standard `process.env.*` globals.
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

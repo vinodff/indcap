@@ -65,6 +65,9 @@ import { ThemePreset, AIStyleSuggestion, THEME_PRESETS } from './services/aiStyl
 import { TemplateManager, CaptionTemplate } from './services/TemplateManager';
 import { applyAutoEmojis, removeAutoEmojis } from './services/emojiAutoMatcher';
 import { useUndoableState } from './hooks/useUndoableState';
+import { mapIconWords, removeIconWords } from './services/iconWordMapper';
+import { applySmartBrevity } from './services/smartBrevity';
+import { initFaceDetector, detectSafeZone } from './services/autoFraming';
 
 
 
@@ -72,9 +75,12 @@ import { useUndoableState } from './hooks/useUndoableState';
 const App: React.FC = () => {
   // API Key State
   const [apiKey, setApiKey] = useState<string | null>(() => {
+    // Read only from VITE_* env vars (safe — Vite never embeds these as string
+    // literals in the bundle; they're resolved at load time) and localStorage.
+    // process.env.GEMINI_API_KEY was previously injected via vite.config define
+    // which hard-coded the key value into the JS bundle (a security risk).
     return import.meta.env.VITE_GEMINI_API_KEY
       || import.meta.env.VITE_API_KEY
-      || process.env.GEMINI_API_KEY
       || localStorage.getItem('createrin_api_key');
   });
 
@@ -92,6 +98,7 @@ const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [captions, setCaptions, undoCaptions, redoCaptions, resetCaptionsHistory, canUndo, canRedo] = useUndoableState<Caption[]>([]);
   const [status, setStatus] = useState<ProcessingStatus>('IDLE');
+  const [isSandboxMode, setIsSandboxMode] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const currentTimeRef = useRef(0);
   const [stats, setStats] = useState<ProcessingStats | null>(null);
@@ -111,6 +118,20 @@ const App: React.FC = () => {
   const [autoMotionEnabled, setAutoMotionEnabled] = useState(false);
   const [autoSfxEnabled, setAutoSfxEnabled] = useState(false);
   const [smartCompressionEnabled, setSmartCompressionEnabled] = useState(false);
+  const [iconCaptionsEnabled, setIconCaptionsEnabled] = useState(false);
+  const [autoFrameSafeY, setAutoFrameSafeY] = useState<{ min: number; max: number } | null>(null);
+
+  const processedCaptions = useMemo(() => {
+    let result = captions;
+    if (smartCompressionEnabled) {
+      result = applySmartBrevity(result);
+    }
+    if (iconCaptionsEnabled) {
+      result = mapIconWords(result);
+    }
+    return result;
+  }, [captions, smartCompressionEnabled, iconCaptionsEnabled]);
+
   const [languageMode, setLanguageMode] = useState<LanguageMode>('AUTO');
   const [sfxVolume, setSfxVolume] = useState<'LOW' | 'MED' | 'HIGH'>('MED');
   const [showSafeZones, setShowSafeZones] = useState(false);
@@ -379,6 +400,7 @@ const App: React.FC = () => {
       videoObjectUrlRef.current = url;
       setVideoSrc(url);
       setVideoFile(file);
+      setIsSandboxMode(false);
       resetCaptionsHistory([]); setStatus('IDLE'); setStats(null);
       setExportProgress(0);
       setPlaybackRate(1);
@@ -392,56 +414,44 @@ const App: React.FC = () => {
     }
   };
 
-  const handleTestWithSampleText = async () => {
-    // Load sample video without calling Gemini at all
-    if (!videoSrc) {
-      try {
-        setStatus('UPLOADING');
-        let blob: Blob | null = null;
-        try {
-          const r = await fetch('/test video.mp4');
-          if (r.ok) blob = await r.blob();
-        } catch {/* fallback below */}
-        if (!blob) {
-          const r = await fetch('https://storage.googleapis.com/generativeai-downloads/images/test%20video.mp4');
-          if (r.ok) blob = await r.blob();
-        }
-        if (blob) {
-          const file = new File([blob], 'test video.mp4', { type: 'video/mp4' });
-          if (videoObjectUrlRef.current) URL.revokeObjectURL(videoObjectUrlRef.current);
-          const url = URL.createObjectURL(file);
-          videoObjectUrlRef.current = url;
-          setVideoFile(file);
-          setVideoSrc(url);
-        }
-      } catch {/* proceed with no video — captions still work on canvas */}
-    }
-
-    // Predefined sample captions — no API call needed
-    const sampleCaptions: Caption[] = [
-      { id: 's1',  startTime: 0.0,  endTime: 2.5,  text: "Welcome to Createrin",            confidence: 98, words: [{ text: "Welcome",   start: 0.0,  end: 0.7  }, { text: "to",       start: 0.7,  end: 0.9  }, { text: "Createrin", start: 0.9,  end: 2.5  }] },
-      { id: 's2',  startTime: 2.6,  endTime: 5.0,  text: "The ultimate caption tool",        confidence: 97, words: [{ text: "The",       start: 2.6,  end: 2.9  }, { text: "ultimate", start: 2.9,  end: 3.5  }, { text: "caption",  start: 3.5,  end: 4.0  }, { text: "tool",     start: 4.0,  end: 5.0  }] },
-      { id: 's3',  startTime: 5.1,  endTime: 7.5,  text: "Create viral captions in seconds", confidence: 96, words: [{ text: "Create",   start: 5.1,  end: 5.6  }, { text: "viral",    start: 5.6,  end: 6.1  }, { text: "captions", start: 6.1,  end: 6.7  }, { text: "in",       start: 6.7,  end: 6.9  }, { text: "seconds",  start: 6.9,  end: 7.5  }] },
-      { id: 's4',  startTime: 7.6,  endTime: 10.0, text: "No more manual typing ever",       confidence: 95, words: [{ text: "No",       start: 7.6,  end: 7.9  }, { text: "more",     start: 7.9,  end: 8.2  }, { text: "manual",   start: 8.2,  end: 8.7  }, { text: "typing",   start: 8.7,  end: 9.3  }, { text: "ever",     start: 9.3,  end: 10.0 }] },
-      { id: 's5',  startTime: 10.1, endTime: 13.0, text: "AI-powered captions that match your style", confidence: 97, words: [{ text: "AI-powered", start: 10.1, end: 10.8 }, { text: "captions", start: 10.8, end: 11.3 }, { text: "that",     start: 11.3, end: 11.5 }, { text: "match",    start: 11.5, end: 11.9 }, { text: "your",     start: 11.9, end: 12.2 }, { text: "style",    start: 12.2, end: 13.0 }] },
-      { id: 's6',  startTime: 13.1, endTime: 15.5, text: "Transform your content",           confidence: 96, words: [{ text: "Transform", start: 13.1, end: 13.8 }, { text: "your",     start: 13.8, end: 14.1 }, { text: "content",  start: 14.1, end: 15.5 }] },
-      { id: 's7',  startTime: 15.6, endTime: 18.0, text: "With just one click",              confidence: 98, words: [{ text: "With",     start: 15.6, end: 15.9 }, { text: "just",     start: 15.9, end: 16.2 }, { text: "one",      start: 16.2, end: 16.6 }, { text: "click",    start: 16.6, end: 18.0 }] },
-      { id: 's8',  startTime: 18.1, endTime: 21.0, text: "Beautiful animations included",    confidence: 95, words: [{ text: "Beautiful",  start: 18.1, end: 18.8 }, { text: "animations", start: 18.8, end: 19.6 }, { text: "included",   start: 19.6, end: 21.0 }] },
-      { id: 's9',  startTime: 21.1, endTime: 24.0, text: "Every word perfectly timed",       confidence: 97, words: [{ text: "Every",     start: 21.1, end: 21.6 }, { text: "word",     start: 21.6, end: 22.0 }, { text: "perfectly", start: 22.0, end: 22.7 }, { text: "timed",    start: 22.7, end: 24.0 }] },
-      { id: 's10', startTime: 24.1, endTime: 27.0, text: "Your audience will love it",       confidence: 96, words: [{ text: "Your",     start: 24.1, end: 24.5 }, { text: "audience",  start: 24.5, end: 25.1 }, { text: "will",     start: 25.1, end: 25.4 }, { text: "love",     start: 25.4, end: 25.8 }, { text: "it",       start: 25.8, end: 27.0 }] },
-      { id: 's11', startTime: 27.1, endTime: 30.0, text: "Start creating amazing videos today", confidence: 98, words: [{ text: "Start",    start: 27.1, end: 27.5 }, { text: "creating",  start: 27.5, end: 28.1 }, { text: "amazing",   start: 28.1, end: 28.6 }, { text: "videos",    start: 28.6, end: 29.1 }, { text: "today",     start: 29.1, end: 30.0 }] },
-    ];
-
-    resetCaptionsHistory(sampleCaptions);
-    setStats({ transcriptionTime: 0, wordCount: 47, confidenceScore: 97, languageDetected: 'English' });
-    setAspectRatio('9:16');
-    setVerticalPos(78);
-    setStatus('READY');
-    setActiveTab('PRESETS');
-    showToast('Sample text loaded — try any caption template!', 'info');
-  };
+  // handleTestWithSampleText removed per user request
 
   const handleGenerateCaptions = async () => {
+    if (isSandboxMode) {
+      const mockCaptions: Caption[] = [
+        {
+          id: 'mock-1',
+          startTime: 0.0,
+          endTime: 1.5,
+          text: "UNLOCK",
+          words: [{ text: "UNLOCK", start: 0.0, end: 1.5 }]
+        },
+        {
+          id: 'mock-2',
+          startTime: 1.5,
+          endTime: 3.0,
+          text: "CLAUDE",
+          words: [{ text: "CLAUDE", start: 1.5, end: 3.0 }]
+        },
+        {
+          id: 'mock-3',
+          startTime: 3.0,
+          endTime: 5.0,
+          text: "$200 PLAN FREE",
+          words: [
+            { text: "$200", start: 3.0, end: 3.6 },
+            { text: "PLAN", start: 3.6, end: 4.3 },
+            { text: "FREE", start: 4.3, end: 5.0 }
+          ]
+        }
+      ];
+      resetCaptionsHistory(mockCaptions);
+      selectPreset(CaptionStyle.HYPER_IMPACT_BOLD);
+      setStatus('READY');
+      soundEngineRef.current.init();
+      return;
+    }
+
     if (!videoFile) return;
     setStatus('UPLOADING');
     const startTime = Date.now();
@@ -520,16 +530,53 @@ const App: React.FC = () => {
     });
   }, [setCaptions]);
 
+  // Face detection loop for Auto Framing
+  useEffect(() => {
+    if (!autoAdjustEnabled || !videoRef.current || !isPlaying || status === 'EXPORTING') {
+      setAutoFrameSafeY(null);
+      return;
+    }
+
+    let active = true;
+    let timeoutId: any;
+
+    const runDetector = async () => {
+      if (!active) return;
+      const video = videoRef.current;
+      if (video && !video.paused) {
+        const detector = await initFaceDetector();
+        if (detector && active) {
+          const safeZone = detectSafeZone(video, video.currentTime * 1000);
+          if (active) {
+            setAutoFrameSafeY(safeZone);
+          }
+        }
+      }
+      timeoutId = setTimeout(runDetector, 400);
+    };
+
+    runDetector();
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
+  }, [autoAdjustEnabled, isPlaying, status]);
+
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
         videoRef.current.play().catch(e => console.error(e));
-        soundEngineRef.current.resume();
       }
-      setIsPlaying(!isPlaying);
     }
+    
+    // Resume the AudioContext if the browser suspended it (autoplay policy)
+    if (!isPlaying) {
+      soundEngineRef.current.resume();
+    }
+    setIsPlaying(!isPlaying);
   };
 
   const handleTimeUpdate = () => {
@@ -547,10 +594,11 @@ const App: React.FC = () => {
   const renderFrame = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!canvas) return; // Video is optional now for black screen mode
 
     captionRendererRef.current.render(video, canvas, {
-      captions,
+      currentTime: currentTimeRef.current,
+      captions: processedCaptions,
       activeConfig,
       currentStyle,
       fontScale,
@@ -566,8 +614,10 @@ const App: React.FC = () => {
       wordHighlight,
       animationSpeed,
       aspectRatio,
-      // Skip canvas caption draw when HTML overlay is handling it
       skipCaptionDraw: activeConfig?.isHyperStyle === true,
+      iconCaptionsEnabled,
+      autoFramingEnabled: autoAdjustEnabled,
+      autoFrameSafeY: autoFrameSafeY ?? undefined,
     }, {
       onNewCaption: (caption) => {
         soundEngineRef.current.playWhoosh();
@@ -576,17 +626,33 @@ const App: React.FC = () => {
         }
       }
     });
-  }, [captions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio]);
+  }, [processedCaptions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio, iconCaptionsEnabled, autoFrameSafeY]);
 
   // --- ANIMATION LOOP: only run when playing or exporting ---
   useEffect(() => {
     let rafId: number;
-    const loop = () => {
+    let lastTime = performance.now();
+
+    const loop = (time: number) => {
+      // Synthetic clock driver for "Test with Sample Text" pure black screen mode
+      if (!videoRef.current && isPlaying) {
+        const dt = (time - lastTime) / 1000;
+        currentTimeRef.current += dt;
+        
+        const maxTime = processedCaptions.length > 0 
+          ? Math.max(...processedCaptions.map(c => c.endTime)) + 2
+          : 10;
+
+        if (currentTimeRef.current > maxTime) currentTimeRef.current = 0;
+      }
+      lastTime = time;
+
       renderFrame();
       rafId = requestAnimationFrame(loop);
     };
 
     if (isPlaying || status === 'EXPORTING') {
+      lastTime = performance.now();
       rafId = requestAnimationFrame(loop);
     } else {
       // Draw a single frame when paused so the canvas isn't blank
@@ -611,8 +677,8 @@ const App: React.FC = () => {
   const handleSeek = useCallback((time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
-      currentTimeRef.current = time;
     }
+    currentTimeRef.current = time;
   }, []);
 
   // --- KEYBOARD SHORTCUTS ---
@@ -770,7 +836,7 @@ const App: React.FC = () => {
     return key;
   };
 
-  if (!apiKey && !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_API_KEY && !process.env.GEMINI_API_KEY) {
+  if (!apiKey && !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_API_KEY) {
     return <ApiKeySelector onSelect={(k) => {
       localStorage.setItem('createrin_api_key', k);
       setApiKey(k);
@@ -1024,12 +1090,14 @@ const App: React.FC = () => {
           </button>
           {status === 'READY' && (
             <>
+              {/* TEMPORARILY HIDDEN — SEO & Publish features
               <button onClick={() => setIsSeoModalOpen(true)} className="cc-btn cc-btn-ghost hidden xl:inline-flex">
                 <Share2 size={13} /> SEO
               </button>
               <button onClick={() => setIsPublisherOpen(true)} className="cc-btn cc-btn-primary hidden md:inline-flex">
                 <UploadCloud size={13} /> Publish
               </button>
+              */}
               <button onClick={() => setIsExportPanelOpen(true)} className="cc-btn cc-btn-white">
                 <Download size={14} /> <span className="hidden sm:inline">Export</span>
               </button>
@@ -1132,7 +1200,6 @@ const App: React.FC = () => {
                   canvasRef={canvasRef}
                   handleFileUpload={handleFileUpload}
                   onLoadSampleVideo={startPreviewMode}
-                  onTestWithSampleText={handleTestWithSampleText}
                   setVideoSrc={setVideoSrc}
                   setVideoFile={setVideoFile}
                   setStatus={setStatus}
@@ -1141,7 +1208,7 @@ const App: React.FC = () => {
                   togglePlay={togglePlay}
                   status={status}
                   exportProgress={exportProgress}
-                  captions={captions}
+                  captions={processedCaptions}
                   updateCaption={updateCaption}
                   showSafeZones={showSafeZones}
                   safeZonePlatform={safeZonePlatform}
@@ -1154,6 +1221,8 @@ const App: React.FC = () => {
                   fontScale={fontScale}
                   verticalPos={verticalPos}
                   horizontalPos={horizontalPos}
+                  isSandboxMode={isSandboxMode}
+                  onSandboxModeToggle={setIsSandboxMode}
                 />
 
                 {/* Safe Zones Toggle */}
@@ -1207,7 +1276,7 @@ const App: React.FC = () => {
           <div className="w-full h-auto md:h-full flex-shrink-0 z-20 flex flex-col bg-[var(--cc-surface)] md:overflow-hidden border-t md:border-t-0 md:border-l border-[var(--cc-border)] md:w-[var(--panel-width)]">
 
             {/* Bug 2 Fix: Upload prompt when no video is loaded */}
-            {!videoSrc && (status === 'IDLE') && (
+            {!videoSrc && !isSandboxMode && (status === 'IDLE') && (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                   <Upload size={28} className="text-blue-400" />
@@ -1243,7 +1312,7 @@ const App: React.FC = () => {
             )}
 
             {/* Initial Generation State */}
-            {videoSrc && status === 'IDLE' && (
+            {(videoSrc || isSandboxMode) && status === 'IDLE' && (
               <InitialGenerationState
                 languageMode={languageMode}
                 setLanguageMode={setLanguageMode}
@@ -1251,8 +1320,12 @@ const App: React.FC = () => {
                 setAutoAdjustEnabled={setAutoAdjustEnabled}
                 smartCompressionEnabled={smartCompressionEnabled}
                 setSmartCompressionEnabled={setSmartCompressionEnabled}
+                iconCaptionsEnabled={iconCaptionsEnabled}
+                setIconCaptionsEnabled={setIconCaptionsEnabled}
                 handleGenerateCaptions={handleGenerateCaptions}
                 detectedLanguage={detectedLanguage}
+                isSandboxMode={isSandboxMode}
+                setIsSandboxMode={setIsSandboxMode}
               />
             )}
 
@@ -1463,6 +1536,12 @@ const App: React.FC = () => {
                       updateCaption={updateCaption}
                       videoRef={videoRef}
                       onPreviewMode={startPreviewMode}
+                      autoAdjustEnabled={autoAdjustEnabled}
+                      setAutoAdjustEnabled={setAutoAdjustEnabled}
+                      smartCompressionEnabled={smartCompressionEnabled}
+                      setSmartCompressionEnabled={setSmartCompressionEnabled}
+                      iconCaptionsEnabled={iconCaptionsEnabled}
+                      setIconCaptionsEnabled={setIconCaptionsEnabled}
                     />
                     </Suspense>
                   )}

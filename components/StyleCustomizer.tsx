@@ -47,6 +47,12 @@ interface StyleCustomizerProps {
   updateCaption?: (id: string, updates: Partial<Caption>) => void;
   videoRef?: React.RefObject<HTMLVideoElement | null>;
   onPreviewMode?: () => void;
+  autoAdjustEnabled?: boolean;
+  setAutoAdjustEnabled?: (val: boolean) => void;
+  smartCompressionEnabled?: boolean;
+  setSmartCompressionEnabled?: (val: boolean) => void;
+  iconCaptionsEnabled?: boolean;
+  setIconCaptionsEnabled?: (val: boolean) => void;
 }
 
 /* ─── category accent colors ─── */
@@ -180,6 +186,9 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
   bgPadding, setBgPadding, bgRadius, setBgRadius,
   verticalPos, setVerticalPos, horizontalPos, setHorizontalPos,
   captions = [], updateCaption, videoRef, onPreviewMode,
+  autoAdjustEnabled = true, setAutoAdjustEnabled,
+  smartCompressionEnabled = false, setSmartCompressionEnabled,
+  iconCaptionsEnabled = false, setIconCaptionsEnabled,
 }) => {
 
   /* ─── TAB BAR ─── */
@@ -713,6 +722,62 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
             <Row label="Horizontal Offset" value={`${horizontalPos}%`}>
               <input type="range" min="10" max="90" step="1" value={horizontalPos} onChange={e => setHorizontalPos(parseInt(e.target.value))} className="cc-range" />
             </Row>
+          </div>
+        </section>
+
+        <Divider />
+
+        {/* ── AI Enhancements ── */}
+        <section style={{ marginTop: 20 }}>
+          <GroupHeader icon={<Play size={13} />} label="AI Enhancements" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Auto Framing Toggle */}
+            {setAutoAdjustEnabled && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--cc-text-2)' }}>Auto Framing</span>
+                  <span style={{ fontSize: 8, color: 'var(--cc-text-4)' }}>Avoids speaker faces</span>
+                </div>
+                <button
+                  onClick={() => setAutoAdjustEnabled(!autoAdjustEnabled)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: autoAdjustEnabled ? 'var(--cc-blue-light)' : 'var(--cc-text-4)', display: 'flex' }}
+                >
+                  {autoAdjustEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                </button>
+              </div>
+            )}
+
+            {/* Smart Brevity Toggle */}
+            {setSmartCompressionEnabled && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--cc-text-2)' }}>Smart Brevity</span>
+                  <span style={{ fontSize: 8, color: 'var(--cc-text-4)' }}>Fast-paced punchy cuts</span>
+                </div>
+                <button
+                  onClick={() => setSmartCompressionEnabled(!smartCompressionEnabled)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: smartCompressionEnabled ? 'var(--cc-blue-light)' : 'var(--cc-text-4)', display: 'flex' }}
+                >
+                  {smartCompressionEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                </button>
+              </div>
+            )}
+
+            {/* Icon Captions Toggle */}
+            {setIconCaptionsEnabled && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--cc-text-2)' }}>Icon Captions</span>
+                  <span style={{ fontSize: 8, color: 'var(--cc-text-4)' }}>Replaces keywords with premium PNGs</span>
+                </div>
+                <button
+                  onClick={() => setIconCaptionsEnabled(!iconCaptionsEnabled)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: iconCaptionsEnabled ? 'var(--cc-blue-light)' : 'var(--cc-text-4)', display: 'flex' }}
+                >
+                  {iconCaptionsEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </div>

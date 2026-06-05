@@ -4,10 +4,14 @@ import {
   ThumbnailTemplateId,
   ThumbnailGenerationStatus,
   AIPromptPackage,
+  HyperImpactLines,
+  AspectRatio,
 } from '../types';
 import { getTemplate } from '../constants/thumbnailTemplates';
+import { renderHyperImpactThumbnail } from './hyperImpactRenderer';
 
 const API_BASE = '/api/thumbnail/v2';
+const HISTORY_BASE = '/api';
 
 function getApiKey(): string {
   const key =
@@ -113,6 +117,45 @@ export function buildPrompt(
   const titleSafe = input.titleText.replace(/[<>"']/g, '').substring(0, 100);
   const hookSafe = input.hookText.replace(/[<>"']/g, '').substring(0, 60);
 
+  // Step C — when Hyper-Impact Bold is selected, dynamically adjust the AI payload
+  // to demand the exact 3-line structure (white hook / gradient keyword / white benefit).
+  if (input.templateId === 'hyper-impact-bold' && input.hyperLines) {
+    const clean = (s: string) => s.replace(/[<>"']/g, '').substring(0, 40).toUpperCase();
+    const hl = {
+      hook: clean(input.hyperLines.hook),
+      keyword: clean(input.hyperLines.keyword),
+      benefit: clean(input.hyperLines.benefit),
+    };
+    const hyperPrompt = [
+      `Create a professional high-CTR "Hyper-Impact Bold" (Hormozi Gradient) thumbnail.`,
+      template.promptInstructions,
+      ``,
+      `Subject image analysis:`,
+      `- Expression: ${analysis.expression}`,
+      `- Background: ${analysis.background}`,
+      `- Composition: ${analysis.composition}`,
+      ``,
+      `Render the on-image text as THREE stacked ALL-CAPS lines in this exact order:`,
+      `- Line 1 (hook, pure white, italic, thick black outline): "${hl.hook}"`,
+      `- Line 2 (keyword, OVERSIZED, vibrant orange→yellow vertical gradient #F97316→#FDE047, glossy 3D, thick black stroke + drop shadow): "${hl.keyword}"`,
+      `- Line 3 (benefit, pure white, italic, thick black outline): "${hl.benefit}"`,
+      ``,
+      `Heavy condensed sans-serif (Montserrat Black / Anton), tightly tracked, lower-middle placement.`,
+      `Dark high-contrast background so the type pops. 16:9, 8K detail, masterpiece quality.`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return {
+      fullPrompt: hyperPrompt,
+      template: input.templateId,
+      textOverlay: hl.keyword,
+      positivePrompt: hyperPrompt,
+      aspectRatio: input.aspectRatio || '16:9',
+      hyperLines: hl,
+    };
+  }
+
   const fullPrompt = [
     `Create a professional high-CTR YouTube thumbnail.`,
     `Template style: ${template.name}. ${template.promptInstructions}`,
@@ -160,6 +203,37 @@ export function buildPrompt(
 }
 
 export async function generateThumbnail(input: ThumbnailInput): Promise<ThumbnailOutput> {
+  // ── Hyper-Impact Bold: deterministic client-side compositing ──────────────
+  // The 3-line typography is drawn on a canvas (gradient + stroke + shadow) so the
+  // text is pixel-exact rather than baked into an unreliable AI image. This is the
+  // path that guarantees the "exact caption quality" the template promises.
+  if (input.templateId === 'hyper-impact-bold') {
+    const lines: HyperImpactLines = input.hyperLines ?? {
+      hook: input.hookText || 'UNLOCK',
+      keyword: input.titleText || 'CLAUDE',
+      benefit: '',
+    };
+    const ar = (input.aspectRatio ?? '16:9') as AspectRatio;
+    const imageDataUrl = await renderHyperImpactThumbnail(lines, input.imageDataUrl, {
+      width: ar === '9:16' || ar === '4:5' ? 1080 : 1280,
+      aspectRatio: ar === 'ORIGINAL' ? '16:9' : (ar as '16:9' | '9:16' | '1:1' | '4:5'),
+    });
+    const promptUsed = buildPrompt(input, await analyzeImage(input.imageDataUrl)).fullPrompt;
+    const output: ThumbnailOutput = {
+      imageDataUrl,
+      promptUsed,
+      templateId: input.templateId,
+      createdAt: new Date().toISOString(),
+    };
+    // Persist to SQLite history (best-effort — never block the result on it).
+    saveThumbnailHistory({
+      hookText: [lines.hook, lines.keyword, lines.benefit].filter(Boolean).join(' '),
+      template: 'hyper_impact_bold',
+      imageUrl: null,
+    }).catch(() => {});
+    return output;
+  }
+
   const analysis = await analyzeImage(input.imageDataUrl);
   const promptPackage = buildPrompt(input, analysis);
 
@@ -217,6 +291,63 @@ export async function generateHooks(videoTopic: string): Promise<string[]> {
   if (!res.ok) throw new Error('Hook generation failed');
   const data = await res.json();
   return data.hooks || [];
+}
+
+/**
+ * Step C — ask Gemini to structure a topic into the exact 3-line Hyper-Impact
+ * Bold layout: { hook, keyword, benefit }, ALL CAPS.
+ */
+export async function generateHyperImpactLines(videoTopic: string): Promise<HyperImpactLines> {
+  const res = await fetch(`${API_BASE}/hyper-lines`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getApiKey()}`,
+    },
+    body: JSON.stringify({ videoTopic }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Line generation failed' }));
+    throw new Error(err.error || 'Line generation failed');
+  }
+  const data = await res.json();
+  if (!data.lines) throw new Error('No lines returned');
+  return data.lines as HyperImpactLines;
+}
+
+/** Persist a generated thumbnail to SQLite history (POST /api/thumbnails). */
+export async function saveThumbnailHistory(entry: {
+  hookText: string;
+  template: string;
+  ctrScore?: number;
+  imageUrl?: string | null;
+}): Promise<{ id: number } | null> {
+  try {
+    const res = await fetch(`${HISTORY_BASE}/thumbnails`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Read back thumbnail history (GET /api/thumbnails). */
+export async function getThumbnailHistory(): Promise<
+  Array<{ id: number; hook_text: string; template: string; ctr_score: number; image_url: string | null; created_at: string }>
+> {
+  try {
+    const res = await fetch(`${HISTORY_BASE}/thumbnails`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {

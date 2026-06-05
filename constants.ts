@@ -522,6 +522,19 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
   },
+  // Hyper-Impact Bold (Hormozi Gradient) — white italic words with a thick black
+  // stroke + deep shadow; the emphasized word pops in a vibrant orange→yellow
+  // gradient (activeGradientColors). Mirrors the thumbnail template of the same name.
+  [CaptionStyle.HYPER_IMPACT_BOLD]: {
+    name: 'Hyper-Impact Bold', category: 'BOLD',
+    fontFamily: "'Anton', sans-serif", fontSize: 66, fontWeight: 'italic 900',
+    textColor: '#FFFFFF',
+    activeGradientColors: ['#F97316', '#FBBF24', '#FDE047'],
+    strokeColor: '#000000', strokeWidth: 16,
+    shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 12, shadowOffsetY: 8,
+    animation: 'POP', uppercase: true, displayMode: 'WORD',
+    colorBehavior: 'WORD_POP',
+  },
   [CaptionStyle.BEAST_MODE]: {
     name: 'Mr. Beast', category: 'BOLD',
     fontFamily: "'Bangers', cursive", fontSize: 62, fontWeight: 400,

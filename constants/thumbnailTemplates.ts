@@ -97,6 +97,27 @@ export const THUMBNAIL_TEMPLATES: Record<ThumbnailTemplateId, ThumbnailTemplate>
     bgTreatment: 'bright radial gradient background with floating reaction emojis',
     composition: 'extreme close-up face close-up with emoji decorations around',
   },
+  // ── Premium: "Hyper-Impact Bold" (Hormozi Gradient) ───────────────────────
+  // Researched spec (Hormozi / viral short-form caption conventions):
+  //  • Font: heavy condensed sans — Montserrat Black / Anton, ALL CAPS, slight italic slant
+  //  • 3-line layout: white italic hook → orange→yellow gradient keyword → white italic benefit
+  //  • Keyword gradient ≈ #F97316 → #FBBF24 → #FDE047 (deep orange to vibrant yellow)
+  //  • Heavy black stroke (8–12px @1080w) + deep drop shadow for separation from background
+  //  • The keyword line is the oversized hero; framing lines are smaller and clean
+  'hyper-impact-bold': {
+    id: 'hyper-impact-bold',
+    name: 'Hyper-Impact Bold',
+    description: 'Hormozi-style 3-line punch: white italic hook, oversized orange→yellow gradient keyword, white italic benefit. Heavy stroke + drop shadow.',
+    niche: 'Business / money / self-development / high-impact shorts',
+    promptInstructions: 'Hyper-Impact Bold ("Hormozi Gradient") thumbnail. Dark, high-contrast cinematic background behind the subject so the text pops. Three stacked lines of ALL-CAPS heavy condensed sans-serif (Montserrat Black / Anton) with a slight italic slant: (1) a short punchy hook line in pure white with a thick black outline; (2) an oversized central KEYWORD line rendered in a glossy vibrant orange-to-yellow vertical gradient (deep orange #F97316 at the top blending to bright yellow #FDE047 at the bottom) with a bold black stroke and a deep drop shadow giving a premium 3D look; (3) a high-value benefit/outcome line in pure white with a thick black outline. Text sits in the lower-middle, tightly tracked, maximum visual weight, designed to be read at a glance on a muted mobile feed. Keep the subject and dark background uncluttered behind the type. Photoreal subject, sharp focus, dramatic studio lighting, viral high-CTR composition.',
+    colorPalette: ['#F97316', '#FBBF24', '#FDE047', '#FFFFFF'],
+    textPosition: 'center',
+    textStyle: 'gradient',
+    bgTreatment: 'dark high-contrast cinematic background, subject lit with dramatic key + rim light, clean negative space for stacked text',
+    composition: 'subject framed waist-up or close-up, three stacked centered text lines occupying the lower-middle third',
+    premium: true,
+    deterministicText: true,
+  },
 };
 
 export const THUMBNAIL_TEMPLATE_LIST = Object.values(THUMBNAIL_TEMPLATES);
@@ -106,6 +127,7 @@ export const getTemplate = (id: ThumbnailTemplateId): ThumbnailTemplate => {
 };
 
 export const TEMPLATE_CATEGORIES: { name: string; ids: ThumbnailTemplateId[] }[] = [
+  { name: 'Premium', ids: ['hyper-impact-bold'] },
   { name: 'Viral & Energy', ids: ['mrbeast', 'viral-reaction'] },
   { name: 'Gaming & Anime', ids: ['gaming', 'anime'] },
   { name: 'Professional', ids: ['finance', 'tech-review'] },

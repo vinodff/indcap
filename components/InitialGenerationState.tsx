@@ -243,10 +243,14 @@ interface InitialGenerationStateProps {
   setAutoAdjustEnabled: (val: boolean) => void;
   smartCompressionEnabled: boolean;
   setSmartCompressionEnabled: (val: boolean) => void;
+  iconCaptionsEnabled: boolean;
+  setIconCaptionsEnabled: (val: boolean) => void;
   handleGenerateCaptions: () => Promise<void>;
   detectedLanguage?: string;
   /** New: expose the full language selection for instruction generation */
   onLanguageSelectionChange?: (sel: LanguageSelection) => void;
+  isSandboxMode?: boolean;
+  setIsSandboxMode?: (val: boolean) => void;
 }
 
 // ─── Sub-components ───
@@ -560,9 +564,13 @@ const InitialGenerationState: React.FC<InitialGenerationStateProps> = ({
   setAutoAdjustEnabled,
   smartCompressionEnabled,
   setSmartCompressionEnabled,
+  iconCaptionsEnabled,
+  setIconCaptionsEnabled,
   handleGenerateCaptions,
   detectedLanguage,
   onLanguageSelectionChange,
+  isSandboxMode = false,
+  setIsSandboxMode,
 }) => {
   // Multi-step wizard state
   const [step, setStep] = useState<'pick-language' | 'pick-mode' | 'pick-custom-target'>('pick-language');
@@ -669,29 +677,64 @@ const InitialGenerationState: React.FC<InitialGenerationStateProps> = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Sandbox Toggle Switch at Top */}
+      <div className="px-4 py-3 bg-[#11111a] border-b border-gray-800/60 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🧪</span>
+          <div>
+            <div className="text-xs font-black text-white">Sandbox Preview Mode</div>
+            <div className="text-[9px] text-gray-500">Offline style & caption testing</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsSandboxMode?.(!isSandboxMode)}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none ${isSandboxMode ? 'bg-amber-500' : 'bg-gray-700'}`}
+        >
+          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isSandboxMode ? 'translate-x-4' : 'translate-x-0'}`} />
+        </button>
+      </div>
+
       {/* ─── LANGUAGE SELECTION ─── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Current selection badge */}
-        <div className="px-3 pt-3 pb-1 shrink-0">
-          <div className="flex items-center gap-2 text-xs font-black text-gray-500 uppercase tracking-widest">
-            <Globe size={14} className="text-blue-500" /> Source Language
-          </div>
-          {confirmedSelection && (
-            <button
-              onClick={() => { setStep('pick-language'); setConfirmedSelection(null); }}
-              className="mt-2 w-full flex items-center justify-between p-3 rounded-xl bg-blue-600/15 border border-blue-500/40 hover:bg-blue-600/25 transition-all"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <Check size={14} className="text-blue-400 shrink-0" />
-                <span className="text-sm font-bold text-blue-300 truncate">{currentLabel}</span>
+        {/* If sandbox mode is ON, show notice card instead of language selection */}
+        {isSandboxMode ? (
+          <div className="px-4 pt-4 pb-2 shrink-0">
+            <div className="flex items-center gap-2 text-xs font-black text-gray-500 uppercase tracking-widest">
+              <Globe size={14} className="text-amber-500" /> API Bypass Safety
+            </div>
+            <div className="mt-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left">
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-lg">⚡</span>
+                <span className="text-xs font-black text-amber-300">Offline Instant Testing</span>
               </div>
-              <span className="text-[9px] text-blue-400/60 font-bold shrink-0">CHANGE</span>
-            </button>
-          )}
-        </div>
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                Video uploads and Gemini transcription are bypassed. We've populated a mock transcription dataset in React memory. Click the button below to apply caption styles instantly.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="px-3 pt-3 pb-1 shrink-0">
+            <div className="flex items-center gap-2 text-xs font-black text-gray-500 uppercase tracking-widest">
+              <Globe size={14} className="text-blue-500" /> Source Language
+            </div>
+            {confirmedSelection && (
+              <button
+                onClick={() => { setStep('pick-language'); setConfirmedSelection(null); }}
+                className="mt-2 w-full flex items-center justify-between p-3 rounded-xl bg-blue-600/15 border border-blue-500/40 hover:bg-blue-600/25 transition-all"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Check size={14} className="text-blue-400 shrink-0" />
+                  <span className="text-sm font-bold text-blue-300 truncate">{currentLabel}</span>
+                </div>
+                <span className="text-[9px] text-blue-400/60 font-bold shrink-0">CHANGE</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Step content */}
-        {!confirmedSelection ? (
+        {!isSandboxMode && !confirmedSelection ? (
           <div className="flex-1 overflow-hidden flex flex-col">
             {step === 'pick-language' && (
               <LanguagePicker
@@ -741,7 +784,8 @@ const InitialGenerationState: React.FC<InitialGenerationStateProps> = ({
               <div className="space-y-3">
                 {[
                   { id: 'adj', label: 'Auto Framing', icon: <Wand2 size={18} />, state: autoAdjustEnabled, toggle: setAutoAdjustEnabled, desc: 'Smartly positions text to avoid faces' },
-                  { id: 'comp', label: 'Smart Brevity', icon: <Scissors size={18} />, state: smartCompressionEnabled, toggle: setSmartCompressionEnabled, desc: 'Shortens sentences for higher retention' }
+                  { id: 'comp', label: 'Smart Brevity', icon: <Scissors size={18} />, state: smartCompressionEnabled, toggle: setSmartCompressionEnabled, desc: 'Shortens sentences for higher retention' },
+                  { id: 'icon', label: 'Icon Captions', icon: <Sparkles size={18} />, state: iconCaptionsEnabled, toggle: setIconCaptionsEnabled, desc: 'Replaces key words with premium icons' }
                 ].map(f => (
                   <button
                     key={f.id}
@@ -767,14 +811,14 @@ const InitialGenerationState: React.FC<InitialGenerationStateProps> = ({
       </div>
 
       {/* Generate button — always visible at bottom */}
-      {confirmedSelection && (
+      {(confirmedSelection || isSandboxMode) && (
         <div className="px-4 pb-4 pt-2 shrink-0 bg-gradient-to-t from-[#141414] via-[#141414] to-transparent">
           <button
             onClick={handleGenerateCaptions}
             className="w-full bg-white text-black py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl hover:bg-gray-200"
           >
             <Sparkles size={20} className="text-yellow-500 fill-yellow-500" />
-            Generate Captions
+            {isSandboxMode ? 'Apply Instant Preview Style' : 'Generate Captions'}
           </button>
         </div>
       )}

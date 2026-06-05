@@ -21,9 +21,10 @@ import {
   Clock,
   Share2,
 } from 'lucide-react';
-import { ThumbnailTemplateId, ThumbnailOutput, ThumbnailGenerationStatus, AspectRatio } from '../types';
+import { ThumbnailTemplateId, ThumbnailOutput, ThumbnailGenerationStatus, AspectRatio, HyperImpactLines } from '../types';
 import { THUMBNAIL_TEMPLATES, TEMPLATE_CATEGORIES } from '../constants/thumbnailTemplates';
-import { generateThumbnail, generateVariations, generateHooks, downloadThumbnail, buildPrompt, analyzeImage } from '../services/thumbnailService';
+import { generateThumbnail, generateVariations, generateHooks, downloadThumbnail, buildPrompt, analyzeImage, generateHyperImpactLines } from '../services/thumbnailService';
+import { HyperImpactPreview } from './HyperImpactPreview';
 
 type Step = 'upload' | 'text' | 'template' | 'generate' | 'result';
 
@@ -38,6 +39,8 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
   const [imageName, setImageName] = useState<string>('');
   const [titleText, setTitleText] = useState('');
   const [hookText, setHookText] = useState('');
+  const [hyperLines, setHyperLines] = useState<HyperImpactLines>({ hook: '', keyword: '', benefit: '' });
+  const [hyperLinesLoading, setHyperLinesLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ThumbnailTemplateId>('viral-reaction');
   const [customPrompt, setCustomPrompt] = useState('');
   const [status, setStatus] = useState<ThumbnailGenerationStatus>({ stage: 'done', progress: 0 });
@@ -47,6 +50,21 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatio>('16:9');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isHyper = selectedTemplate === 'hyper-impact-bold';
+
+  const generateHyperLineSuggestions = useCallback(async () => {
+    const topic = titleText || hookText || hyperLines.keyword || 'unlock premium access';
+    setHyperLinesLoading(true);
+    try {
+      const lines = await generateHyperImpactLines(topic);
+      setHyperLines(lines);
+    } catch {
+      /* keep whatever the user already typed */
+    } finally {
+      setHyperLinesLoading(false);
+    }
+  }, [titleText, hookText, hyperLines.keyword]);
 
   const handleImageUpload = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -117,6 +135,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
         templateId: selectedTemplate,
         customPrompt: customPrompt || undefined,
         aspectRatio: selectedAspectRatio,
+        hyperLines: isHyper ? hyperLines : undefined,
       };
 
       setStatus({ stage: 'analyzing', progress: 30, message: 'Building AI prompt...' });
@@ -139,7 +158,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
         error: err.message || 'Generation failed. Try again.',
       });
     }
-  }, [imageDataUrl, titleText, hookText, selectedTemplate, customPrompt]);
+  }, [imageDataUrl, titleText, hookText, selectedTemplate, customPrompt, selectedAspectRatio, isHyper, hyperLines]);
 
   const handleRegenerate = useCallback(async () => {
     setResult(null);
@@ -336,60 +355,130 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
             <div className="w-full max-w-2xl space-y-6">
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-black tracking-tight">Add Your Text</h2>
-                <p className="text-gray-500 text-sm">The AI will optimize placement, font, and size automatically</p>
+                <p className="text-gray-500 text-sm">
+                  {isHyper
+                    ? 'Three punchy lines — white hook, gradient keyword, white benefit'
+                    : 'The AI will optimize placement, font, and size automatically'}
+                </p>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
-                    Hook Text <span className="text-fuchsia-400">(primary — will be largest)</span>
-                  </label>
-                  <input
-                    value={hookText}
-                    onChange={(e) => setHookText(e.target.value)}
-                    placeholder="e.g. I Made ₹1,00,000 with AI"
-                    className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-gray-800 text-white text-lg font-bold placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
-                    maxLength={80}
-                  />
-                  <p className="text-right text-[10px] text-gray-600 mt-1">{hookText.length}/80</p>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
-                    Title Text <span className="text-gray-600">(secondary)</span>
-                  </label>
-                  <input
-                    value={titleText}
-                    onChange={(e) => setTitleText(e.target.value)}
-                    placeholder="e.g. This Trick Changed Everything"
-                    className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-gray-800 text-white font-medium placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
-                    maxLength={120}
-                  />
-                </div>
-
-                {hooks.length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                      AI-Suggested Hooks
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {hooks.map((h, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setHookText(h)}
-                          className="px-3 py-1.5 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-300 text-xs font-semibold hover:bg-fuchsia-500/20 transition-colors"
-                        >
-                          {h}
-                        </button>
-                      ))}
+              {isHyper ? (
+                <div className="space-y-5">
+                  {/* Live preview — exact gradient/stroke/shadow */}
+                  <div className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                    <div className="aspect-video">
+                      <HyperImpactPreview
+                        lines={hyperLines}
+                        backgroundUrl={imageDataUrl}
+                        animationKey={`${hyperLines.hook}|${hyperLines.keyword}|${hyperLines.benefit}`}
+                      />
                     </div>
                   </div>
-                )}
 
-                <button onClick={generateHookSuggestions} className="cc-btn cc-btn-ghost text-xs">
-                  <Wand2 size={12} /> Generate hook ideas
-                </button>
-              </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                        Line 1 — Hook <span className="text-white/60">(white, italic)</span>
+                      </label>
+                      <input
+                        value={hyperLines.hook}
+                        onChange={(e) => setHyperLines((p) => ({ ...p, hook: e.target.value }))}
+                        placeholder="e.g. UNLOCK"
+                        className="w-full px-4 py-3 rounded-xl bg-[#121212] border border-gray-800 text-white font-bold uppercase placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                        maxLength={24}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                        Line 2 — Keyword{' '}
+                        <span className="bg-gradient-to-r from-orange-500 to-yellow-400 bg-clip-text text-transparent font-black">
+                          (gradient hero — keep it short)
+                        </span>
+                      </label>
+                      <input
+                        value={hyperLines.keyword}
+                        onChange={(e) => setHyperLines((p) => ({ ...p, keyword: e.target.value }))}
+                        placeholder="e.g. CLAUDE"
+                        className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-amber-500/30 text-amber-300 text-lg font-black uppercase placeholder:text-gray-600 focus:outline-none focus:border-amber-400/60 transition-colors"
+                        maxLength={18}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                        Line 3 — Benefit <span className="text-white/60">(white, italic)</span>
+                      </label>
+                      <input
+                        value={hyperLines.benefit}
+                        onChange={(e) => setHyperLines((p) => ({ ...p, benefit: e.target.value }))}
+                        placeholder="e.g. $200 PLAN FREE"
+                        className="w-full px-4 py-3 rounded-xl bg-[#121212] border border-gray-800 text-white font-bold uppercase placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                        maxLength={28}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={generateHyperLineSuggestions}
+                    disabled={hyperLinesLoading}
+                    className="cc-btn cc-btn-ghost text-xs disabled:opacity-50"
+                  >
+                    {hyperLinesLoading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    Auto-write 3 lines with AI
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                      Hook Text <span className="text-fuchsia-400">(primary — will be largest)</span>
+                    </label>
+                    <input
+                      value={hookText}
+                      onChange={(e) => setHookText(e.target.value)}
+                      placeholder="e.g. I Made ₹1,00,000 with AI"
+                      className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-gray-800 text-white text-lg font-bold placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                      maxLength={80}
+                    />
+                    <p className="text-right text-[10px] text-gray-600 mt-1">{hookText.length}/80</p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                      Title Text <span className="text-gray-600">(secondary)</span>
+                    </label>
+                    <input
+                      value={titleText}
+                      onChange={(e) => setTitleText(e.target.value)}
+                      placeholder="e.g. This Trick Changed Everything"
+                      className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-gray-800 text-white font-medium placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                      maxLength={120}
+                    />
+                  </div>
+
+                  {hooks.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                        AI-Suggested Hooks
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {hooks.map((h, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setHookText(h)}
+                            className="px-3 py-1.5 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-300 text-xs font-semibold hover:bg-fuchsia-500/20 transition-colors"
+                          >
+                            {h}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={generateHookSuggestions} className="cc-btn cc-btn-ghost text-xs">
+                    <Wand2 size={12} /> Generate hook ideas
+                  </button>
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <button onClick={() => goToStep('upload')} className="cc-btn cc-btn-ghost">
@@ -427,6 +516,14 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                           onClick={() => setSelectedTemplate(tid)}
                           className={`template-card ${isSelected ? 'selected' : ''}`}
                         >
+                          {t.premium && (
+                            <span
+                              className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-black animate-in fade-in zoom-in duration-300"
+                              style={{ background: 'linear-gradient(135deg, #F97316, #FDE047)' }}
+                            >
+                              ★ Premium
+                            </span>
+                          )}
                           <div className="p-5 space-y-3">
                             <div className="flex items-center gap-3">
                               <div

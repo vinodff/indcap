@@ -38,14 +38,23 @@ export function choreograph(params: {
   beatGrid: BeatGrid;
   theme: ThemeProfile;
   layout?: Partial<LayoutConfiguration>;
+  /**
+   * Word timing source:
+   *  - 'exact' (default): use the transcript's verbatim word timings, so each
+   *    word appears exactly when it is spoken. Required for word-level audio sync.
+   *  - 'beat': snap words to the nearest acoustic onset / musical beat (±250ms).
+   *    Useful only for music-driven reels where on-beat feel beats exact sync.
+   */
+  syncMode?: 'exact' | 'beat';
 }): AnimationSequence {
-  const { transcript, beatGrid, theme, layout = {} } = params;
+  const { transcript, beatGrid, theme, layout = {}, syncMode = 'exact' } = params;
 
-  // Snap words to beat grid for synchronization
-  const snappedWords = snapWordsWithConstraints(
-    transcript.segments.flatMap((s) => s.words),
-    beatGrid
-  );
+  // In 'exact' mode we keep the transcript's spoken timings untouched.
+  // In 'beat' mode we snap to the beat grid (legacy behavior).
+  const snappedWords =
+    syncMode === 'beat'
+      ? snapWordsWithConstraints(transcript.segments.flatMap((s) => s.words), beatGrid)
+      : transcript.segments.flatMap((s) => s.words);
 
   // Regenerate word references in segments
   let wordIndex = 0;
@@ -74,43 +83,39 @@ export function choreograph(params: {
   );
 
   // Extend word durations to fill gaps (prevent dead space / canvas clears during pauses)
+  // The word stays SOLID for the whole gap (HOLD) and only fades in the last
+  // ~80ms — so during a pause the word doesn't vanish into empty space, giving
+  // the viewer time to read before the next word replaces it.
+  const EXIT_TAIL = 0.17; // ~5 frames @30fps — room for a real slide-down exit
   for (let i = 0; i < animations.length - 1; i++) {
     const curr = animations[i];
     const next = animations[i + 1];
     const gap = next.startTime - curr.startTime;
-    
-    // If the gap is less than 3.0 seconds, extend the duration to match the next start time
+
+    // Extend duration to fill up to the next word's start (cap at 3s gap)
     if (gap > 0 && gap < 3.0) {
       curr.duration = gap;
-      // Recalculate hold duration to fill the extended time
-      const entryAndExit = curr.timing.entryDuration + curr.timing.exitDuration;
-      curr.timing.holdDuration = Math.max(curr.timing.holdDuration, gap - entryAndExit);
+      curr.timing.exitDuration = Math.min(curr.timing.exitDuration, EXIT_TAIL);
+      // Hold fills everything except the entry and the short exit tail.
+      curr.timing.holdDuration = Math.max(0, gap - curr.timing.entryDuration - curr.timing.exitDuration);
     }
   }
 
-  // Extend the last word duration to the end of the transcription duration
+  // Last word: hold to the end of the audio, plus a deliberate ~0.3s read-time
+  // hold so the final word of the reel doesn't snap off on the last syllable.
   if (animations.length > 0) {
     const last = animations[animations.length - 1];
-    const gap = transcript.duration - last.startTime;
-    if (gap > 0 && gap < 3.0) {
+    const PHRASE_END_HOLD = 0.3; // ~15–20 frames @ 30fps
+    const gap = transcript.duration - last.startTime + PHRASE_END_HOLD;
+    if (gap > 0 && gap < 4.0) {
       last.duration = gap;
-      const entryAndExit = last.timing.entryDuration + last.timing.exitDuration;
-      last.timing.holdDuration = Math.max(last.timing.holdDuration, gap - entryAndExit);
+      last.timing.exitDuration = Math.min(last.timing.exitDuration, EXIT_TAIL);
+      last.timing.holdDuration = Math.max(0, gap - last.timing.entryDuration - last.timing.exitDuration);
     }
   }
 
-  // Validate and auto-extend hold durations for emphasized words
-  const holdValidation = validateHoldDuration(animations, 1500);
-  if (!holdValidation.valid) {
-    console.warn(
-      `[choreography] Hold duration validation: ${holdValidation.summary.belowThreshold} words below 1.5s threshold`
-    );
-    console.warn('[choreography] Issues:', holdValidation.issues);
-
-    // Auto-extend emphasized words to meet minimum visibility time
-    animations = autoExtendHoldDurations(animations, 1500);
-    console.log('[choreography] Auto-extended animations to ensure emphasized word visibility');
-  }
+  // NOTE: autoExtendHoldDurations() was removed here — it shifted startTimes and broke audio sync.
+  // Word durations are already filled by the gap-fill loop above.
 
   // Create layout configuration
   const finalLayout: LayoutConfiguration = {
@@ -252,6 +257,7 @@ function createWordAnimation(
       : 1.0,
     colorTransition: word.emphasisScore >= 80 ? theme.accentColor : undefined,
     glowIntensity: intensity >= 2 && word.emphasisScore >= 50 ? 0.5 * intensity : 0,
+    emotion,
   };
 }
 

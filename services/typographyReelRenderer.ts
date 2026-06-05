@@ -125,83 +125,83 @@ interface StyleCfg {
 
 const STYLE_CFGS: Record<ReelStyleId, StyleCfg> = {
   DEVON_JATHO: {
-    bg1: '#07060f',
-    bg2: '#0e0521',
+    bg1: '#05030f',
+    bg2: '#0d0320',
     bgAngle: 'diagonal',
     fontFamily: '"Space Grotesk", "Montserrat", sans-serif',
-    fontWeight: 700,
-    fontSizeRatio: 0.063,
-    lineHeightRatio: 1.35,
+    fontWeight: 800,
+    fontSizeRatio: 0.078,    // Larger for better readability
+    lineHeightRatio: 1.30,
     letterSpacing: 1,
     uppercase: false,
     textColor: '#FFFFFF',
     gradientColors: ['#C084FC', '#818CF8', '#38BDF8', '#E879F9'],
     glowColor: '#7C3AED',
-    glowSize: 28,
-    glowOpacity: 0.55,
-    accentColors: ['#F0ABFC', '#FFFFFF'],
+    glowSize: 32,
+    glowOpacity: 0.60,
+    accentColors: ['#FFFFFF', '#F0ABFC'],
     accentGlow: '#E879F9',
     entryStyle: 'scale-back',
-    entryDur: 0.22,
-    exitStyle: 'fade',
-    exitDur: 0.25,
-    sweepEnabled: true,
-    sweepWidth: 0.06,   // fraction of canvas width
-    sweepOpacity: 0.18,
-    sweepSpeed: 0.55,
-    wordByWord: true,
-    wordEntryDur: 0.22,
-    wordStagger: 0.04,
-  },
-
-  CAPCUT: {
-    bg1: '#000000',
-    bg2: '#060606',
-    bgAngle: 'vertical',
-    fontFamily: '"Montserrat", "Arial Black", sans-serif',
-    fontWeight: 900,
-    fontSizeRatio: 0.072,
-    lineHeightRatio: 1.25,
-    letterSpacing: 0,
-    uppercase: true,
-    textColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowBlur: 6,
-    shadowOffsetX: 0,
-    shadowOffsetY: 5,
-    accentColors: ['#FACC15', '#FDE68A'],
-    entryStyle: 'stamp',
     entryDur: 0.18,
     exitStyle: 'fade',
     exitDur: 0.20,
+    sweepEnabled: true,
+    sweepWidth: 0.06,
+    sweepOpacity: 0.22,
+    sweepSpeed: 0.60,
     wordByWord: true,
     wordEntryDur: 0.18,
     wordStagger: 0.03,
   },
 
+  CAPCUT: {
+    bg1: '#000000',
+    bg2: '#080808',
+    bgAngle: 'vertical',
+    fontFamily: '"Montserrat", "Arial Black", sans-serif',
+    fontWeight: 900,
+    fontSizeRatio: 0.085,    // Bigger Montserrat for impact
+    lineHeightRatio: 1.20,
+    letterSpacing: 0,
+    uppercase: true,
+    textColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowBlur: 8,
+    shadowOffsetX: 0,
+    shadowOffsetY: 6,
+    accentColors: ['#FACC15', '#FDE68A'],
+    entryStyle: 'stamp',
+    entryDur: 0.14,
+    exitStyle: 'fade',
+    exitDur: 0.16,
+    wordByWord: true,
+    wordEntryDur: 0.14,
+    wordStagger: 0.02,
+  },
+
   MINIMAL: {
-    bg1: '#111111',
-    bg2: '#1c1c1c',
+    bg1: '#0A0A0A',
+    bg2: '#161616',
     bgAngle: 'vertical',
     fontFamily: '"Inter", "Helvetica Neue", sans-serif',
-    fontWeight: 600,
-    fontSizeRatio: 0.052,
-    lineHeightRatio: 1.45,
+    fontWeight: 700,
+    fontSizeRatio: 0.065,    // Larger Inter for crisp readability
+    lineHeightRatio: 1.40,
     letterSpacing: 0,
     uppercase: false,
     textColor: '#F8FAFC',
-    shadowColor: 'rgba(0,0,0,0.7)',
-    shadowBlur: 14,
+    shadowColor: 'rgba(0,0,0,0.9)',
+    shadowBlur: 18,
     shadowOffsetX: 0,
-    shadowOffsetY: 4,
-    accentColors: ['#94A3B8', '#CBD5E1'],
+    shadowOffsetY: 5,
+    accentColors: ['#38BDF8', '#7DD3FC'],  // Sky blue accent instead of gray
     entryStyle: 'slide-up',
-    entryDur: 0.22,
+    entryDur: 0.18,
     exitStyle: 'fade',
-    exitDur: 0.14,
+    exitDur: 0.12,
     wordByWord: false,
-    wordEntryDur: 0.18,
-    wordStagger: 0.05,
+    wordEntryDur: 0.15,
+    wordStagger: 0.04,
   },
 
   NEON: {
@@ -209,52 +209,52 @@ const STYLE_CFGS: Record<ReelStyleId, StyleCfg> = {
     bg2: '#04040e',
     bgAngle: 'radial',
     fontFamily: '"Orbitron", "Courier New", monospace',
-    fontWeight: 700,
-    fontSizeRatio: 0.050,
-    lineHeightRatio: 1.5,
-    letterSpacing: 2,
+    fontWeight: 800,
+    fontSizeRatio: 0.062,    // Larger Orbitron for legibility
+    lineHeightRatio: 1.45,
+    letterSpacing: 3,
     uppercase: true,
-    textColor: '#00F5D4',
-    gradientColors: ['#00F5D4', '#67E8F9', '#A78BFA'],
-    glowColor: '#00F5D4',
-    glowSize: 32,
-    glowOpacity: 0.6,
-    accentColors: ['#F0ABFC', '#E879F9'],
-    accentGlow: '#C026D3',
+    textColor: '#00E5FF',    // Bright cyan from Material Design
+    gradientColors: ['#00E5FF', '#40C4FF', '#CE93D8'],
+    glowColor: '#00E5FF',
+    glowSize: 36,
+    glowOpacity: 0.65,
+    accentColors: ['#FFFFFF', '#F3E5F5'],  // White accent for max contrast
+    accentGlow: '#E040FB',
     entryStyle: 'flicker',
-    entryDur: 0.24,
+    entryDur: 0.20,
     exitStyle: 'fade',
-    exitDur: 0.28,
+    exitDur: 0.22,
     wordByWord: true,
-    wordEntryDur: 0.24,
-    wordStagger: 0.06,
+    wordEntryDur: 0.20,
+    wordStagger: 0.04,
   },
 
   CINEMATIC: {
     bg1: '#000000',
-    bg2: '#08070a',
+    bg2: '#060508',
     bgAngle: 'vertical',
     fontFamily: '"Cinzel", "Playfair Display", serif',
-    fontWeight: 700,
-    fontSizeRatio: 0.055,
-    lineHeightRatio: 1.5,
-    letterSpacing: 4,
+    fontWeight: 800,
+    fontSizeRatio: 0.068,    // Larger Cinzel for theatrical impact
+    lineHeightRatio: 1.45,
+    letterSpacing: 6,
     uppercase: true,
-    textColor: '#FDE68A',
-    gradientColors: ['#B45309', '#F59E0B', '#FDE68A', '#F59E0B'],
-    glowColor: '#F59E0B',
-    glowSize: 20,
-    glowOpacity: 0.35,
-    accentColors: ['#FFFBEB', '#FEF3C7'],
+    textColor: '#FFD600',    // Vivid gold from Material Design (not washed yellow)
+    gradientColors: ['#FF8F00', '#FFC107', '#FFD600', '#FFF176'],
+    glowColor: '#FFC107',
+    glowSize: 24,
+    glowOpacity: 0.40,
+    accentColors: ['#FFFDE7', '#FFECB3'],
     entryStyle: 'fade',
-    entryDur: 0.4,
+    entryDur: 0.35,
     exitStyle: 'fade',
-    exitDur: 0.35,
+    exitDur: 0.30,
     letterboxEnabled: true,
     letterboxColor: '#000000',
     wordByWord: false,
-    wordEntryDur: 0.3,
-    wordStagger: 0.08,
+    wordEntryDur: 0.25,
+    wordStagger: 0.06,
   },
 };
 
@@ -494,11 +494,19 @@ export class TypographyReelRenderer {
         const isActive = wordTiming
           ? currentTime >= wordTiming.start && currentTime <= wordTiming.end
           : false;
+        // Has this word already finished? If so, hide it completely (no ghosting)
+        const isFinished = wordTiming ? currentTime > wordTiming.end + 0.05 : false;
+
+        if (isFinished) {
+          // Word is done — skip completely. Do NOT render ghost text.
+          xCursor += tokenW + spaceW;
+          return;
+        }
 
         if (!appeared) {
-          // Dim placeholder — shows future words faintly
+          // Dim placeholder — shows future words very faintly (6% opacity)
           ctx.save();
-          ctx.globalAlpha = 0.12 * globalOpacity;
+          ctx.globalAlpha = 0.06 * globalOpacity;
           ctx.fillStyle = cfg.textColor;
           ctx.fillText(token, tokenCenterX, lineY);
           ctx.restore();

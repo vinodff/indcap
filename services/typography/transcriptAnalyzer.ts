@@ -18,10 +18,13 @@ import type {
   TranscriptWord,
   WordRole,
 } from './types';
+import { requireGeminiKey } from '../env';
 
 // ─── Gemini Configuration ──────────────────────────────────────────────
 
-const GEMINI_MODEL = 'gemini-flash-latest';
+// gemini-2.5-flash: best model available on this API key (confirmed via
+// ModelService.ListModels). Faster + cheaper than 2.5-pro, supports audio.
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 const TRANSCRIPT_PROMPT = `
 You are analyzing audio for a typography reel—a cinematic short video where text appears word-by-word, synced to music/speech.
@@ -101,6 +104,43 @@ RULES:
 
 OUTPUT ONLY VALID JSON. NO EXPLANATIONS. NO MARKDOWN.
 `;
+
+// ─── JSON Repair Helpers ───────────────────────────────────────────────
+
+/**
+ * Strips C0 control characters that are invalid inside JSON string values.
+ * The most common cause of Gemini JSON failures is a literal newline or
+ * carriage return inside a string field instead of the escaped \\n form.
+ */
+function sanitizeGeminiJson(raw: string): string {
+  // Remove chars 0x00–0x08, 0x0B (VT), 0x0C (FF), 0x0E–0x1F, 0x7F
+  // Keeps 0x09 (TAB), 0x0A (LF), 0x0D (CR) which are valid JSON whitespace
+  return raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
+/**
+ * Closes any unclosed brackets/braces left by token-limit truncation.
+ * Strips the trailing incomplete element (comma before the cut) then
+ * appends the matching closing chars in reverse stack order.
+ */
+function repairTruncatedJson(raw: string): string {
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+
+  for (const ch of raw) {
+    if (esc) { esc = false; continue; }
+    if (ch === '\\' && inStr) { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if ((ch === '}' || ch === ']') && stack.length) stack.pop();
+  }
+
+  const trimmed = raw.trimEnd().replace(/,\s*$/, '');
+  return trimmed + stack.reverse().join('');
+}
 
 // ─── Type Helpers ──────────────────────────────────────────────────────
 
@@ -185,7 +225,7 @@ export async function analyzeTranscript(
   audioFile: File
 ): Promise<EnrichedTranscript> {
   try {
-    const apiKey = getGeminiApiKey();
+    const apiKey = requireGeminiKey();
 
     // Convert audio to base64
     const base64Audio = await fileToBase64(audioFile);
@@ -193,43 +233,56 @@ export async function analyzeTranscript(
     // Determine MIME type
     const mimeType = audioFile.type || 'audio/mpeg';
 
-    // Call Gemini API with audio
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64Audio,
-                  },
-                },
-                {
-                  text: TRANSCRIPT_PROMPT,
-                },
-              ],
-            },
+    // Call Gemini API with audio — retry up to 3× on quota/rate-limit (429).
+    // Respects the retryDelay the API embeds in the error message; falls back
+    // to exponential backoff (15s, 30s, 60s) if no delay is specified.
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+    const body = JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { inlineData: { mimeType, data: base64Audio } },
+            { text: TRANSCRIPT_PROMPT },
           ],
-          generationConfig: {
-            temperature: 0.3, // Low temp for consistency
-            maxOutputTokens: 8192,
-            responseMimeType: 'application/json',
-          },
-        }),
-      }
-    );
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
+    });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+      });
+
+      if (response.status !== 429) break; // success or non-retryable error
+
+      const errJson = await response.json().catch(() => ({})) as any;
+      const errMsg: string = errJson?.error?.message || '';
+      // Extract server-suggested wait time ("retry in 13.957s")
+      const match = errMsg.match(/retry in\s+([\d.]+)s/i);
+      const waitMs = match ? Math.ceil(parseFloat(match[1]) * 1000) + 500
+                           : (attempt + 1) * 15_000; // 15s, 30s, 45s
+      console.warn(`[transcriptAnalyzer] Rate limited (attempt ${attempt + 1}). Waiting ${waitMs}ms...`);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+
+    if (!response || !response.ok) {
+      // Read raw text first so we never lose the body, then try to parse JSON
+      const rawErr = await response?.text().catch(() => '');
+      let errMsg = `HTTP ${response?.status}`;
+      try {
+        const errJson = JSON.parse(rawErr || '{}');
+        errMsg = errJson?.error?.message || errMsg;
+      } catch { /* body was not JSON — log it raw below */ }
+      console.error('[transcriptAnalyzer] API error response:', response?.status, rawErr);
+      throw new Error(`Gemini API error: ${errMsg}`);
     }
 
     const data = await response.json();
@@ -242,18 +295,26 @@ export async function analyzeTranscript(
     // Parse JSON response
     let parsed: any;
     try {
-      let jsonStr = textContent.trim();
-      
-      // Extract brace content as fallback in case of markdown wrapping or conversational prefixes
+      // Sanitize first: strip C0 control chars that break JSON string parsing
+      let jsonStr = sanitizeGeminiJson(textContent.trim());
+
+      // Strip any markdown wrapper or conversational preamble
       const firstBrace = jsonStr.indexOf('{');
       const lastBrace = jsonStr.lastIndexOf('}');
       if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
         jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
       }
 
-      parsed = JSON.parse(jsonStr);
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch {
+        // Second attempt: repair truncated JSON (closes unclosed brackets from token-limit cuts)
+        const repaired = repairTruncatedJson(jsonStr);
+        parsed = JSON.parse(repaired);
+        console.warn('[typography] Repaired malformed Gemini JSON — tail content may be truncated');
+      }
     } catch (err) {
-      console.error('Failed to parse Gemini response:', textContent);
+      console.error('Failed to parse Gemini response:', textContent.substring(0, 500));
       throw new Error(`Invalid JSON from Gemini: ${err instanceof Error ? err.message : String(err)}`);
     }
 
@@ -281,24 +342,8 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-// ─── Helper: Get API Key ───────────────────────────────────────────────
-
-function getGeminiApiKey(): string {
-  const key =
-    import.meta.env.VITE_GEMINI_API_KEY ||
-    import.meta.env.VITE_API_KEY ||
-    (typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('createrin_api_key') || localStorage.getItem('gemini_api_key'))
-      : null);
-
-  if (!key) {
-    throw new Error(
-      'Gemini API key not found. Please log in or set VITE_GEMINI_API_KEY.'
-    );
-  }
-
-  return key;
-}
+// getGeminiApiKey() removed — replaced by requireGeminiKey() from services/env.ts
+// which is the single canonical source for API key resolution.
 
 // ─── Helper: Normalize & Validate Response ─────────────────────────────
 
