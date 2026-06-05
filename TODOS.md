@@ -64,6 +64,21 @@ Tracked items deferred from /plan-eng-review (2026-04-19).
 **Effort:** XL (human ~4 weeks) / L (CC ~8hrs)
 **Depends on:** Creator mode fully stable + deployment infrastructure (#3)
 
+---
+
+## QA FINDINGS (/qa 2026-06-06)
+
+### 8. Bundle the logo locally instead of remote createrin.com URL
+**What:** Both headers load the logo from `https://createrin.com/wp-content/uploads/2025/03/createrin_logo.jpg`. Download it into `public/createrin_logo.jpg` and change both `src` attributes to `/createrin_logo.jpg`.
+**Why:** The remote URL fails DNS resolution (`ERR_NAME_NOT_RESOLVED`), firing a console error and a hanging network request on every page load. There is a graceful `onError` text fallback so nothing visibly breaks, but the app depends on `createrin.com` being live and reachable.
+**Where:** `components/Header.tsx:43`, `App.tsx:1038`
+**Pros:** No external dependency, no console noise, no dead request, faster first paint of the logo.
+**Cons:** Need the actual logo file (couldn't fetch — createrin.com unreachable from dev machine).
+**Severity:** Low. **Effort:** XS (~2 min once the file exists).
+**Found by:** /qa on `main`, 2026-06-06. Report: `.gstack/qa-reports/qa-report-localhost-2026-06-06.md`
+
+---
+
 ### 4. captionRenderer.ts renderer-per-style split [COMPLETED]
 **What:** Split the 2696-line captionRenderer into per-style renderer files (e.g., `renderers/neonRenderer.ts`, `renderers/minimalRenderer.ts`).
 **Why:** Currently 8+ if/else branches inside one massive class, each re-implementing shadow/stroke/gradient logic. Phase 7 will add more branches. A bug in gradient logic requires finding and fixing it in 3+ places.
