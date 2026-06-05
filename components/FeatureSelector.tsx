@@ -19,8 +19,8 @@ const FeatureSelector: React.FC<FeatureSelectorProps> = ({ setActiveFeature }) =
 
   return (
 
-    <main className="flex-1 flex flex-col items-center justify-center p-6 bg-[#0a0a0a] overflow-y-auto custom-scrollbar">
-      <div className="max-w-4xl w-full space-y-12 py-12">
+    <main className="flex-1 flex flex-col items-center p-6 bg-[#0a0a0a] overflow-y-auto custom-scrollbar">
+      <div className="max-w-4xl w-full space-y-12 py-12 my-auto">
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest animate-pulse">
             <Sparkles size={14} /> Beta Access
