@@ -373,6 +373,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
             .map((s) => s.text)
             .join(' ');
 
+          console.log('[reel] image processing: transcript text =', transcriptText.substring(0, 100) + '...');
+
           // Call backend API for image processing
           const response = await fetch('/api/imageAssets/process', {
             method: 'POST',
@@ -383,8 +385,12 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
             }),
           });
 
+          console.log('[reel] image API response status:', response.status);
+
           if (response.ok) {
             const data = await response.json();
+            console.log('[reel] image API response data:', data);
+
             if (data.success && data.reelWithImages) {
               console.log(
                 `[reel] ${data.imagesCount} images processed (${data.coverage.toFixed(1)}% coverage)`
@@ -393,6 +399,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
               // Store images for editing
               setImageAssets(data.reelWithImages.imageAssets || []);
+              console.log('[reel] image assets stored:', data.reelWithImages.imageAssets);
 
               // Load images into renderer if available
               if (rendererRef.current && data.reelWithImages.imageAssets.length > 0) {
@@ -400,18 +407,27 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   await rendererRef.current.loadImageAssets(
                     data.reelWithImages.imageAssets
                   );
+                  console.log('[reel] images loaded into renderer');
                 } catch (imgError) {
                   console.warn('[reel] failed to load image assets:', imgError);
                 }
+              } else {
+                console.warn('[reel] no image assets returned or renderer not ready');
               }
+            } else {
+              console.warn('[reel] image processing response not successful:', data);
             }
           } else {
             const error = await response.json();
-            console.warn('[reel] image processing failed:', error.error);
+            console.error('[reel] image processing failed:', error);
+            setErrorMsg(`Image processing failed: ${error.error}`);
           }
         } catch (imgError) {
-          console.warn('[reel] image API call failed, continuing without images:', imgError);
+          console.error('[reel] image API call error:', imgError);
+          // Don't fail the whole pipeline for image processing
         }
+      } else {
+        console.log('[reel] image processing disabled (VITE_IMAGE_ASSET_ENABLED not set)');
       }
 
       // Re-add the image processing stage label
@@ -888,9 +904,10 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   ['🤖', 'Gemini reads emotion, emphasis, scene boundaries per word'],
                   ['🎵', 'FFT detects audio onsets — words snap to beats'],
                   ['🎬', 'Choreographer picks the right primitive per emotion'],
+                  [import.meta.env.VITE_IMAGE_ASSET_ENABLED === 'true' ? '🖼️' : '○', 'AI image search & background removal'],
                   ['📥', 'MediaRecorder exports MP4 with audio baked in'],
                 ].map(([icon, text], i) => (
-                  <li key={i} className="flex items-start gap-2">
+                  <li key={i} className={`flex items-start gap-2 ${import.meta.env.VITE_IMAGE_ASSET_ENABLED === 'true' && icon === '🖼️' ? 'text-green-500' : ''}`}>
                     <span>{icon}</span><span>{text}</span>
                   </li>
                 ))}
