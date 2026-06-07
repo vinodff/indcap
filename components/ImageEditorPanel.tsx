@@ -34,8 +34,14 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
   return (
     <div className="flex flex-col h-full bg-gray-900 border-l border-gray-800">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <h3 className="text-sm font-semibold text-white">Image Assets ({images.length})</h3>
+      <div className="p-4 border-b border-gray-800 bg-gray-800/50">
+        <h3 className="text-sm font-semibold text-white mb-2">Image Assets ({images.length})</h3>
+        <div className="text-xs text-gray-400 space-y-1">
+          <div>• Click image to select</div>
+          <div>• Drag on canvas to move</div>
+          <div>• ↑↓←→ to nudge (Shift for 1px)</div>
+          <div>• Delete to remove</div>
+        </div>
       </div>
 
       {/* Image List */}
@@ -80,9 +86,27 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
         ))}
       </div>
 
+      {/* Status indicator */}
+      {selectedImage && (
+        <div className="px-4 py-2 bg-violet-900/30 border-b border-violet-700/50 text-xs text-violet-300 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+          Selected: {selectedImage.keyword}
+        </div>
+      )}
+
+      {/* Help text when no image selected */}
+      {!selectedImage && images.length > 0 && (
+        <div className="flex-1 flex items-center justify-center p-4 text-center text-gray-400 text-xs space-y-3">
+          <div className="space-y-2">
+            <div>👇 Select an image above</div>
+            <div className="text-gray-500">or click on canvas to edit</div>
+          </div>
+        </div>
+      )}
+
       {/* Property Editor (shown when image selected) */}
       {selectedImage && (
-        <div className="border-t border-gray-800 p-4 space-y-4 bg-gray-800/50 max-h-72 overflow-y-auto">
+        <div className="border-t border-gray-800 p-4 space-y-4 bg-gray-800/50 max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-semibold text-gray-300">PROPERTIES</h4>
             <button

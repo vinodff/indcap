@@ -202,6 +202,13 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     };
   }, [animationSequence]);
 
+  // Sync selected image ID to renderer for selection box drawing
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.selectedImageId = selectedImageId;
+    }
+  }, [selectedImageId]);
+
   // Animation render loop
   useEffect(() => {
     const animate = () => {
@@ -459,17 +466,90 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         img.assetId === draggedImageId
           ? {
               ...img,
-              x: Math.max(0, Math.min(x - dragOffset.x, REEL_LIMITS.width - img.width)),
-              y: Math.max(0, Math.min(y - dragOffset.y, REEL_LIMITS.height - img.height)),
+              x: Math.max(0, Math.min(x - dragOffset.x, REEL_LIMITS.width - (img.width || 100))),
+              y: Math.max(0, Math.min(y - dragOffset.y, REEL_LIMITS.height - (img.height || 100))),
             }
           : img
       )
     );
+
+    // Update renderer
+    if (rendererRef.current) {
+      rendererRef.current.imageAssets = imageAssets;
+    }
   };
 
   const handleCanvasMouseUp = () => {
     setDraggedImageId(null);
   };
+
+  // ── Keyboard shortcuts for image editing ────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedImageId) return;
+
+      const NUDGE_AMOUNT = e.shiftKey ? 1 : 5;
+
+      switch (e.key) {
+        case 'Delete':
+        case 'Backspace':
+          e.preventDefault();
+          handleDeleteImage(selectedImageId);
+          break;
+
+        case 'ArrowUp':
+          e.preventDefault();
+          setImageAssets((prev) =>
+            prev.map((img) =>
+              img.assetId === selectedImageId
+                ? { ...img, y: Math.max(0, img.y - NUDGE_AMOUNT) }
+                : img
+            )
+          );
+          break;
+
+        case 'ArrowDown':
+          e.preventDefault();
+          setImageAssets((prev) =>
+            prev.map((img) =>
+              img.assetId === selectedImageId
+                ? { ...img, y: Math.min(REEL_LIMITS.height - (img.height || 100), img.y + NUDGE_AMOUNT) }
+                : img
+            )
+          );
+          break;
+
+        case 'ArrowLeft':
+          e.preventDefault();
+          setImageAssets((prev) =>
+            prev.map((img) =>
+              img.assetId === selectedImageId
+                ? { ...img, x: Math.max(0, img.x - NUDGE_AMOUNT) }
+                : img
+            )
+          );
+          break;
+
+        case 'ArrowRight':
+          e.preventDefault();
+          setImageAssets((prev) =>
+            prev.map((img) =>
+              img.assetId === selectedImageId
+                ? { ...img, x: Math.min(REEL_LIMITS.width - (img.width || 100), img.x + NUDGE_AMOUNT) }
+                : img
+            )
+          );
+          break;
+
+        case 'Escape':
+          setSelectedImageId(null);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageId, imageAssets]);
 
   const handleUpdateImage = (id: string, updates: Partial<any>) => {
     setImageAssets((prev) =>
@@ -828,7 +908,9 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
               <>
                 <canvas
                   ref={canvasRef}
-                  className="w-full h-auto max-h-full rounded-lg shadow-lg bg-black cursor-move"
+                  className={`w-full h-auto max-h-full rounded-lg shadow-lg bg-black transition-all ${
+                    draggedImageId ? 'cursor-grabbing ring-2 ring-violet-500' : 'cursor-pointer'
+                  }`}
                   style={{
                     aspectRatio: animationSequence
                       ? `${animationSequence.layout.width} / ${animationSequence.layout.height}`
@@ -839,6 +921,13 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   onMouseUp={handleCanvasMouseUp}
                   onMouseLeave={handleCanvasMouseUp}
                 />
+                {/* Selected image indicator */}
+                {selectedImageId && (
+                  <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-violet-600/90 text-white text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
+                    <div className="w-2 h-2 rounded-full bg-violet-200" />
+                    Image selected • Drag to move
+                  </div>
+                )}
                 {/* FPS indicator and frame drop warning */}
                 {playing && (
                   <div className="absolute top-3 right-3 flex flex-col gap-2">
