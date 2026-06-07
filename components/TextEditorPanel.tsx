@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Edit2, Trash2, Copy, Search } from 'lucide-react';
 import type { WordAnimation } from '../services/typography/types';
+import { WordTimeline } from './WordTimeline';
 
 interface TextEditorPanelProps {
   animations: WordAnimation[];
@@ -10,6 +11,8 @@ interface TextEditorPanelProps {
   onDeleteWord: (id: string) => void;
   onDuplicateWord?: (id: string) => void;
   onOpenFindReplace?: () => void;
+  totalDuration?: number;
+  currentTime?: number;
 }
 
 export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
@@ -20,6 +23,8 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
   onDeleteWord,
   onDuplicateWord,
   onOpenFindReplace,
+  totalDuration = 0,
+  currentTime = 0,
 }) => {
   const [editText, setEditText] = useState('');
   const selectedWord = selectedWordId
@@ -104,6 +109,17 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
           <div>• Esc to deselect • Ctrl+H to Find & Replace</div>
         </div>
       </div>
+
+      {/* Timeline */}
+      {totalDuration > 0 && (
+        <WordTimeline
+          animations={animations}
+          selectedWordId={selectedWordId}
+          onSelectWord={onSelectWord}
+          totalDuration={totalDuration}
+          currentTime={currentTime}
+        />
+      )}
 
       {/* Word List */}
       <div className="flex-1 overflow-y-auto space-y-1 p-3">

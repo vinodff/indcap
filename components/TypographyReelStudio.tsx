@@ -1223,6 +1223,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 onDeleteWord={handleDeleteWord}
                 onDuplicateWord={handleDuplicateWord}
                 onOpenFindReplace={() => setShowFindReplace(true)}
+                totalDuration={timelineDuration}
+                currentTime={currentTime}
               />
             ) : (
               <ImageEditorPanel
