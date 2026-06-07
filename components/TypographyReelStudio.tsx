@@ -60,6 +60,7 @@ import {
 import { ImageEditorPanel } from './ImageEditorPanel';
 import { TextEditorPanel } from './TextEditorPanel';
 import { FindReplacePanel } from './FindReplacePanel';
+import { CapCutStyleEditor } from './CapCutStyleEditor';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -818,6 +819,60 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   const canPlay = animationSequence !== null;
 
   // ─── Render ─────────────────────────────────────────────────────────────────
+
+  // If animation sequence is ready, show the CapCut-style editor
+  if (animationSequence) {
+    return (
+      <CapCutStyleEditor
+        canvas={
+          <div className="flex-1 flex items-center justify-center overflow-hidden">
+            <canvas
+              ref={canvasRef}
+              className={`max-w-full max-h-full ${
+                draggedImageId ? 'cursor-grabbing ring-2 ring-violet-500' : 'cursor-pointer'
+              }`}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseUp}
+            />
+          </div>
+        }
+        animations={animationSequence.animations}
+        images={imageAssets}
+        selectedWordId={selectedWordId}
+        selectedImageId={selectedImageId}
+        playing={playing}
+        currentTime={currentTime}
+        totalDuration={timelineDuration}
+        onSelectWord={handleSelectWord}
+        onSelectImage={setSelectedImageId}
+        onPlayPause={() => setPlaying(!playing)}
+        onSeek={(time) => {
+          setCurrentTime(time / 1000);
+          if (audioRef.current) {
+            audioRef.current.currentTime = time / 1000;
+          }
+        }}
+        onRestart={() => {
+          setCurrentTime(0);
+          setPlaying(false);
+          if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+          }
+        }}
+        onUpdateWord={handleUpdateWord}
+        onDeleteWord={handleDeleteWord}
+        onDuplicateWord={handleDuplicateWord}
+        onUpdateImage={handleUpdateImage}
+        onDeleteImage={handleDeleteImage}
+        onBack={onBack}
+        onExport={handleExport}
+      />
+    );
+  }
+
+  // Otherwise, show the generation UI
   return (
     <div className="flex-1 flex flex-col bg-[#0a0a0a] overflow-hidden">
 
