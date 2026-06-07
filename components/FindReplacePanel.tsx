@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Replace2 } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
 
 interface FindReplacePanelProps {
   totalMatches: number;
@@ -33,7 +33,7 @@ export const FindReplacePanel: React.FC<FindReplacePanelProps> = ({
     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-96 bg-gray-800 rounded-lg border border-gray-700 shadow-xl p-4 space-y-3 z-50">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-          <Replace2 size={16} />
+          <RefreshCw size={16} />
           Find & Replace
         </h4>
         <button
