@@ -65,6 +65,7 @@ export class TypographyRenderer {
   imageAssets: TypographyReelImageIntegration[] = [];
   imageBitmaps: Map<string, ImageBitmap> = new Map();
   selectedImageId: string | null = null;
+  selectedWordId: string | null = null;
 
   // Performance tracking
   frameCount = 0;

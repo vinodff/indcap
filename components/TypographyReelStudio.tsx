@@ -58,6 +58,7 @@ import {
   triggerDownload,
 } from '../services/motionGraphicsExport';
 import { ImageEditorPanel } from './ImageEditorPanel';
+import { TextEditorPanel } from './TextEditorPanel';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,10 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [draggedImageId, setDraggedImageId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // ── Text editing state ───────────────────────────────────────────────────────
+  const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<'images' | 'text' | null>(null);
 
   // ── Playback ───────────────────────────────────────────────────────────────
   const [playing, setPlaying] = useState(false);
@@ -588,6 +593,43 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     }
   };
 
+  // ── Text editing handlers ──────────────────────────────────────────────────
+  const handleUpdateWord = (wordId: string, newText: string) => {
+    if (!animationSequence) return;
+
+    setAnimationSequence((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        animations: prev.animations.map((anim) =>
+          anim.id === wordId ? { ...anim, text: newText } : anim
+        ),
+      };
+    });
+  };
+
+  const handleDeleteWord = (wordId: string) => {
+    if (!animationSequence) return;
+
+    setAnimationSequence((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        animations: prev.animations.filter((anim) => anim.id !== wordId),
+      };
+    });
+
+    setSelectedWordId(null);
+  };
+
+  const handleSelectWord = (wordId: string | null) => {
+    setSelectedWordId(wordId);
+    setEditMode(wordId ? 'text' : null);
+    if (rendererRef.current) {
+      (rendererRef.current as any).selectedWordId = wordId;
+    }
+  };
+
   // ── Playback controls ──────────────────────────────────────────────────────
   const handleRestart = () => {
     setCurrentTime(0);
@@ -938,11 +980,17 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   onMouseUp={handleCanvasMouseUp}
                   onMouseLeave={handleCanvasMouseUp}
                 />
-                {/* Selected image indicator */}
+                {/* Selected indicator */}
                 {selectedImageId && (
                   <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-violet-600/90 text-white text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
-                    <div className="w-2 h-2 rounded-full bg-violet-200" />
+                    <div className="w-2 h-2 rounded-full bg-violet-200 animate-pulse" />
                     Image selected • Drag to move
+                  </div>
+                )}
+                {selectedWordId && (
+                  <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-blue-600/90 text-white text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
+                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-pulse" />
+                    Text selected • Edit in panel
                   </div>
                 )}
                 {/* FPS indicator and frame drop warning */}
@@ -1051,17 +1099,54 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
         </main>
 
-        {/* ── RIGHT: image editor panel ───────────────────────────────────── */}
-        {imageAssets.length > 0 && (
+        {/* ── RIGHT: editor panel (images or text) ──────────────────────────── */}
+        {(imageAssets.length > 0 || animationSequence) && (
           <aside className="w-80 bg-gray-900 border-l border-gray-800 overflow-hidden flex flex-col">
-            <ImageEditorPanel
-              images={imageAssets}
-              selectedImageId={selectedImageId}
-              onSelectImage={setSelectedImageId}
-              onUpdateImage={handleUpdateImage}
-              onDeleteImage={handleDeleteImage}
-              totalDuration={timelineDuration}
-            />
+            {/* Tab selector */}
+            {imageAssets.length > 0 && animationSequence && (
+              <div className="flex border-b border-gray-800 bg-gray-800/50">
+                <button
+                  onClick={() => setEditMode('text')}
+                  className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
+                    editMode === 'text'
+                      ? 'text-blue-400 border-blue-500 bg-blue-500/10'
+                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                  }`}
+                >
+                  ✏️ Text
+                </button>
+                <button
+                  onClick={() => setEditMode('images')}
+                  className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
+                    editMode === 'images'
+                      ? 'text-violet-400 border-violet-500 bg-violet-500/10'
+                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                  }`}
+                >
+                  🖼️ Images
+                </button>
+              </div>
+            )}
+
+            {/* Content */}
+            {editMode === 'text' || (editMode === null && !imageAssets.length) ? (
+              <TextEditorPanel
+                animations={animationSequence?.animations || []}
+                selectedWordId={selectedWordId}
+                onSelectWord={handleSelectWord}
+                onUpdateWord={handleUpdateWord}
+                onDeleteWord={handleDeleteWord}
+              />
+            ) : (
+              <ImageEditorPanel
+                images={imageAssets}
+                selectedImageId={selectedImageId}
+                onSelectImage={setSelectedImageId}
+                onUpdateImage={handleUpdateImage}
+                onDeleteImage={handleDeleteImage}
+                totalDuration={timelineDuration}
+              />
+            )}
           </aside>
         )}
       </div>
