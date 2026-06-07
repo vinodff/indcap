@@ -123,9 +123,9 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
 
       {/* Word List */}
       <div className="flex-1 overflow-y-auto space-y-1 p-3">
-        {animations.map((word) => (
+        {animations.map((word, idx) => (
           <button
-            key={word.id}
+            key={word.id || idx}
             onClick={() => onSelectWord(word.id)}
             className={`w-full text-left p-3 rounded-lg transition-all ${
               selectedWordId === word.id
@@ -137,7 +137,7 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
               {word.text}
             </div>
             <div className="text-xs text-gray-400 space-y-0.5">
-              <div>#{word.id.slice(0, 8)}</div>
+              <div>#{word.id ? word.id.slice(0, 8) : idx}</div>
               <div>{(word.startTime / 1000).toFixed(2)}s – {((word.startTime + word.duration) / 1000).toFixed(2)}s</div>
             </div>
           </button>

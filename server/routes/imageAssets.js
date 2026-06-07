@@ -9,9 +9,16 @@
  */
 
 import express from 'express';
-import {
-  createImageAssetOrchestrator,
-} from '../services/imageAssets.js';
+
+let createImageAssetOrchestrator = null;
+
+// Try to import the orchestrator, but fail gracefully if not available
+try {
+  const module = await import('../services/imageAssets.js');
+  createImageAssetOrchestrator = module.createImageAssetOrchestrator;
+} catch (err) {
+  console.warn('[imageAssets] Orchestrator not available:', err.message);
+}
 
 const router = express.Router();
 
@@ -36,6 +43,19 @@ const router = express.Router();
  */
 router.post('/process', async (req, res) => {
   try {
+    // Check if orchestrator is available
+    if (!createImageAssetOrchestrator) {
+      return res.status(503).json({
+        success: false,
+        error: 'Image asset system not available. Please configure environment variables.',
+        imagesCount: 0,
+        reelWithImages: {
+          imageAssets: [],
+          overallImageCoverage: 0,
+        },
+      });
+    }
+
     const { transcriptText, animationSequence } = req.body;
 
     if (!transcriptText || !animationSequence) {
