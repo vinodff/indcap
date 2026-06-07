@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Edit2, Trash2 } from 'lucide-react';
+import { X, Edit2, Trash2, Copy, Search } from 'lucide-react';
 import type { WordAnimation } from '../services/typography/types';
 
 interface TextEditorPanelProps {
@@ -8,6 +8,8 @@ interface TextEditorPanelProps {
   onSelectWord: (id: string | null) => void;
   onUpdateWord: (id: string, text: string) => void;
   onDeleteWord: (id: string) => void;
+  onDuplicateWord?: (id: string) => void;
+  onOpenFindReplace?: () => void;
 }
 
 export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
@@ -16,17 +18,60 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
   onSelectWord,
   onUpdateWord,
   onDeleteWord,
+  onDuplicateWord,
+  onOpenFindReplace,
 }) => {
   const [editText, setEditText] = useState('');
   const selectedWord = selectedWordId
     ? animations.find(w => w.id === selectedWordId)
     : null;
+  const selectedIndex = selectedWord
+    ? animations.findIndex(w => w.id === selectedWordId)
+    : -1;
 
   React.useEffect(() => {
     if (selectedWord) {
       setEditText(selectedWord.text);
     }
   }, [selectedWord]);
+
+  // Keyboard navigation
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedWord || e.ctrlKey || e.metaKey) return;
+
+      switch (e.key) {
+        case 'ArrowUp':
+          if (selectedIndex > 0) {
+            e.preventDefault();
+            onSelectWord(animations[selectedIndex - 1].id);
+          }
+          break;
+
+        case 'ArrowDown':
+          if (selectedIndex < animations.length - 1) {
+            e.preventDefault();
+            onSelectWord(animations[selectedIndex + 1].id);
+          }
+          break;
+
+        case 'Delete':
+          if (e.altKey) {
+            e.preventDefault();
+            onDeleteWord(selectedWord.id);
+          }
+          break;
+
+        case 'Escape':
+          e.preventDefault();
+          onSelectWord(null);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedWord, selectedIndex, animations, onSelectWord, onDeleteWord]);
 
   if (animations.length === 0) {
     return (
@@ -40,11 +85,23 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
     <div className="flex flex-col h-full bg-gray-900 border-r border-gray-800">
       {/* Header */}
       <div className="p-4 border-b border-gray-800 bg-gray-800/50">
-        <h3 className="text-sm font-semibold text-white mb-2">Text Editor ({animations.length})</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-white">Text Editor ({animations.length})</h3>
+          {onOpenFindReplace && (
+            <button
+              onClick={onOpenFindReplace}
+              className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+              title="Find & Replace (Ctrl+H)"
+            >
+              <Search size={14} className="text-gray-400 hover:text-blue-400" />
+            </button>
+          )}
+        </div>
         <div className="text-xs text-gray-400 space-y-1">
-          <div>• Click word on canvas to edit</div>
-          <div>• Or select from list below</div>
-          <div>• Changes preview in real-time</div>
+          <div>• ↑↓ Navigate words</div>
+          <div>• Enter to save text</div>
+          <div>• Alt+Delete to remove</div>
+          <div>• Esc to deselect • Ctrl+H to Find & Replace</div>
         </div>
       </div>
 
@@ -144,6 +201,15 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
 
           {/* Actions */}
           <div className="flex gap-2 pt-2 border-t border-gray-700">
+            {onDuplicateWord && (
+              <button
+                onClick={() => onDuplicateWord(selectedWord.id)}
+                className="flex-1 px-2 py-1.5 text-xs font-medium bg-blue-900/30 text-blue-400 rounded hover:bg-blue-900/50 transition-colors flex items-center justify-center gap-1"
+              >
+                <Copy size={12} />
+                Duplicate
+              </button>
+            )}
             <button
               onClick={() => onDeleteWord(selectedWord.id)}
               className="flex-1 px-2 py-1.5 text-xs font-medium bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1"

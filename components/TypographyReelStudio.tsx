@@ -59,6 +59,7 @@ import {
 } from '../services/motionGraphicsExport';
 import { ImageEditorPanel } from './ImageEditorPanel';
 import { TextEditorPanel } from './TextEditorPanel';
+import { FindReplacePanel } from './FindReplacePanel';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   // ── Text editing state ───────────────────────────────────────────────────────
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState<'images' | 'text' | null>(null);
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [findMatches, setFindMatches] = useState(0);
 
   // ── Playback ───────────────────────────────────────────────────────────────
   const [playing, setPlaying] = useState(false);
@@ -630,6 +633,78 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     }
   };
 
+  const handleDuplicateWord = (wordId: string) => {
+    if (!animationSequence) return;
+
+    const wordToDuplicate = animationSequence.animations.find(w => w.id === wordId);
+    if (!wordToDuplicate) return;
+
+    const newWord = {
+      ...wordToDuplicate,
+      id: `${wordToDuplicate.id}-copy-${Date.now()}`,
+      startTime: wordToDuplicate.startTime + wordToDuplicate.duration + 100, // Add 100ms gap
+    };
+
+    setAnimationSequence((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        animations: [...prev.animations, newWord],
+      };
+    });
+
+    // Select the new word
+    setSelectedWordId(newWord.id);
+  };
+
+  const handleFind = (query: string) => {
+    if (!animationSequence) return;
+    const matches = animationSequence.animations.filter(w =>
+      w.text.toLowerCase().includes(query.toLowerCase())
+    );
+    setFindMatches(matches.length);
+  };
+
+  const handleReplace = (find: string, replace: string, replaceAll: boolean) => {
+    if (!animationSequence) return;
+
+    if (replaceAll) {
+      setAnimationSequence((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          animations: prev.animations.map((anim) =>
+            anim.text.toLowerCase().includes(find.toLowerCase())
+              ? { ...anim, text: anim.text.replace(new RegExp(find, 'gi'), replace) }
+              : anim
+          ),
+        };
+      });
+      setShowFindReplace(false);
+    } else {
+      // Replace next match
+      const firstMatch = animationSequence.animations.find(anim =>
+        anim.text.toLowerCase().includes(find.toLowerCase())
+      );
+      if (firstMatch) {
+        onUpdateWord(firstMatch.id, firstMatch.text.replace(new RegExp(find, 'gi'), replace));
+      }
+    }
+  };
+
+  // Keyboard shortcut for Find & Replace
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        setShowFindReplace(!showFindReplace);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showFindReplace]);
+
   // ── Playback controls ──────────────────────────────────────────────────────
   const handleRestart = () => {
     setCurrentTime(0);
@@ -1097,6 +1172,16 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
             </div>
           )}
 
+          {/* Find & Replace Panel */}
+          {showFindReplace && (
+            <FindReplacePanel
+              totalMatches={findMatches}
+              onFind={handleFind}
+              onReplace={handleReplace}
+              onClose={() => setShowFindReplace(false)}
+            />
+          )}
+
         </main>
 
         {/* ── RIGHT: editor panel (images or text) ──────────────────────────── */}
@@ -1136,6 +1221,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 onSelectWord={handleSelectWord}
                 onUpdateWord={handleUpdateWord}
                 onDeleteWord={handleDeleteWord}
+                onDuplicateWord={handleDuplicateWord}
+                onOpenFindReplace={() => setShowFindReplace(true)}
               />
             ) : (
               <ImageEditorPanel
