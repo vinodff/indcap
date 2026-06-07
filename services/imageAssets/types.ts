@@ -110,7 +110,9 @@ export interface ImageOverlayOptions {
 }
 
 export interface TypographyReelImageIntegration {
+  assetId: string;         // Unique identifier for this asset
   wordIndex: number;       // Which word to attach image to
+  keyword: string;         // Keyword this image represents
   image: ImageMetadata;
   overlay: ImageOverlayOptions;
   timing: {
@@ -118,6 +120,17 @@ export interface TypographyReelImageIntegration {
     displayDuration: number; // milliseconds to show image
     exitDelay: number;     // milliseconds before word exit
   };
+  // Simplified properties for editor UI (derived from above)
+  blobUrl?: string;        // Data URL or blob URL for preview
+  startTime?: number;      // Absolute start time in seconds
+  endTime?: number;        // Absolute end time in seconds
+  x?: number;              // Pixel position X
+  y?: number;              // Pixel position Y
+  width?: number;          // Pixel width
+  height?: number;         // Pixel height
+  opacity?: number;        // 0-100
+  rotation?: number;       // Radians
+  blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'color-dodge' | 'color-burn';
 }
 
 export interface AssetQueueJob {

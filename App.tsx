@@ -40,6 +40,7 @@ import { generateCaptionsFromVideo } from './services/geminiService';
 
 import { extractAudioFromVideo } from './services/audioUtils';
 import { CaptionRenderer } from './services/captionRenderer';
+import { nextPlayheadTime } from './services/playbackClock';
 import { SoundEngine } from './services/soundEngine';
 import ProjectSpecs from './components/ProjectSpecs';
 import ProcessingChart from './components/ProcessingChart';
@@ -246,12 +247,23 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Sync playback rate 
+  // Sync playback rate
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.playbackRate = playbackRate;
     }
   }, [playbackRate, videoSrc, isPlaying]);
+
+  // Ensure the <video> actually starts when playback is requested but the
+  // element wasn't mounted yet when play() was first called. startPreviewMode
+  // sets videoSrc + isPlaying in the same tick, so videoRef.current is still
+  // null at that point; this runs after the element commits.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && isPlaying && video.paused) {
+      video.play().catch(() => {});
+    }
+  }, [videoSrc, isPlaying]);
 
   // Sync SFX volume
   useEffect(() => {
@@ -614,7 +626,7 @@ const App: React.FC = () => {
       wordHighlight,
       animationSpeed,
       aspectRatio,
-      skipCaptionDraw: activeConfig?.isHyperStyle === true,
+      skipCaptionDraw: false,
       iconCaptionsEnabled,
       autoFramingEnabled: autoAdjustEnabled,
       autoFrameSafeY: autoFrameSafeY ?? undefined,
@@ -634,18 +646,32 @@ const App: React.FC = () => {
     let lastTime = performance.now();
 
     const loop = (time: number) => {
-      // Synthetic clock driver for "Test with Sample Text" pure black screen mode
-      if (!videoRef.current && isPlaying) {
-        const dt = (time - lastTime) / 1000;
-        currentTimeRef.current += dt;
-        
-        const maxTime = processedCaptions.length > 0 
-          ? Math.max(...processedCaptions.map(c => c.endTime)) + 2
-          : 10;
-
-        if (currentTimeRef.current > maxTime) currentTimeRef.current = 0;
-      }
+      const dt = (time - lastTime) / 1000;
       lastTime = time;
+
+      const video = videoRef.current;
+      const maxTime = processedCaptions.length > 0
+        ? Math.max(...processedCaptions.map(c => c.endTime)) + 2
+        : 10;
+
+      // Drive the caption playhead. Reads the real <video> position when it is
+      // actually playing; otherwise advances a synthetic clock so captions
+      // never freeze when the video is mounted-but-stalled. See playbackClock.ts.
+      currentTimeRef.current = nextPlayheadTime({
+        video: video
+          ? {
+              hasVideo: true,
+              paused: video.paused,
+              ended: video.ended,
+              readyState: video.readyState,
+              currentTime: video.currentTime,
+            }
+          : null,
+        isPlaying,
+        prevTime: currentTimeRef.current,
+        dt,
+        maxTime,
+      });
 
       renderFrame();
       rafId = requestAnimationFrame(loop);
@@ -853,6 +879,12 @@ const App: React.FC = () => {
     setIsPlaying(false);
     setExportProgress(0);
 
+    // FIX: Disable loop so video.onended fires at the end of the video.
+    // The <video> element has loop=true by default for preview, but export
+    // relies on the 'ended' event to stop MediaRecorder and trigger download.
+    const wasLooping = video.loop;
+    video.loop = false;
+
     video.pause();
     await new Promise<void>((resolve) => {
       const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
@@ -938,6 +970,22 @@ const App: React.FC = () => {
     const mediaRecorder = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: bitrateMap[options.bitrate] });
     const chunks: Blob[] = [];
     mediaRecorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
+
+    // Safety net: stop recording at 99.75% of duration via timeupdate in case onended misfires
+    const onTimeUpdateSafety = () => {
+      if (video.duration > 0 && video.currentTime >= video.duration - 0.25) {
+        stopExport();
+      }
+    };
+
+    const stopExport = () => {
+      if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      video.onended = null;
+      video.removeEventListener('timeupdate', onTimeUpdateSafety);
+      // Restore loop state now that export is done
+      video.loop = wasLooping;
+    };
+
     mediaRecorder.onstop = () => {
       // Restore canvas to display resolution
       canvas.width = origCanvasWidth;
@@ -959,24 +1007,30 @@ const App: React.FC = () => {
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
       setStatus('READY');
       video.currentTime = 0;
+      video.loop = wasLooping;
       setIsPlaying(false);
       setIsExportPanelOpen(false);
     };
     mediaRecorder.onerror = () => {
       canvas.width = origCanvasWidth;
       canvas.height = origCanvasHeight;
+      video.loop = wasLooping;
       setStatus('READY');
       showToast("Export failed. Please try again.");
     };
     mediaRecorder.start();
-    video.onended = () => { mediaRecorder.stop(); video.onended = null; };
+    // Primary stop trigger: video ended event
+    video.onended = () => stopExport();
+    // Register the timeupdate safety listener
+    video.addEventListener('timeupdate', onTimeUpdateSafety);
     // Bug 7 Fix: readyState guard
     if (video.readyState < 2) {
       showToast("Video not ready. Please wait a moment and try again.", 'info');
+      video.loop = wasLooping;
       setStatus('READY');
       return;
     }
-    try { await video.play(); } catch (e) { mediaRecorder.stop(); setStatus('READY'); }
+    try { await video.play(); } catch (e) { stopExport(); setStatus('READY'); }
   };
 
   return (
@@ -1215,7 +1269,6 @@ const App: React.FC = () => {
                   aspectRatio={aspectRatio}
                   videoIntrinsicRatio={videoIntrinsicRatio}
                   setVideoIntrinsicRatio={setVideoIntrinsicRatio}
-                  isHyperStyle={activeConfig?.isHyperStyle === true}
                   activeConfig={activeConfig}
                   currentStyle={currentStyle}
                   fontScale={fontScale}

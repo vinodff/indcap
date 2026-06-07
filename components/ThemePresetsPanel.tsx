@@ -32,31 +32,63 @@ const CATEGORIES = [
 
 
 // ─── Preview Card Thumbnail ───
+// CapCut-style template preview: shows sample caption text rendered in the
+// preset's actual font, color/gradient, stroke and case — so the tile reads as
+// "this is what this style looks like", not just an emoji on a swatch.
 const TemplateThumbnail: React.FC<{ preset: ThemePreset }> = ({ preset }) => {
-  const bgGradient = preset.gradientColors
-    ? `linear-gradient(135deg, ${preset.gradientColors.join(', ')})`
-    : `linear-gradient(135deg, ${preset.textColor}22, ${preset.textColor}44)`;
+  const sample = preset.uppercase ? 'TEXT' : 'Text';
+  const hasGradient = !!(preset.gradientColors && preset.gradientColors.length >= 2);
+
+  // Text fill: clipped gradient, or solid color.
+  const fillStyle: React.CSSProperties = hasGradient
+    ? {
+        backgroundImage: `linear-gradient(135deg, ${preset.gradientColors!.join(', ')})`,
+        WebkitBackgroundClip: 'text',
+        backgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        color: 'transparent',
+      }
+    : { color: preset.textColor };
+
+  // Outline: faithful for solid-color styles; gradient styles get a soft shadow
+  // for legibility instead (text-stroke fights background-clip).
+  const outlineStyle: React.CSSProperties =
+    preset.strokeWidth > 0 && !hasGradient
+      ? ({
+          WebkitTextStroke: `${Math.max(0.5, preset.strokeWidth / 7)}px ${preset.strokeColor}`,
+          paintOrder: 'stroke fill',
+        } as React.CSSProperties)
+      : { textShadow: '0 1px 3px rgba(0,0,0,0.6)' };
 
   return (
-    <div
-      className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black shrink-0 relative overflow-hidden"
-      style={{
-        background: bgGradient,
-        fontFamily: preset.fontFamily,
-        color: preset.textColor,
-        textShadow: preset.strokeWidth > 0
-          ? `0 0 ${preset.strokeWidth}px ${preset.strokeColor}`
-          : 'none',
-      }}
-    >
-      <span className="relative z-10 text-lg">{preset.icon}</span>
-      {/* Tiny glow */}
+    <div className="w-14 h-14 rounded-xl shrink-0 relative overflow-hidden flex items-center justify-center border border-white/5 bg-gradient-to-br from-[#1b1b24] to-[#0c0c11]">
+      {/* Style-colored tint */}
       <div
-        className="absolute inset-0 opacity-30"
-        style={{
-          background: `radial-gradient(circle at center, ${preset.textColor}40, transparent 70%)`,
-        }}
+        className="absolute inset-0 opacity-25"
+        style={{ background: `radial-gradient(circle at 50% 38%, ${preset.textColor}, transparent 70%)` }}
       />
+      {/* Caption background chip, if the style uses one */}
+      {preset.bgEnabled && (
+        <div className="absolute inset-x-1.5 top-1/2 -translate-y-1/2 h-7 rounded-md" style={{ background: preset.bgColor }} />
+      )}
+      <span
+        className="relative z-10 leading-none font-black select-none px-0.5 whitespace-nowrap overflow-hidden"
+        style={{
+          fontFamily: preset.fontFamily,
+          fontWeight: preset.fontWeight as React.CSSProperties['fontWeight'],
+          fontSize: 14,
+          maxWidth: '100%',
+          textTransform: preset.uppercase ? 'uppercase' : 'none',
+          ...fillStyle,
+          ...outlineStyle,
+        }}
+      >
+        {sample}
+      </span>
+      {/* Emoji accent */}
+      <span className="absolute bottom-0.5 right-1 text-[11px] z-20 drop-shadow-md leading-none">
+        {preset.icon}
+      </span>
     </div>
   );
 };

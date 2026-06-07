@@ -3,9 +3,18 @@
  *
  * Uses ONNX rembg model for fast, privacy-friendly background removal.
  * Handles image resizing, format conversion, quality optimization.
+ *
+ * NOTE: This module is server-only. Install sharp: npm install sharp
  */
 
-import sharp from 'sharp';
+// Only import on server side
+let sharp: any;
+try {
+  sharp = require('sharp');
+} catch (e) {
+  // Sharp not available (browser environment)
+  sharp = null;
+}
 import type {
   BackgroundRemovalOptions,
   BackgroundRemovalResult,

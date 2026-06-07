@@ -20,6 +20,8 @@ import type {
 
 import { animatedIconService } from './animatedIconService';
 import { animatedEmojiService } from './animatedEmojiService';
+import { TypographyReelImageIntegrator } from '../imageAssets';
+import type { TypographyReelImageIntegration } from '../imageAssets';
 
 // ─── Composition primitives ──────────────────────────────────────────────────
 
@@ -59,6 +61,11 @@ export class TypographyRenderer {
   sequence: AnimationSequence;
   layout: LayoutConfiguration;
 
+  // Image assets (optional, loaded from backend API)
+  imageAssets: TypographyReelImageIntegration[] = [];
+  imageBitmaps: Map<string, ImageBitmap> = new Map();
+  selectedImageId: string | null = null;
+
   // Performance tracking
   frameCount = 0;
   lastFrameTime = 0;
@@ -68,7 +75,7 @@ export class TypographyRenderer {
   lastDropWarningTime = 0;
   lastHealthCheckFrame = 0;
   private prevMemoryMB = 0;
-  
+
   // Audio playback clock interpolation
   private lastAudioTime = -1;
   private lastAudioSystemTime = 0;
@@ -208,13 +215,30 @@ export class TypographyRenderer {
     for (let i = 0; i < data.length; i += 4) {
       const noise = (rand() - 0.5) * 50; // deterministic offset around 0
       data[i] = 128 + noise;     // R
-      data[i+1] = 128 + noise;   // G
-      data[i+2] = 128 + noise;   // B
-      data[i+3] = opacity * 255; // Alpha
+      data[i + 1] = 128 + noise;   // G
+      data[i + 2] = 128 + noise;   // B
+      data[i + 3] = opacity * 255; // Alpha
     }
 
     ctx.putImageData(imgData, 0, 0);
     return canvas;
+  }
+
+  async loadImageAssets(assets: TypographyReelImageIntegration[]): Promise<void> {
+    this.imageAssets = assets;
+    this.imageBitmaps.clear();
+
+    // Preload image bitmaps from blob URLs
+    for (const asset of assets) {
+      try {
+        const response = await fetch(asset.blobUrl);
+        const blob = await response.blob();
+        const bitmap = await createImageBitmap(blob);
+        this.imageBitmaps.set(asset.assetId, bitmap);
+      } catch (err) {
+        console.warn(`[typography] Failed to load image asset ${asset.assetId}:`, err);
+      }
+    }
   }
 
   // ─── Main Render Loop ──────────────────────────────────────────────────
@@ -410,6 +434,11 @@ export class TypographyRenderer {
       this.lastActiveWordId = null;
     }
 
+    // Render image overlays if available
+    if (this.imageAssets.length > 0) {
+      this.renderImageOverlays(playbackTime);
+    }
+
     // Draw watermark if configured
     if (this.layout.watermarkText) {
       this.ctx.save();
@@ -428,6 +457,76 @@ export class TypographyRenderer {
     // Persistent spatial anchor (bottom-left) — gives the empty background depth.
     // Driven by playbackTime (not wall-clock) so export frames are reproducible.
     this.drawSpatialAnchor(playbackTime);
+  }
+
+  private renderImageOverlays(playbackTime: number): void {
+    for (const asset of this.imageAssets) {
+      const bitmap = this.imageBitmaps.get(asset.assetId);
+      if (!bitmap) continue;
+
+      // Check if this image should be visible at this time
+      if (playbackTime < asset.startTime || playbackTime > asset.endTime) {
+        continue;
+      }
+
+      // Calculate opacity based on fade-in/fade-out
+      let opacity = 1.0;
+      const fadeInDuration = 0.2;
+      const fadeOutDuration = 0.2;
+
+      if (playbackTime < asset.startTime + fadeInDuration) {
+        opacity = (playbackTime - asset.startTime) / fadeInDuration;
+      } else if (playbackTime > asset.endTime - fadeOutDuration) {
+        opacity = (asset.endTime - playbackTime) / fadeOutDuration;
+      }
+
+      // Get target position and size
+      const { x, y, width, height, rotation, blendMode } = asset;
+
+      this.ctx.save();
+      this.ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+      this.ctx.globalCompositeOperation = (blendMode || 'normal') as GlobalCompositeOperation;
+
+      // Apply rotation if specified
+      if (rotation) {
+        this.ctx.translate(x + width / 2, y + height / 2);
+        this.ctx.rotate(rotation);
+        this.ctx.translate(-(x + width / 2), -(y + height / 2));
+      }
+
+      // Draw the image
+      this.ctx.drawImage(bitmap, x, y, width, height);
+      this.ctx.restore();
+
+      // Draw selection box if this image is selected
+      if (asset.assetId === this.selectedImageId) {
+        this.ctx.save();
+        this.ctx.strokeStyle = '#A78BFA';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([4, 4]);
+        this.ctx.strokeRect(x, y, width, height);
+
+        // Draw corner handles
+        const handleSize = 8;
+        const handles = [
+          [x, y],
+          [x + width, y],
+          [x, y + height],
+          [x + width, y + height],
+          [x + width / 2, y],
+          [x, y + height / 2],
+          [x + width / 2, y + height],
+          [x + width, y + height / 2],
+        ];
+
+        this.ctx.fillStyle = '#A78BFA';
+        for (const [hx, hy] of handles) {
+          this.ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+        }
+
+        this.ctx.restore();
+      }
+    }
   }
 
   // ─── Word Animation Renderer ───────────────────────────────────────────
@@ -530,10 +629,10 @@ export class TypographyRenderer {
       const travel = 130 * this.scaleFactor;
       const d = (1 - easedProgress) * travel; // full at start → 0 at settle
       switch (entryDirection) {
-        case 'top':    properties.y -= d; break; // drops down from above
+        case 'top': properties.y -= d; break; // drops down from above
         case 'bottom': properties.y += d; break; // rises up from below
-        case 'left':   properties.x -= d; break; // slides in from the left
-        case 'right':  properties.x += d; break; // slides in from the right
+        case 'left': properties.x -= d; break; // slides in from the left
+        case 'right': properties.x += d; break; // slides in from the right
       }
     }
 
@@ -879,7 +978,7 @@ export class TypographyRenderer {
       const textWidth = this.measureTextCached(displayText);
       const leftBound = -textWidth / 2;
       const clipWidth = textWidth * progress;
-      
+
       this.ctx.beginPath();
       this.ctx.rect(x + leftBound, y - fontSize, clipWidth, fontSize * 2);
       this.ctx.clip();
@@ -1032,9 +1131,9 @@ export class TypographyRenderer {
       // Edge-flip guard: if chosen side would clip the frame, flip it
       let side: IconSide = (properties.iconSide as IconSide) || 'right';
       const rightEdgeX = x + textWidth / 2 + gapPx + emojiSize;
-      const leftEdgeX  = x - textWidth / 2 - gapPx - emojiSize;
+      const leftEdgeX = x - textWidth / 2 - gapPx - emojiSize;
       if (side === 'right' && rightEdgeX > this.layout.width - 20) side = 'left';
-      if (side === 'left'  && leftEdgeX  < 20)                     side = 'right';
+      if (side === 'left' && leftEdgeX < 20) side = 'right';
 
       let emojiX: number;
       let emojiY: number;
@@ -1310,11 +1409,11 @@ export class TypographyRenderer {
     if (size === 2) {
       const two = [
         // Split diagonal — top word from left, bottom from right
-        [{ x: -32, entryDirection: 'left'  as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1 },
-         { x:  32, entryDirection: 'right' as EntryDirection, iconSide: 'left'  as IconSide, sizeBoost: 1 }],
+        [{ x: -32, entryDirection: 'left' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1 },
+        { x: 32, entryDirection: 'right' as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 1 }],
         // Vertical drop/rise
-        [{ x: 18, entryDirection: 'top'    as EntryDirection, iconSide: 'left'  as IconSide, sizeBoost: 1 },
-         { x:-18, entryDirection: 'bottom' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1 }],
+        [{ x: 18, entryDirection: 'top' as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 1 },
+        { x: -18, entryDirection: 'bottom' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1 }],
       ];
       return pick(two, 'two');
     }
@@ -1323,15 +1422,15 @@ export class TypographyRenderer {
       // 4-line creative arrangements. Words stay readably sized (no tiny shrink).
       const quad: Array<Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number }>> = [
         // ZIGZAG — alternating left/right, energetic
-        [{ x: -58, entryDirection: 'left',  iconSide: 'right', sizeBoost: 1 },
-         { x:  58, entryDirection: 'right', iconSide: 'left',  sizeBoost: 1 },
-         { x: -58, entryDirection: 'left',  iconSide: 'right', sizeBoost: 1 },
-         { x:  58, entryDirection: 'right', iconSide: 'left',  sizeBoost: 1 }],
+        [{ x: -58, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 },
+        { x: 58, entryDirection: 'right', iconSide: 'left', sizeBoost: 1 },
+        { x: -58, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 },
+        { x: 58, entryDirection: 'right', iconSide: 'left', sizeBoost: 1 }],
         // CASCADE — staircase down-right, all drop from top
         [{ x: -66, entryDirection: 'top', iconSide: 'right', sizeBoost: 1 },
-         { x: -22, entryDirection: 'top', iconSide: 'right', sizeBoost: 1 },
-         { x:  22, entryDirection: 'top', iconSide: 'left',  sizeBoost: 1 },
-         { x:  66, entryDirection: 'top', iconSide: 'left',  sizeBoost: 1 }],
+        { x: -22, entryDirection: 'top', iconSide: 'right', sizeBoost: 1 },
+        { x: 22, entryDirection: 'top', iconSide: 'left', sizeBoost: 1 },
+        { x: 66, entryDirection: 'top', iconSide: 'left', sizeBoost: 1 }],
         // HERO_QUAD — hero centered & big, the other three tuck around it
         [0, 1, 2, 3].map((i) => i === heroIdx
           ? { x: 0, entryDirection: 'pop' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.28 }
@@ -1346,30 +1445,30 @@ export class TypographyRenderer {
     const focusTemplates: Array<Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number }>> = [
       // HERO_FOCUS — hero dominates center; others tuck to opposite corners, small
       [0, 1, 2].map((i) => i === heroIdx
-        ? { x: 0,  entryDirection: 'pop'  as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.3 }
+        ? { x: 0, entryDirection: 'pop' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.3 }
         : { x: (i < heroIdx ? -95 : 95), entryDirection: (i < heroIdx ? 'top' : 'bottom') as EntryDirection, iconSide: (i < heroIdx ? 'left' : 'right') as IconSide, sizeBoost: 0.95 }),
       // SPLIT_EMPHASIS — connectives stack on the left, hero punches bottom-right
       [0, 1, 2].map((i) => i === heroIdx
         ? { x: 30, entryDirection: 'bottom' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.22 }
-        : { x: -88, entryDirection: 'left'   as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 0.95 }),
+        : { x: -88, entryDirection: 'left' as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 0.95 }),
     ];
     const flowTemplates: Array<Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number }>> = [
       // DIAGONAL_RIGHT — staircase down-right
-      [{ x: -55, entryDirection: 'left',  iconSide: 'right', sizeBoost: 1 },
-       { x:   0, entryDirection: 'bottom',iconSide: 'right', sizeBoost: 1 },
-       { x:  55, entryDirection: 'right', iconSide: 'left',  sizeBoost: 1 }],
+      [{ x: -55, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 },
+      { x: 0, entryDirection: 'bottom', iconSide: 'right', sizeBoost: 1 },
+      { x: 55, entryDirection: 'right', iconSide: 'left', sizeBoost: 1 }],
       // DIAGONAL_LEFT — staircase down-left
-      [{ x:  55, entryDirection: 'right', iconSide: 'left',  sizeBoost: 1 },
-       { x:   0, entryDirection: 'bottom',iconSide: 'right', sizeBoost: 1 },
-       { x: -55, entryDirection: 'left',  iconSide: 'right', sizeBoost: 1 }],
+      [{ x: 55, entryDirection: 'right', iconSide: 'left', sizeBoost: 1 },
+      { x: 0, entryDirection: 'bottom', iconSide: 'right', sizeBoost: 1 },
+      { x: -55, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 }],
       // CASCADE_DOWN — all drop from top, slight right lean
       [{ x: -28, entryDirection: 'top', iconSide: 'right', sizeBoost: 1 },
-       { x:   8, entryDirection: 'top', iconSide: 'right', sizeBoost: 1 },
-       { x:  40, entryDirection: 'top', iconSide: 'left',  sizeBoost: 1 }],
+      { x: 8, entryDirection: 'top', iconSide: 'right', sizeBoost: 1 },
+      { x: 40, entryDirection: 'top', iconSide: 'left', sizeBoost: 1 }],
       // CENTER_PUNCH — centered, alternating L/R entries
-      [{ x: 0, entryDirection: 'left',  iconSide: 'right', sizeBoost: 1 },
-       { x: 0, entryDirection: 'right', iconSide: 'left',  sizeBoost: 1 },
-       { x: 0, entryDirection: 'left',  iconSide: 'right', sizeBoost: 1 }],
+      [{ x: 0, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 },
+      { x: 0, entryDirection: 'right', iconSide: 'left', sizeBoost: 1 },
+      { x: 0, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 }],
     ];
 
     // ~55% of phrases with a clear hero use a focus/collage layout; the rest
@@ -1419,7 +1518,7 @@ export class TypographyRenderer {
     // ready before first paint (avoids a flash of upright fallback text).
     if ((document as any).fonts) {
       ['Playfair Display', 'Satisfy'].forEach((f) => {
-        (document as any).fonts.load(`italic 400 16px "${f}"`).catch(() => {});
+        (document as any).fonts.load(`italic 400 16px "${f}"`).catch(() => { });
       });
     }
   }

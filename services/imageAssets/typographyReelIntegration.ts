@@ -8,7 +8,15 @@
  * - Provides fallback if images unavailable
  */
 
-import { readFileSync } from 'fs';
+// Only import readFileSync on server side
+const readFileSync = (() => {
+  try {
+    return require('fs').readFileSync;
+  } catch (e) {
+    // Fallback: return null for browser
+    return null;
+  }
+})();
 import type {
   TypographyReelImageIntegration,
   TypographyReelWithImages,

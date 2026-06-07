@@ -6,10 +6,29 @@
  * - LRU eviction policy
  * - Metadata tracking
  * - Automatic cleanup
+ *
+ * NOTE: This module is server-only. Requires Node.js fs/path modules.
  */
 
-import { writeFileSync, readFileSync, statSync, unlinkSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+// Only import on server side
+const fs = (() => {
+  try {
+    return require('fs');
+  } catch (e) {
+    return null;
+  }
+})();
+
+const path = (() => {
+  try {
+    return require('path');
+  } catch (e) {
+    return null;
+  }
+})();
+
+const { writeFileSync, readFileSync, statSync, unlinkSync, existsSync, mkdirSync } = fs || {};
+const { join } = path || {};
 import type { AssetCacheEntry, AssetStorageStats, ImageMetadata } from './types';
 
 export class AssetStorage {

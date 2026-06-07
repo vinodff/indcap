@@ -1326,371 +1326,44 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
   // ─── TYPOGRAPHY CAPTION (SPRINT 5) — Pixel-perfect match to reference images ───
 
   // ── Image 3: "to different PEOPLE from" ──
-  // Small "to different" → GIANT "people" (serif display) → small "FROM"
-  // ── Size Hierarchy: Perfect match to Image 1 (Centered giant word, small context) ──
+  // ── Size Hierarchy: poster-style, GIANT red Anton accent, small white context ──
   [CaptionStyle.TYPO_SIZE_HIERARCHY]: {
     name: 'Size Hierarchy', category: 'TYPOGRAPHY',
-    fontFamily: "'Playfair Display', serif", fontSize: 52, fontWeight: 700,
+    fontFamily: "'Anton', sans-serif", fontSize: 52, fontWeight: 400,
     textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: -25, // Negative spacing to overlap text tightly like Image 1
-      layers: [
-        {
-          // "1 PLAN" or "Isme To Bahut" — medium weight, white, center-aligned
-          textSource: 'FIRST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 28, fontWeight: 600,
-          color: 'rgba(255,255,255,0.95)', uppercase: false,
-          letterSpacing: 0.5, textAlign: 'center',
-          yOffset: 15, // Push down slightly into the giant text
-          entryType: 'SLIDE_UP', entryDelay: 0, entryDuration: 0.18,
-          shadowColor: 'rgba(0,0,0,0.8)', shadowBlur: 10, shadowOffsetY: 2
-        },
-        {
-          // "EVERYTHING" or "MEHANAT" — GIANT, bold, gold, center-aligned, serif
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Playfair Display', serif", fontSize: 114, fontWeight: 900,
-          color: '#C9922A',
-          gradientColors: ['#D4A035', '#B8841F', '#E8B84B'],
-          uppercase: true,
-          letterSpacing: -2, textAlign: 'center',
-          shadowColor: 'rgba(0,0,0,0.6)', shadowBlur: 14, shadowOffsetX: 0, shadowOffsetY: 4,
-          entryType: 'SCALE_POP', entryDelay: 0.08, entryDuration: 0.3,
-        },
-        {
-          // "Laga Hoga" — medium weight, white, center-aligned
-          textSource: 'LAST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 28, fontWeight: 700,
-          color: 'rgba(255,255,255,0.95)', uppercase: false,
-          letterSpacing: 0.5, textAlign: 'center',
-          yOffset: -15, // Push up slightly into the giant text
-          entryType: 'SLIDE_UP', entryDelay: 0.2, entryDuration: 0.18,
-          shadowColor: 'rgba(0,0,0,0.8)', shadowBlur: 10, shadowOffsetY: 2
-        },
-      ],
-    },
-  },
-
-  // ── Image 1: "Isme To Bahut MEHANAT Laga Hoga" ──
-  // "Isme To" (black medium) + "Bahut" (smaller, same visual row) → GIANT GOLD "MEHANAT" → "Laga Hoga" (black)
-  // accentWordIndex: 2 because text is split as: [0]=Isme [1]=To [2]=Bahut [3]=MEHANAT [4]=Laga [5]=Hoga
-  // FIRST_LINE = words 0..accentIdx-1 = "Isme To Bahut", ACCENT = "MEHANAT", LAST_LINE = "Laga Hoga"
-  [CaptionStyle.TYPO_MAGAZINE]: {
-    name: 'Magazine', category: 'TYPOGRAPHY',
-    fontFamily: "'Playfair Display', serif", fontSize: 52, fontWeight: 700,
-    textColor: '#1A1A1A', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(245,240,228,0.97)',
-    backgroundPadding: 24,
-    backgroundBorderRadius: 0,
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: 0,
-      accentWordIndex: 2,   // "MEHANAT" is the accent — words before it are context
-      layers: [
-        {
-          // "Isme To Bahut" — medium weight, black, left-aligned
-          textSource: 'FIRST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 26, fontWeight: 500,
-          color: '#1A1A1A', uppercase: false,
-          letterSpacing: 0.5, textAlign: 'left',
-          entryType: 'SLIDE_UP', entryDelay: 0, entryDuration: 0.18,
-        },
-        {
-          // "MEHANAT" — GIANT, bold, gold, left-aligned, serif
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Playfair Display', serif", fontSize: 100, fontWeight: 900,
-          color: '#C9922A',
-          gradientColors: ['#D4A035', '#B8841F', '#E8B84B'],
-          uppercase: true,
-          letterSpacing: -2, textAlign: 'left',
-          shadowColor: 'rgba(180,120,20,0.2)', shadowBlur: 8, shadowOffsetY: 2,
-          entryType: 'SCALE_POP', entryDelay: 0.08, entryDuration: 0.3,
-        },
-        {
-          // "Laga Hoga" — medium weight, black, left-aligned
-          textSource: 'LAST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 26, fontWeight: 700,
-          color: '#1A1A1A', uppercase: false,
-          letterSpacing: 0.5, textAlign: 'left',
-          entryType: 'SLIDE_UP', entryDelay: 0.2, entryDuration: 0.18,
-        },
-      ],
-    },
-  },
-
-  // ── Image 2: "VIDEO EDITING SPEED hacks" ──
-  // "VIDEO EDITING" (white caps, small) → "SPEED" (GIANT green bold) → "hacks" (white script)
-  [CaptionStyle.TYPO_MIXED_FAMILY]: {
-    name: 'Mixed Family', category: 'TYPOGRAPHY',
-    fontFamily: "'Inter', sans-serif", fontSize: 52, fontWeight: 700,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: 0,
-      accentWordIndex: 2,   // text structure: [0]=VIDEO [1]=EDITING [2]=SPEED [3]=hacks → SPEED is index 2
-      layers: [
-        {
-          // "VIDEO EDITING" — white, bold caps, small, tight tracking
-          textSource: 'FIRST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 20, fontWeight: 700,
-          color: '#FFFFFF', uppercase: true,
-          letterSpacing: 3, textAlign: 'left',
-          entryType: 'FADE', entryDelay: 0, entryDuration: 0.2,
-        },
-        {
-          // "SPEED" — GIANT, green, Anton bold display
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Anton', sans-serif", fontSize: 108, fontWeight: 400,
-          color: '#39FF14',
-          gradientColors: ['#39FF14', '#00CC44'],
-          uppercase: true,
-          letterSpacing: 0, textAlign: 'left',
-          shadowColor: 'rgba(57,255,20,0.35)', shadowBlur: 18, shadowOffsetY: 0,
-          entryType: 'SCALE_POP', entryDelay: 0.1, entryDuration: 0.28,
-        },
-        {
-          // "hacks" — white, Caveat handwriting, italic
-          textSource: 'LAST_LINE',
-          fontFamily: "'Caveat', cursive", fontSize: 42, fontWeight: 700,
-          color: '#FFFFFF', uppercase: false, italic: true,
-          letterSpacing: 0, textAlign: 'left',
-          entryType: 'FADE', entryDelay: 0.22, entryDuration: 0.2,
-        },
-      ],
-    },
-  },
-
-  // ── Editorial Gold — dark bg, gold italic label, white serif title ──
-  [CaptionStyle.TYPO_EDITORIAL_GOLD]: {
-    name: 'Editorial Gold', category: 'TYPOGRAPHY',
-    fontFamily: "'Playfair Display', serif", fontSize: 52, fontWeight: 700,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(8,8,8,0.94)',
-    backgroundPadding: 28,
-    backgroundBorderRadius: 0,
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: 2,
-      layers: [
-        {
-          textSource: 'FIRST_LINE',
-          fontFamily: "'DM Serif Display', serif", fontSize: 18, fontWeight: 400,
-          color: '#E8B84B', uppercase: true, italic: true,
-          letterSpacing: 8, textAlign: 'center',
-          entryType: 'FADE', entryDelay: 0, entryDuration: 0.3,
-        },
-        {
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Playfair Display', serif", fontSize: 96, fontWeight: 900,
-          color: '#FFFFFF', uppercase: true,
-          letterSpacing: -1, textAlign: 'center',
-          shadowColor: 'rgba(232,184,75,0.2)', shadowBlur: 28, shadowOffsetY: 0,
-          entryType: 'SCALE_POP', entryDelay: 0.12, entryDuration: 0.38,
-        },
-        {
-          textSource: 'LAST_LINE',
-          fontFamily: "'DM Serif Display', serif", fontSize: 18, fontWeight: 400,
-          color: 'rgba(232,184,75,0.65)', uppercase: false, italic: true,
-          letterSpacing: 3, textAlign: 'center',
-          entryType: 'FADE', entryDelay: 0.28, entryDuration: 0.25,
-        },
-      ],
-    },
-  },
-
-  // ── Street Poster — condensed + YELLOW GIANT + mono ──
-  [CaptionStyle.TYPO_STREET_POSTER]: {
-    name: 'Street Poster', category: 'TYPOGRAPHY',
-    fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, fontWeight: 400,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: 2,
-      layers: [
-        {
-          textSource: 'FIRST_LINE',
-          fontFamily: "'Oswald', sans-serif", fontSize: 24, fontWeight: 300,
-          color: '#FFFFFF', uppercase: true,
-          letterSpacing: 8, textAlign: 'left',
-          entryType: 'WIPE_RIGHT', entryDelay: 0, entryDuration: 0.2,
-        },
-        {
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Bebas Neue', sans-serif", fontSize: 108, fontWeight: 400,
-          color: '#FFE600', uppercase: true,
-          letterSpacing: 2, textAlign: 'left',
-          strokeColor: '#000000', strokeWidth: 3,
-          shadowColor: 'rgba(0,0,0,0.55)', shadowBlur: 6, shadowOffsetY: 5,
-          entryType: 'SCALE_POP', entryDelay: 0.1, entryDuration: 0.22,
-        },
-        {
-          textSource: 'LAST_LINE',
-          fontFamily: "'Courier New', monospace", fontSize: 16, fontWeight: 400,
-          color: 'rgba(255,255,255,0.55)', uppercase: false,
-          letterSpacing: 4, textAlign: 'left',
-          entryType: 'FADE', entryDelay: 0.2, entryDuration: 0.2,
-        },
-      ],
-    },
-  },
-
-  // ── Minimal Stack — Inter weight hierarchy only ──
-  [CaptionStyle.TYPO_MINIMAL_STACK]: {
-    name: 'Minimal Stack', category: 'TYPOGRAPHY',
-    fontFamily: "'Inter', sans-serif", fontSize: 52, fontWeight: 500,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(0,0,0,0.0)',
     typographyLayout: {
       splitStrategy: 'BY_WORD',
       verticalSpacing: 4,
       layers: [
         {
           textSource: 'FIRST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 18, fontWeight: 300,
-          color: 'rgba(255,255,255,0.5)', uppercase: false,
-          letterSpacing: 2, textAlign: 'center',
-          entryType: 'FADE', entryDelay: 0, entryDuration: 0.4,
+          fontFamily: "'Inter', sans-serif", fontSize: 22, fontWeight: 500,
+          color: '#FFFFFF', uppercase: false,
+          letterSpacing: 0, textAlign: 'left',
+          strokeColor: '#1A1A1A', strokeWidth: 2,
+          shadowColor: 'rgba(0,0,0,0.92)', shadowBlur: 14, shadowOffsetY: 3,
+          entryType: 'FADE', entryDelay: 0, entryDuration: 0.2,
         },
         {
           textSource: 'ACCENT_WORD',
-          fontFamily: "'Inter', sans-serif", fontSize: 80, fontWeight: 800,
-          color: '#FFFFFF', uppercase: true,
-          letterSpacing: 4, textAlign: 'center',
-          entryType: 'FADE', entryDelay: 0.14, entryDuration: 0.32,
+          fontFamily: "'Anton', sans-serif", fontSize: 130, fontWeight: 400,
+          color: '#E8271A', uppercase: true,
+          letterSpacing: -1, textAlign: 'left',
+          strokeColor: '#FFFFFF', strokeWidth: 7,
+          shadowColor: 'rgba(0,0,0,0.88)', shadowBlur: 24, shadowOffsetY: 7,
+          entryType: 'SCALE_POP', entryDelay: 0.06, entryDuration: 0.28,
         },
         {
           textSource: 'LAST_LINE',
-          fontFamily: "'Inter', sans-serif", fontSize: 16, fontWeight: 300,
-          color: 'rgba(255,255,255,0.4)', uppercase: false,
-          letterSpacing: 2, textAlign: 'center',
-          entryType: 'FADE', entryDelay: 0.28, entryDuration: 0.32,
+          fontFamily: "'Inter', sans-serif", fontSize: 22, fontWeight: 700,
+          color: '#FFFFFF', uppercase: false,
+          letterSpacing: 0, textAlign: 'left',
+          strokeColor: '#1A1A1A', strokeWidth: 2,
+          shadowColor: 'rgba(0,0,0,0.92)', shadowBlur: 14, shadowOffsetY: 3,
+          entryType: 'SLIDE_UP', entryDelay: 0.18, entryDuration: 0.2,
         },
       ],
     },
   },
 
-  // ── Neon Layers — cyberpunk editorial ──
-  [CaptionStyle.TYPO_NEON_LAYERS]: {
-    name: 'Neon Layers', category: 'TYPOGRAPHY',
-    fontFamily: "'Orbitron', sans-serif", fontSize: 52, fontWeight: 700,
-    textColor: '#00FFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: 2,
-      layers: [
-        {
-          textSource: 'FIRST_LINE',
-          fontFamily: "'Montserrat', sans-serif", fontSize: 20, fontWeight: 400,
-          color: '#00FFFF', uppercase: false,
-          letterSpacing: 4, textAlign: 'center',
-          shadowColor: '#00FFFF', shadowBlur: 10, shadowOffsetY: 0,
-          entryType: 'FADE', entryDelay: 0, entryDuration: 0.3,
-        },
-        {
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Orbitron', sans-serif", fontSize: 88, fontWeight: 900,
-          color: '#FF2D78',
-          gradientColors: ['#FF2D78', '#FF6EB4'],
-          uppercase: true,
-          letterSpacing: 2, textAlign: 'center',
-          shadowColor: '#FF2D78', shadowBlur: 28, shadowOffsetY: 0,
-          strokeColor: 'rgba(255,45,120,0.25)', strokeWidth: 1,
-          entryType: 'SCALE_POP', entryDelay: 0.1, entryDuration: 0.28,
-        },
-        {
-          textSource: 'LAST_LINE',
-          fontFamily: "'Montserrat', sans-serif", fontSize: 20, fontWeight: 400,
-          color: '#BF5AF2', uppercase: false, italic: true,
-          letterSpacing: 3, textAlign: 'center',
-          shadowColor: '#BF5AF2', shadowBlur: 8, shadowOffsetY: 0,
-          entryType: 'FADE', entryDelay: 0.2, entryDuration: 0.26,
-        },
-      ],
-    },
-  },
-
-  // ── Cinematic Title — movie poster style ──
-  [CaptionStyle.TYPO_CINEMATIC_TITLE]: {
-    name: 'Cinematic Title', category: 'TYPOGRAPHY',
-    fontFamily: "'Cinzel', serif", fontSize: 52, fontWeight: 700,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    typographyLayout: {
-      splitStrategy: 'BY_WORD',
-      verticalSpacing: 6,
-      layers: [
-        {
-          textSource: 'FIRST_LINE',
-          fontFamily: "'Cinzel', serif", fontSize: 14, fontWeight: 400,
-          color: '#E8B84B', uppercase: true,
-          letterSpacing: 10, textAlign: 'center',
-          entryType: 'WIPE_RIGHT', entryDelay: 0, entryDuration: 0.5,
-        },
-        {
-          textSource: 'ACCENT_WORD',
-          fontFamily: "'Cinzel', serif", fontSize: 92, fontWeight: 700,
-          color: '#FFFFFF', uppercase: true,
-          letterSpacing: 4, textAlign: 'center',
-          shadowColor: 'rgba(255,255,255,0.12)', shadowBlur: 36, shadowOffsetY: 0,
-          entryType: 'FADE', entryDelay: 0.28, entryDuration: 0.55,
-        },
-        {
-          textSource: 'LAST_LINE',
-          fontFamily: "'Cinzel', serif", fontSize: 14, fontWeight: 400,
-          color: 'rgba(255,255,255,0.45)', uppercase: false,
-          letterSpacing: 6, textAlign: 'center',
-          entryType: 'FADE', entryDelay: 0.5, entryDuration: 0.45,
-        },
-      ],
-    },
-  },
-
-  // ─── HYPERCAPTIONS — HTML/CSS/GSAP overlay renderer (Phase H) ───
-
-  [CaptionStyle.HYPER_GLITCH]: {
-    name: 'Hyper Glitch', category: 'HYPER',
-    fontFamily: "'Anton', sans-serif", fontSize: 68, fontWeight: 400,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    uppercase: true, isHyperStyle: true,
-  },
-  [CaptionStyle.HYPER_NEON_TUBE]: {
-    name: 'Neon Tube', category: 'HYPER',
-    fontFamily: "'Bebas Neue', display", fontSize: 72, fontWeight: 400,
-    textColor: '#ff6ec7', animation: 'NONE', displayMode: 'BLOCK',
-    uppercase: false, isHyperStyle: true,
-  },
-  [CaptionStyle.HYPER_3D_EXTRUDE]: {
-    name: '3D Extrude', category: 'HYPER',
-    fontFamily: "'Montserrat', sans-serif", fontSize: 64, fontWeight: 900,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    uppercase: true, isHyperStyle: true,
-  },
-  [CaptionStyle.HYPER_GLASS_FROST]: {
-    name: 'Glass Frost', category: 'HYPER',
-    fontFamily: "'Inter', sans-serif", fontSize: 44, fontWeight: 700,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    uppercase: false, isHyperStyle: true,
-  },
-  [CaptionStyle.HYPER_GRADIENT_WAVE]: {
-    name: 'Gradient Wave', category: 'HYPER',
-    fontFamily: "'Montserrat', sans-serif", fontSize: 58, fontWeight: 800,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'BLOCK',
-    uppercase: false, isHyperStyle: true,
-  },
-
-  // ── CapCut Multi-Float Karaoke — 3-tier floating word engine ──
-  [CaptionStyle.CAPCUT_MULTI_FLOAT]: {
-    name: 'Multi-Float Karaoke', category: 'VIRAL',
-    fontFamily: "'Montserrat', sans-serif",
-    fontSize: 72, fontWeight: 900,
-    textColor: '#FFFFFF', animation: 'NONE', displayMode: 'WORD',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    uppercase: true,
-    // specialRenderer flag used by drawCaption to route to drawMultiFloatKaraoke()
-    specialRenderer: 'MULTI_FLOAT',
-  },
 };

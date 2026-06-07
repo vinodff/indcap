@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Video, Zap, Play, Pause, Loader2, Smartphone, ThumbsUp, ThumbsDown, MessageSquare, Share2, Repeat, Heart, Send, Bookmark, MoreHorizontal, MoreVertical, Music, User, Camera, MessageCircle, Forward, Search, Type } from 'lucide-react';
 import { ProcessingStatus, Caption, AspectRatio, CaptionStyle, StyleConfig } from '../types';
-import { CaptionOverlay } from './CaptionOverlay';
 
 // ─── YouTube Shorts Platform SVGs ────────────────────────────────────────────
 const YTLogo = () => (
@@ -98,8 +97,6 @@ interface VideoPreviewAreaProps {
   videoIntrinsicRatio?: number | null;
   setVideoIntrinsicRatio?: (ratio: number) => void;
 
-  // HyperCaption overlay props
-  isHyperStyle?: boolean;
   activeConfig?: StyleConfig;
   currentStyle?: CaptionStyle;
   fontScale?: number;
@@ -140,7 +137,6 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
 
   videoIntrinsicRatio = null,
   setVideoIntrinsicRatio,
-  isHyperStyle = false,
   activeConfig,
   currentStyle,
   fontScale = 1,
@@ -352,21 +348,6 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
           />
-
-          {/* HyperCaption HTML overlay */}
-          {isHyperStyle && activeConfig && currentStyle && (
-            <CaptionOverlay
-              captions={captions}
-              activeConfig={activeConfig}
-              currentStyle={currentStyle}
-              fontScale={fontScale}
-              verticalPos={verticalPos}
-              horizontalPos={horizontalPos}
-              videoRef={videoRef as React.RefObject<HTMLVideoElement>}
-              isPlaying={isPlaying}
-              aspectRatio={aspectRatio}
-            />
-          )}
 
           {/* Safe Zones Overlay - Pixel-Perfect Platform Previews */}
           {showSafeZones && (

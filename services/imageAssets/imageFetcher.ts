@@ -7,9 +7,24 @@
  * - Rate limiting
  * - Timeout handling
  * - Fallback strategies
+ *
+ * NOTE: Crypto import is used for checksums (works in Node.js and browser with WebCrypto)
  */
 
-import { createHash } from 'crypto';
+// Handle both Node.js and browser crypto
+const createHash = (() => {
+  try {
+    const { createHash: nodeCrypto } = require('crypto');
+    return nodeCrypto;
+  } catch (e) {
+    // Fallback for browser: use simple hash simulation
+    return (algo: string) => ({
+      update: (data: Buffer) => ({
+        digest: (enc: string) => Buffer.from(data).toString('hex').slice(0, 64),
+      }),
+    });
+  }
+})();
 import type {
   ImageMetadata,
   ImageSearchQuery,

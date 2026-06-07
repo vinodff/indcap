@@ -57,6 +57,7 @@ import {
   exportMotionVideo,
   triggerDownload,
 } from '../services/motionGraphicsExport';
+import { ImageEditorPanel } from './ImageEditorPanel';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -69,11 +70,12 @@ const REEL_LIMITS = {
   videoBitsPerSecond: 8_000_000,
 } as const;
 
-const STAGE_LABEL: Record<PipelineStage, string> = {
+const STAGE_LABEL: Record<PipelineStage | 'image-processing', string> = {
   idle:          '',
   analyzing:     'Analyzing script with Gemini…',
   beats:         'Detecting audio beats…',
   choreographing: 'Choreographing scenes…',
+  'image-processing': 'Processing images…',
   rendering:     'Rendering…',
   exporting:     'Exporting MP4…',
   error:         'Error',
@@ -102,6 +104,12 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   const [beatGrid, setBeatGrid] = useState<BeatGrid | null>(null);
   const [animationSequence, setAnimationSequence] = useState<AnimationSequence | null>(null);
   const [timelineDuration, setTimelineDuration] = useState(0);
+
+  // ── Image editing state ─────────────────────────────────────────────────────
+  const [imageAssets, setImageAssets] = useState<any[]>([]);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [draggedImageId, setDraggedImageId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   // ── Playback ───────────────────────────────────────────────────────────────
   const [playing, setPlaying] = useState(false);
@@ -347,6 +355,59 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       });
 
       setAnimationSequence(sequence);
+
+      // Stage 4: Process images via backend API (if enabled)
+      if (import.meta.env.VITE_IMAGE_ASSET_ENABLED === 'true') {
+        setStage('image-processing' as any);
+        setProgress(0.85);
+
+        try {
+          const transcriptText = enriched.segments
+            .map((s) => s.text)
+            .join(' ');
+
+          // Call backend API for image processing
+          const response = await fetch('/api/imageAssets/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transcriptText,
+              animationSequence: sequence,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.reelWithImages) {
+              console.log(
+                `[reel] ${data.imagesCount} images processed (${data.coverage.toFixed(1)}% coverage)`
+              );
+              setProgress(0.95);
+
+              // Store images for editing
+              setImageAssets(data.reelWithImages.imageAssets || []);
+
+              // Load images into renderer if available
+              if (rendererRef.current && data.reelWithImages.imageAssets.length > 0) {
+                try {
+                  await rendererRef.current.loadImageAssets(
+                    data.reelWithImages.imageAssets
+                  );
+                } catch (imgError) {
+                  console.warn('[reel] failed to load image assets:', imgError);
+                }
+              }
+            }
+          } else {
+            const error = await response.json();
+            console.warn('[reel] image processing failed:', error.error);
+          }
+        } catch (imgError) {
+          console.warn('[reel] image API call failed, continuing without images:', imgError);
+        }
+      }
+
+      // Re-add the image processing stage label
       setTimelineDuration(sequence.durationMs / 1000);
       setCurrentTime(0);
       setPlaying(false);
@@ -356,6 +417,78 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       console.error('[reel] generation failed', err);
       setErrorMsg(err instanceof Error ? err.message : String(err));
       setStage('error');
+    }
+  };
+
+  // ── Image editing handlers ────────────────────────────────────────────────
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Find which image was clicked
+    for (const img of imageAssets) {
+      if (
+        x >= img.x &&
+        x <= img.x + img.width &&
+        y >= img.y &&
+        y <= img.y + img.height
+      ) {
+        setSelectedImageId(img.assetId);
+        setDraggedImageId(img.assetId);
+        setDragOffset({
+          x: x - img.x,
+          y: y - img.y,
+        });
+        break;
+      }
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!draggedImageId || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setImageAssets((prev) =>
+      prev.map((img) =>
+        img.assetId === draggedImageId
+          ? {
+              ...img,
+              x: Math.max(0, Math.min(x - dragOffset.x, REEL_LIMITS.width - img.width)),
+              y: Math.max(0, Math.min(y - dragOffset.y, REEL_LIMITS.height - img.height)),
+            }
+          : img
+      )
+    );
+  };
+
+  const handleCanvasMouseUp = () => {
+    setDraggedImageId(null);
+  };
+
+  const handleUpdateImage = (id: string, updates: Partial<any>) => {
+    setImageAssets((prev) =>
+      prev.map((img) => (img.assetId === id ? { ...img, ...updates } : img))
+    );
+
+    // Update in renderer if it has the method
+    if (rendererRef.current) {
+      rendererRef.current.imageAssets = imageAssets;
+    }
+  };
+
+  const handleDeleteImage = (id: string) => {
+    setImageAssets((prev) => prev.filter((img) => img.assetId !== id));
+    setSelectedImageId(null);
+
+    // Update in renderer
+    if (rendererRef.current) {
+      rendererRef.current.imageAssets = imageAssets.filter((img) => img.assetId !== id);
     }
   };
 
@@ -695,12 +828,16 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
               <>
                 <canvas
                   ref={canvasRef}
-                  className="w-full h-auto max-h-full rounded-lg shadow-lg bg-black"
+                  className="w-full h-auto max-h-full rounded-lg shadow-lg bg-black cursor-move"
                   style={{
                     aspectRatio: animationSequence
                       ? `${animationSequence.layout.width} / ${animationSequence.layout.height}`
                       : `${REEL_LIMITS.width} / ${REEL_LIMITS.height}`
                   }}
+                  onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseUp={handleCanvasMouseUp}
+                  onMouseLeave={handleCanvasMouseUp}
                 />
                 {/* FPS indicator and frame drop warning */}
                 {playing && (
@@ -807,6 +944,20 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
           )}
 
         </main>
+
+        {/* ── RIGHT: image editor panel ───────────────────────────────────── */}
+        {imageAssets.length > 0 && (
+          <aside className="w-80 bg-gray-900 border-l border-gray-800 overflow-hidden flex flex-col">
+            <ImageEditorPanel
+              images={imageAssets}
+              selectedImageId={selectedImageId}
+              onSelectImage={setSelectedImageId}
+              onUpdateImage={handleUpdateImage}
+              onDeleteImage={handleDeleteImage}
+              totalDuration={timelineDuration}
+            />
+          </aside>
+        )}
       </div>
     </div>
   );

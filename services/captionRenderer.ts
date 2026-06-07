@@ -19,7 +19,6 @@ import { drawTrending } from './caption/renderers/trending';
 import { drawInstagramTemplate } from './caption/renderers/instagram';
 import { drawTypographyCaption } from './caption/renderers/typography';
 import { drawTypograph } from './caption/renderers/editorial';
-import { drawMultiFloatKaraoke } from './caption/renderers/multiFloat';
 import { EMOJI_REGEX, isEmojiWord, emojiToNotoUrl } from './caption/emojiUtils';
 
 // --- MATH UTILS ---
@@ -119,16 +118,31 @@ export class CaptionRenderer implements RenderHelpers {
     return gradient;
   }
 
+  // A sharp, far-offset colored shadow renders as a second displaced copy of the
+  // text — users read it as "two caption styles at once". Clamp the offset and
+  // guarantee enough blur so a shadow always softens into depth, never a clone.
+  // Definition/impact is preserved by each style's stroke, not by the offset.
+  private static readonly MAX_SHADOW_OFFSET = 3;
+
   public applyShadow(
     ctx: CanvasRenderingContext2D,
     style: { shadowColor?: string; shadowBlur?: number; shadowOffsetX?: number; shadowOffsetY?: number },
     scaleFactor: number
   ): void {
     if (style.shadowColor) {
+      const max = CaptionRenderer.MAX_SHADOW_OFFSET;
+      const rawOX = style.shadowOffsetX || 0;
+      const rawOY = style.shadowOffsetY || 0;
+      const rawBlur = style.shadowBlur || 0;
+      const maxRawOffset = Math.max(Math.abs(rawOX), Math.abs(rawOY));
+      // If the offset was large, force the blur up so the residual offset reads
+      // as a soft drop shadow instead of a hard ghost.
+      const softBlur = maxRawOffset > max ? Math.max(rawBlur, maxRawOffset * 1.5) : rawBlur;
+
       ctx.shadowColor = style.shadowColor;
-      ctx.shadowBlur = (style.shadowBlur || 0) * scaleFactor;
-      ctx.shadowOffsetX = (style.shadowOffsetX || 0) * scaleFactor;
-      ctx.shadowOffsetY = (style.shadowOffsetY || 0) * scaleFactor;
+      ctx.shadowBlur = softBlur * scaleFactor;
+      ctx.shadowOffsetX = Math.max(-max, Math.min(max, rawOX)) * scaleFactor;
+      ctx.shadowOffsetY = Math.max(-max, Math.min(max, rawOY)) * scaleFactor;
     }
   }
 
@@ -579,9 +593,6 @@ export class CaptionRenderer implements RenderHelpers {
     // TYPOGRAPH and MINIMAL_BAR use the specialised editorial renderer
     if (state.currentStyle === CaptionStyle.TYPOGRAPH || state.currentStyle === CaptionStyle.MINIMAL_BAR) {
       drawTypograph(this, ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime);
-    } else if (state.currentStyle === CaptionStyle.CAPCUT_MULTI_FLOAT || style.specialRenderer === 'MULTI_FLOAT') {
-      // CapCut Multi-Float Karaoke — 3-tier floating word engine
-      drawMultiFloatKaraoke(this, ctx, canvas, caption, scaleFactor, anchorX, anchorY, renderTime, allCaptions || []);
     } else if (style.typographyLayout) {
       // Typography Caption styles (Sprint 5) — multi-layer kinetic typography
       drawTypographyCaption(this, ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime);

@@ -57,7 +57,6 @@ interface StyleCustomizerProps {
 
 /* ─── category accent colors ─── */
 const CAT_COLORS: Record<string, string> = {
-  HYPER: '#a78bfa',
   VIRAL: '#f97316',
   TRENDING: '#3b82f6',
   BOLD: '#ef4444',
@@ -74,74 +73,16 @@ const CAT_COLORS: Record<string, string> = {
 };
 
 const CATEGORIES = [
-  'ALL', 'HYPER', 'TRENDING', 'BOLD', 'VIRAL', 'NEON',
+  'ALL', 'TRENDING', 'BOLD', 'VIRAL', 'NEON',
   'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC',
   'EMOJI', 'TYPOGRAPHIC', 'TYPOGRAPHY', 'CUSTOM'
 ];
 
-/* ─── hyper style preview descriptors ─── */
-const HYPER_PREVIEWS: Record<string, { label: string; bg: string; textStyle: React.CSSProperties }> = {
-  HYPER_GLITCH: {
-    label: 'GLITCH',
-    bg: 'linear-gradient(135deg, #0a0a0a 0%, #1a0010 100%)',
-    textStyle: {
-      color: '#fff',
-      textShadow: '2px 0 #ff0040, -2px 0 #00ffff',
-      fontWeight: 900,
-      letterSpacing: '0.05em',
-    },
-  },
-  HYPER_NEON_TUBE: {
-    label: 'NEON',
-    bg: 'linear-gradient(135deg, #050510 0%, #0a0a1a 100%)',
-    textStyle: {
-      color: '#ff6ec7',
-      textShadow: '0 0 6px #ff6ec7, 0 0 14px #ff6ec7, 0 0 30px #ff00aa',
-      fontWeight: 400,
-    },
-  },
-  HYPER_3D_EXTRUDE: {
-    label: '3D',
-    bg: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 100%)',
-    textStyle: {
-      color: '#fff',
-      textShadow: '2px 2px 0 #4f46e5, 4px 4px 0 #3730a3, 6px 6px 0 #1e1b4b',
-      fontWeight: 900,
-      letterSpacing: '0.04em',
-    },
-  },
-  HYPER_GLASS_FROST: {
-    label: 'GLASS',
-    bg: 'linear-gradient(135deg, #1a2a3a 0%, #0f1f2f 100%)',
-    textStyle: {
-      color: '#fff',
-      fontWeight: 700,
-      padding: '3px 10px',
-      borderRadius: 8,
-      background: 'rgba(255,255,255,0.12)',
-      border: '1px solid rgba(255,255,255,0.18)',
-    },
-  },
-  HYPER_GRADIENT_WAVE: {
-    label: 'WAVE',
-    bg: 'linear-gradient(135deg, #0a0a14 0%, #14001f 100%)',
-    textStyle: {
-      background: 'linear-gradient(90deg, #00f5ff, #ff00e0, #ffd700)',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      fontWeight: 800,
-    },
-  },
-};
-
 const NEW_KEYS = new Set([
-  'HYPER_GLITCH', 'HYPER_NEON_TUBE', 'HYPER_3D_EXTRUDE', 'HYPER_GLASS_FROST', 'HYPER_GRADIENT_WAVE',
   'BOLD_SHADOW', 'STORYTIME', 'CHROME_3D', 'AUTO_HIGHLIGHT',
   'GLITCH_RGB', 'RETRO_WAVE', 'GHOST_FADE', 'CINEMATIC_TITLES',
   'DUAL_COLOR', 'SHAKE_CAM', 'MINIMAL_BAR', 'LIQUID_CHROME',
-  'TYPO_SIZE_HIERARCHY', 'TYPO_MAGAZINE', 'TYPO_MIXED_FAMILY',
-  'TYPO_EDITORIAL_GOLD', 'TYPO_STREET_POSTER', 'TYPO_MINIMAL_STACK',
-  'TYPO_NEON_LAYERS', 'TYPO_CINEMATIC_TITLE',
+  'TYPO_SIZE_HIERARCHY',
 ]);
 
 /* ─── tiny helpers ─── */
@@ -309,8 +250,6 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                           : 'linear-gradient(135deg, #111 0%, #1e1e1e 100%)')
                         : 'linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 100%)';
 
-                    const hyperPreview = HYPER_PREVIEWS[key];
-
                     return (
                       <button
                         key={key}
@@ -325,7 +264,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                         <div style={{
                           aspectRatio: '2/1',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: hyperPreview ? hyperPreview.bg : gradBg,
+                          background: gradBg,
                           borderRadius: '10px 10px 0 0',
                           overflow: 'hidden',
                           position: 'relative',
@@ -338,29 +277,8 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                             }} />
                           )}
 
-                          {/* HyperStyle preview */}
-                          {hyperPreview ? (
-                            <div style={{
-                              display: 'flex', flexDirection: 'column',
-                              alignItems: 'center', justifyContent: 'center',
-                              gap: 4, position: 'relative', zIndex: 1,
-                            }}>
-                              <span style={{
-                                fontSize: 18, fontFamily: config.fontFamily,
-                                fontWeight: config.fontWeight || 900,
-                                ...hyperPreview.textStyle,
-                              }}>
-                                {hyperPreview.label}
-                              </span>
-                              <span style={{
-                                fontSize: 7, fontWeight: 700, letterSpacing: '0.1em',
-                                color: '#a78bfa', textTransform: 'uppercase',
-                                background: 'rgba(167,139,250,0.12)',
-                                padding: '1px 6px', borderRadius: 4,
-                                border: '1px solid rgba(167,139,250,0.3)',
-                              }}>CSS+GSAP</span>
-                            </div>
-                          ) : isTypography && config.typographyLayout ? (
+                          {/* Typography preview */}
+                          {isTypography && config.typographyLayout ? (
                             <div style={{
                               display: 'flex', flexDirection: 'column',
                               alignItems: 'center', justifyContent: 'center',

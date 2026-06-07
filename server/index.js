@@ -13,6 +13,7 @@ import { createServer } from 'http';
 import multer from 'multer';
 import thumbnailRouter from './routes/thumbnail.js';
 import motionRouter from './routes/motion.js';
+import imageAssetsRouter from './routes/imageAssets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -116,6 +117,8 @@ app.use('/api/thumbnail', thumbnailRouter);
 
 // ─── MOTION GRAPHICS ROUTES ────────────────────────────────────────────────────
 app.use('/api/motion', motionRouter);
+
+app.use('/api/imageAssets', imageAssetsRouter);
 
 // ─── BRAND KIT ROUTES ────────────────────────────────────────────────────────
 // GET latest brand kit

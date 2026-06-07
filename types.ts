@@ -151,23 +151,6 @@ export enum CaptionStyle {
 
   // ─── TYPOGRAPHY CAPTION (SPRINT 5) ───
   TYPO_SIZE_HIERARCHY = 'TYPO_SIZE_HIERARCHY',    // Size hierarchy stack (Image 1 pattern)
-  TYPO_MAGAZINE = 'TYPO_MAGAZINE',                // Magazine editorial style (Image 2 pattern)
-  TYPO_MIXED_FAMILY = 'TYPO_MIXED_FAMILY',        // Mixed font families (Image 3 pattern)
-  TYPO_EDITORIAL_GOLD = 'TYPO_EDITORIAL_GOLD',    // Gold accent editorial
-  TYPO_STREET_POSTER = 'TYPO_STREET_POSTER',      // Bold street art style
-  TYPO_MINIMAL_STACK = 'TYPO_MINIMAL_STACK',      // Clean minimal stacked
-  TYPO_NEON_LAYERS = 'TYPO_NEON_LAYERS',          // Neon glow layered
-  TYPO_CINEMATIC_TITLE = 'TYPO_CINEMATIC_TITLE',  // Movie title style
-
-  // ─── CAPCUT MULTI-FLOAT KARAOKE (Sprint 6) ───
-  CAPCUT_MULTI_FLOAT = 'CAPCUT_MULTI_FLOAT',      // 3-tier floating word karaoke engine
-
-  // ─── HYPERCAPTIONS — HTML/CSS/GSAP overlay renderer (Phase H) ───
-  HYPER_GLITCH = 'HYPER_GLITCH',           // RGB channel split + scan lines + jitter
-  HYPER_NEON_TUBE = 'HYPER_NEON_TUBE',     // Stacked text-shadow neon bloom + flicker
-  HYPER_3D_EXTRUDE = 'HYPER_3D_EXTRUDE',  // CSS perspective 3D rotation + depth extrusion
-  HYPER_GLASS_FROST = 'HYPER_GLASS_FROST', // backdrop-filter glassmorphism
-  HYPER_GRADIENT_WAVE = 'HYPER_GRADIENT_WAVE', // Animated iridescent gradient sweep
 }
 
 export type AnimationType =
@@ -346,8 +329,7 @@ export interface StyleConfig {
   | 'MATRIX_RAIN'     // Matrix rain → final text morph
   | 'BRUSH_STROKE'    // Animated paintbrush stroke behind text
   | 'MAGNETIC'        // Words scatter → spring snap home
-  | 'PILL_BADGE'      // Per-word pill/badge background
-  | 'MULTI_FLOAT';    // CapCut 3-tier floating word karaoke (Sprint 6)
+  | 'PILL_BADGE';     // Per-word pill/badge background
 
   // ─── New style config fields (Sprint 1-3) ───
   bubbleTailPosition?: 'BOTTOM_LEFT' | 'BOTTOM_CENTER' | 'BOTTOM_RIGHT';
@@ -361,9 +343,6 @@ export interface StyleConfig {
 
   // ─── Typography Caption (Sprint 5) ───
   typographyLayout?: TypographyLayout;  // If set, routes to drawTypographyCaption()
-
-  // ─── HyperCaption flag (Phase H) ───
-  isHyperStyle?: boolean;  // Routes to HTML overlay renderer instead of canvas
 }
 
 export interface ProcessingStats {
