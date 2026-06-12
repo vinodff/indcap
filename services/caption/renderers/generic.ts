@@ -2,6 +2,9 @@ import { Caption, StyleConfig, RendererState } from '../../../types';
 import { RenderHelpers } from '../types';
 import { isEmojiWord, emojiToNotoUrl } from '../emojiUtils';
 import { KEYWORD_ICON_MAP } from '../../iconWordMapper';
+import { speakerColor } from '../speakerColorMap';
+import { evaluateKeyframe } from '../keyframeEngine';
+import { drawSpecialCaptionEffect, drawSpecialWordEffect, hashCaptionId } from './specialEffects';
 
 const lerp = (start: number, end: number, t: number): number => start * (1 - t) + end * t;
 
@@ -104,9 +107,183 @@ export function drawGeneric(
 
   const COLOR_POP_PALETTE = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#FF6BFF', '#FF9F43', '#00D2D3', '#FF4757'];
   const colorBehavior = style.colorBehavior || 'WORD_POP';
+  const captionSeed = hashCaptionId(caption.id);
+
+  // ── Caption-level special effects own the entire draw (ticker, matrix) ──
+  if (drawSpecialCaptionEffect(
+    helpers, ctx, canvas, caption, style, scaleFactor,
+    anchorX, anchorY, renderTime, words, activeWordIndex, fontSize
+  )) {
+    return;
+  }
 
   const drawWord = (word: string, x: number, y: number, active: boolean, idx: number) => {
     ctx.save();
+
+    // --- Staggered Entry/Exit Animations ---
+    const entry = state.entryAnimation || 'NONE';
+    const exit = state.exitAnimation || 'NONE';
+    const hasEntryExit = entry !== 'NONE' || exit !== 'NONE';
+
+    let animOffsetX = 0;
+    let animOffsetY = 0;
+    let animScale = 1;
+    let animAlpha = 1;
+    let animRot = 0;
+
+    // Temporary storage for canvas filters to avoid clearing existing filters
+    let filterString = '';
+    let entryProgress = 1;
+    let exitProgress = 1;
+
+    if (hasEntryExit) {
+      const totalWords = words.length;
+      const staggerDelay = Math.min(0.06, (caption.endTime - caption.startTime) * 0.15 / totalWords);
+      const wordAnimDur = 0.22;
+      const elapsed = renderTime - caption.startTime;
+      const exitElapsed = caption.endTime - renderTime;
+
+      // Staggered Entry
+      if (entry !== 'NONE') {
+        const wordEntryDelay = idx * staggerDelay;
+        entryProgress = Math.max(0, Math.min(1, (elapsed - wordEntryDelay) / wordAnimDur));
+        const entryT = easeOutQuint(entryProgress);
+
+        if (entryProgress < 1) {
+          animAlpha = entryProgress;
+          switch (entry) {
+            case 'SLIDE_UP':
+              animOffsetY = lerp(50 * scaleFactor, 0, entryT);
+              break;
+            case 'SLIDE_DOWN':
+              animOffsetY = lerp(-50 * scaleFactor, 0, entryT);
+              break;
+            case 'FADE_IN':
+              break;
+            case 'ZOOM_IN':
+              animScale = lerp(0.3, 1, entryT);
+              break;
+            case 'BOUNCE':
+              animScale = backEaseOut(entryProgress);
+              animAlpha = Math.min(1, entryProgress * 3);
+              break;
+            case 'ROTATE_IN':
+              animRot = lerp(-Math.PI / 4, 0, entryT);
+              animScale = lerp(0.5, 1, entryT);
+              break;
+            case 'BLUR_IN':
+              break;
+            case 'GLITCH':
+              {
+                const noise1 = Math.sin(renderTime * 67.3 + idx * 1.9) * 0.5 + 0.5;
+                const noise2 = Math.sin(renderTime * 41.7 + idx * 2.3) * 0.5 + 0.5;
+                animOffsetX = (noise1 - 0.5) * 15 * scaleFactor * (1 - entryProgress);
+                animOffsetY = (noise2 - 0.5) * 8 * scaleFactor * (1 - entryProgress);
+                animAlpha = entryProgress < 0.3 ? (noise1 > 0.5 ? 1 : 0.3) : entryProgress;
+                animScale = lerp(1.15, 1, entryT);
+              }
+              break;
+            case 'ELASTIC':
+              animScale = elasticOut(entryProgress);
+              animAlpha = Math.min(1, entryProgress * 2.5);
+              break;
+            case 'KINETIC':
+              animScale = lerp(2.5, 1, entryT);
+              animAlpha = Math.min(1, entryProgress * 4);
+              animOffsetY = lerp(-15 * scaleFactor, 0, entryT);
+              break;
+            case 'SHATTER':
+              {
+                const seedX = Math.sin(idx * 79.3 + 1.1) * 200 * scaleFactor;
+                const seedY = Math.cos(idx * 43.7 + 2.3) * 200 * scaleFactor;
+                animOffsetX = lerp(seedX, 0, backEaseOut(entryProgress));
+                animOffsetY = lerp(seedY, 0, backEaseOut(entryProgress));
+                animAlpha = Math.min(1, entryProgress * 2.5);
+                animScale = lerp(0.3, 1, entryT);
+              }
+              break;
+            case 'SPOTLIGHT':
+              animScale = lerp(0.1, 1, backEaseOut(entryProgress));
+              animAlpha = Math.min(1, entryProgress * 5);
+              break;
+            case 'SPRING':
+              {
+                const springT = 1 - Math.exp(-6 * entryProgress) * (Math.cos(12 * entryProgress) + 0.5 * Math.sin(12 * entryProgress));
+                animScale = lerp(0.3, 1, springT);
+                animAlpha = Math.min(1, entryProgress * 3);
+              }
+              break;
+            case 'FLIP_Y':
+              {
+                const flipAngle = lerp(Math.PI / 2, 0, entryT);
+                animScale = Math.max(0.01, Math.cos(flipAngle));
+              }
+              break;
+          }
+
+          // Motion Blur
+          if (entry === 'SLIDE_UP' || entry === 'SLIDE_DOWN' || entry === 'SHATTER' || entry === 'KINETIC') {
+            const blurAmt = (1 - entryProgress) * 10 * scaleFactor;
+            if (blurAmt > 0.5) {
+              filterString = `blur(${blurAmt.toFixed(1)}px)`;
+            }
+          } else if (entry === 'BLUR_IN') {
+            const blurAmt = lerp(15, 0, entryT) * scaleFactor;
+            if (blurAmt > 0.5) {
+              filterString = `blur(${blurAmt.toFixed(1)}px)`;
+            }
+          }
+        }
+      }
+
+      // Staggered Exit
+      if (exit !== 'NONE') {
+        const wordExitDelay = (totalWords - 1 - idx) * staggerDelay;
+        exitProgress = Math.max(0, Math.min(1, (exitElapsed - wordExitDelay) / wordAnimDur));
+        const exitT = easeOutQuint(exitProgress);
+
+        if (exitProgress < 1) {
+          animAlpha = Math.min(animAlpha, exitProgress);
+          switch (exit) {
+            case 'SLIDE_DOWN':
+              animOffsetY += lerp(45 * scaleFactor, 0, exitT);
+              break;
+            case 'SLIDE_UP':
+              animOffsetY += lerp(-45 * scaleFactor, 0, exitT);
+              break;
+            case 'FADE_OUT':
+              break;
+            case 'ZOOM_OUT':
+              animScale *= lerp(0.3, 1, exitT);
+              break;
+            case 'DISSOLVE':
+              animAlpha = Math.min(animAlpha, exitProgress * exitProgress);
+              break;
+            case 'GLITCH_OUT':
+              {
+                const noiseX = Math.sin(renderTime * 83.1 + idx * 2.7) * 15 * scaleFactor * (1 - exitProgress);
+                animOffsetX += noiseX;
+              }
+              break;
+            case 'SHRINK':
+              animScale *= exitProgress;
+              break;
+            case 'FLIP':
+              {
+                const flipAngle = lerp(Math.PI / 2, 0, exitT);
+                animScale *= Math.max(0.01, Math.cos(flipAngle));
+              }
+              break;
+          }
+        }
+      }
+    }
+
+    // Set initial alpha
+    ctx.globalAlpha = animAlpha;
+    if (filterString) {
+      ctx.filter = filterString;
+    }
 
     // SHAKE_CAM
     if (active && style.specialRenderer === 'SHAKE_CAM') {
@@ -116,6 +293,30 @@ export function drawGeneric(
       ctx.translate(x + shakeX, y + shakeY);
       ctx.translate(-x, -y);
     }
+
+    // Word-level Keyframes overrides
+    const captionFrames = state.keyframeMap?.get(caption.id);
+    let kfScale = 1;
+    let kfOpacity = 1;
+    let kfOffsetX = 0;
+    let kfOffsetY = 0;
+    let kfRot = 0;
+    let kfColor: string | undefined = undefined;
+
+    if (captionFrames && captionFrames.length > 0) {
+      const wKf = evaluateKeyframe(captionFrames, renderTime, idx - emojiPrefixOffset);
+      if (wKf) {
+        if (wKf.scale !== undefined) kfScale = wKf.scale;
+        if (wKf.opacity !== undefined) kfOpacity = wKf.opacity;
+        if (wKf.offsetX !== undefined) kfOffsetX = wKf.offsetX;
+        if (wKf.offsetY !== undefined) kfOffsetY = wKf.offsetY;
+        if (wKf.rotation !== undefined) kfRot = wKf.rotation;
+        if (wKf.color !== undefined) kfColor = wKf.color;
+      }
+    }
+
+    // Apply keyframe opacity override
+    ctx.globalAlpha *= kfOpacity;
 
     // Kinetic Mode Physics
     let kOffsetX = 0, kOffsetY = 0, kScaleX = 1, kScaleY = 1, kRot = 0;
@@ -144,13 +345,50 @@ export function drawGeneric(
       ? Math.sin(renderTime * 4 + idx * 0.9) * 10 * scaleFactor
       : 0;
 
-    ctx.translate(x + kOffsetX, y + waveOffsetY + kOffsetY);
+    // Translate to target position including all offsets
+    ctx.translate(x + kOffsetX + animOffsetX + kfOffsetX, y + waveOffsetY + kOffsetY + animOffsetY + kfOffsetY);
     if (kRot !== 0) ctx.rotate(kRot);
+    if (animRot !== 0) ctx.rotate(animRot);
+    if (kfRot !== 0) ctx.rotate(kfRot);
     if (kScaleX !== 1 || kScaleY !== 1) ctx.scale(kScaleX, kScaleY);
+    if (animScale !== 1) ctx.scale(animScale, animScale);
+    if (kfScale !== 1) ctx.scale(kfScale, kfScale);
+
+    // Apply 3D skew if FLIP_Y entry animation is active
+    if (entry === 'FLIP_Y' && entryProgress < 1) {
+      const flipAngle = lerp(Math.PI / 2, 0, easeOutQuint(entryProgress));
+      const skewVal = Math.sin(flipAngle) * 0.18;
+      ctx.transform(1, skewVal, 0, 1, 0, 0);
+    } else if (exit === 'FLIP' && exitProgress < 1) {
+      const flipAngle = lerp(Math.PI / 2, 0, easeOutQuint(exitProgress));
+      const skewVal = Math.sin(flipAngle) * 0.18;
+      ctx.transform(1, -skewVal, 0, 1, 0, 0);
+    }
 
     if (style.rotationVariance && style.rotationVariance > 0) {
       const rot = (idx % 2 === 0 ? 1 : -1) * style.rotationVariance * (Math.PI / 180);
       ctx.rotate(rot);
+    }
+
+    // ── Per-letter special-effect engines (neon, 3D, magnetic, brush, split) ──
+    // The engine owns the full word draw; entry/exit transforms above still apply.
+    if (drawSpecialWordEffect(helpers, ctx, style, {
+      word, idx, active, wordProgress, fontSize, scaleFactor, renderTime, captionSeed,
+    })) {
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
+
+    // Chromatic aberration glitch effect for active word in GLITCH mode
+    if (active && entry === 'GLITCH' && entryProgress < 1) {
+      ctx.save();
+      ctx.globalAlpha = animAlpha * 0.6;
+      ctx.translate(3 * scaleFactor, 0);
+      helpers.drawMixedText(ctx, word, fontSize, 'rgba(255,0,0,0.75)', 0, 0, false);
+      ctx.translate(-6 * scaleFactor, 0);
+      helpers.drawMixedText(ctx, word, fontSize, 'rgba(0,255,255,0.75)', 0, 0, false);
+      ctx.restore();
     }
 
     // Animation
@@ -180,15 +418,15 @@ export function drawGeneric(
       const slam = Math.min(wordProgress / 0.2, 1);
       const stampScale = lerp(3.0, 1.0, easeOutQuint(slam));
       ctx.scale(stampScale, stampScale);
-      if (slam < 1) ctx.globalAlpha = slam;
+      if (slam < 1) ctx.globalAlpha = animAlpha * kfOpacity * slam;
     } else if (active && style.animation === 'BLUR_IN') {
       const blurAmt = lerp(18, 0, easeOutQuint(wordProgress));
       ctx.filter = `blur(${blurAmt}px)`;
-      ctx.globalAlpha = Math.min(1, wordProgress * 2.5);
+      ctx.globalAlpha = animAlpha * kfOpacity * Math.min(1, wordProgress * 2.5);
     } else if (active && style.animation === 'SPLIT_OPEN') {
       const t = easeOutQuint(wordProgress);
       ctx.scale(1, Math.max(0.01, t));
-      ctx.globalAlpha = Math.min(1, wordProgress * 4);
+      ctx.globalAlpha = animAlpha * kfOpacity * Math.min(1, wordProgress * 4);
     } else if (active && style.animation === 'FLIP_Y') {
       const t = easeOutQuint(wordProgress);
       const flip = Math.max(0.01, Math.abs(Math.cos((1 - t) * Math.PI / 2)));
@@ -200,16 +438,16 @@ export function drawGeneric(
       const scatterRot = (idx % 2 === 0 ? 0.5 : -0.5) * (1 - t);
       ctx.translate(scatterX, scatterY);
       ctx.rotate(scatterRot);
-      ctx.globalAlpha = t;
+      ctx.globalAlpha = animAlpha * kfOpacity * t;
     }
 
     const wHighlight = state.wordHighlight || 'NONE';
     if (wHighlight === 'SPOTLIGHT' && !active) {
-      ctx.globalAlpha = 0.3;
+      ctx.globalAlpha = animAlpha * kfOpacity * 0.3;
     }
 
     if (!active && style.opacityInactive !== undefined) {
-      ctx.globalAlpha = style.opacityInactive;
+      ctx.globalAlpha = animAlpha * kfOpacity * style.opacityInactive;
     }
 
     const wordTiming = caption.words?.[idx - emojiPrefixOffset];
@@ -227,7 +465,7 @@ export function drawGeneric(
           popScale = 1 + elasticOut(Math.min(wordProgress / 0.35, 1)) * 0.25;
         }
 
-        ctx.globalAlpha = entryT;
+        ctx.globalAlpha = animAlpha * kfOpacity * entryT;
         if (!active && style.opacityInactive !== undefined) {
           ctx.globalAlpha *= style.opacityInactive;
         } else if (!active) {
@@ -252,7 +490,7 @@ export function drawGeneric(
         ctx.drawImage(img, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
         ctx.restore();
         
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = animAlpha;
         ctx.restore();
         return;
       }
@@ -404,6 +642,15 @@ export function drawGeneric(
       }
     }
 
+    // Speaker color — tints inactive words by detected speaker (non-destructive: only
+    // applies when no other active color override is in effect, and only for SPEAKER_2+)
+    if (!active && caption.words) {
+      const timingWord = caption.words[idx - emojiPrefixOffset];
+      if (timingWord?.speakerLabel && timingWord.speakerLabel !== 'SPEAKER_1') {
+        fill = speakerColor(timingWord.speakerLabel);
+      }
+    }
+
     if (wHighlight === 'COLOR_POP') {
       fill = COLOR_POP_PALETTE[idx % COLOR_POP_PALETTE.length];
     }
@@ -411,6 +658,10 @@ export function drawGeneric(
       fill = '#FACC15';
     } else if (wHighlight === 'KARAOKE' && !active) {
       ctx.globalAlpha = Math.min(ctx.globalAlpha, 0.5);
+    }
+
+    if (kfColor !== undefined) {
+      fill = kfColor;
     }
 
     ctx.shadowBlur = 0;

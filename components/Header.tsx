@@ -40,7 +40,7 @@ const Header: React.FC<HeaderProps> = ({
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           <img
-            src="https://createrin.com/wp-content/uploads/2025/03/createrin_logo.jpg"
+            src="/logo.svg"
             alt="Createrin"
             className="h-7 w-auto rounded-md object-contain bg-white"
             onError={e => {

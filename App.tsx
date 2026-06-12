@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
-import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram } from 'lucide-react';
-import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, AspectRatio, ViralTypographyCaption } from './types';
+import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram, MessageSquare, Diamond, Sparkles } from 'lucide-react';
+import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, AspectRatio, ViralTypographyCaption, KeyframeMap } from './types';
 
 import { STYLES_CONFIG } from './constants';
 
@@ -42,6 +42,7 @@ import { extractAudioFromVideo } from './services/audioUtils';
 import { CaptionRenderer } from './services/captionRenderer';
 import { nextPlayheadTime } from './services/playbackClock';
 import { SoundEngine } from './services/soundEngine';
+import { SoundEffectsLibrary } from './services/audio/soundEffectsLibrary';
 import ProjectSpecs from './components/ProjectSpecs';
 import ProcessingChart from './components/ProcessingChart';
 import ApiKeySelector from './components/ApiKeySelector';
@@ -56,22 +57,61 @@ const SocialPublisher = lazy(() => import('./components/SocialPublisher'));
 const StyleCustomizer = lazy(() => import('./components/StyleCustomizer'));
 const AnimationPanel = lazy(() => import('./components/AnimationPanel'));
 const ExportPanel = lazy(() => import('./components/ExportPanel'));
+const ChatEditPanel = lazy(() => import('./components/ChatEditPanel').then(m => ({ default: m.ChatEditPanel })));
+const ClipPickerPanel = lazy(() => import('./components/ClipPickerPanel').then(m => ({ default: m.ClipPickerPanel })));
+const KeyframeEditor = lazy(() => import('./components/KeyframeEditor').then(m => ({ default: m.KeyframeEditor })));
 const KeyboardShortcutPanel = lazy(() => import('./components/KeyboardShortcutPanel'));
 const ThemePresetsPanel = lazy(() => import('./components/ThemePresetsPanel'));
 const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
 const AiThumbnailGenerator = lazy(() => import('./components/AiThumbnailGenerator'));
 const MotionGraphicsPanel = lazy(() => import('./components/MotionGraphicsPanel').then(module => ({ default: module.MotionGraphicsPanel })));
 const TypographyReelStudio = lazy(() => import('./components/TypographyReelStudio'));
+const StickersPanel = lazy(() => import('./components/StickersPanel').then(m => ({ default: m.StickersPanel })));
 import { ThemePreset, AIStyleSuggestion, THEME_PRESETS } from './services/aiStyleService';
 import { TemplateManager, CaptionTemplate } from './services/TemplateManager';
 import { applyAutoEmojis, removeAutoEmojis } from './services/emojiAutoMatcher';
 import { useUndoableState } from './hooks/useUndoableState';
 import { mapIconWords, removeIconWords } from './services/iconWordMapper';
 import { applySmartBrevity } from './services/smartBrevity';
+import { removeFillerWords } from './services/fillerWordRemover';
+import { annotateWordEmphasis } from './services/caption/zoomEffect';
+import { annotateSpeakers } from './services/caption/speakerColorMap';
 import { initFaceDetector, detectSafeZone } from './services/autoFraming';
+import { analyzeBeats } from './services/typographyReel/beatAnalyzer';
+import type { BeatGrid } from './services/typographyReel/types';
 
+// ─── Sentiment heuristic — assigns B-roll emotion to every caption ────────────
+// Runs on every processedCaptions update so B-roll always has a valid sentiment.
+const ENERGETIC_WORDS = new Set([
+  'run','fight','power','win','victory','strong','fast','speed','energy','hustle',
+  'grind','fire','explosive','maximum','boost','destroy','dominate','crush','action',
+  'go','push','beast','epic','insane','crazy','massive','huge','unbelievable','shock',
+]);
+const JOYFUL_WORDS = new Set([
+  'happy','love','great','awesome','fun','laugh','smile','celebrate','best','amazing',
+  'wonderful','joy','excited','blessed','beautiful','perfect','fantastic','enjoy',
+  'incredible','brilliant','super','yes','yes!','wow','haha','lol','yay',
+]);
+const SERIOUS_WORDS = new Set([
+  'problem','issue','serious','important','need','must','critical','warning','danger',
+  'risk','fail','mistake','wrong','never','stop','attention','urgent','key','truth',
+  'reality','fact','real','careful','think','know','understand','reason','because',
+]);
 
-
+function assignSentiment(text: string): Caption['sentiment'] {
+  const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/);
+  let e = 0, j = 0, s = 0;
+  for (const w of words) {
+    if (ENERGETIC_WORDS.has(w)) e++;
+    else if (JOYFUL_WORDS.has(w)) j++;
+    else if (SERIOUS_WORDS.has(w)) s++;
+  }
+  const max = Math.max(e, j, s);
+  if (max === 0) return 'calm';
+  if (max === e) return 'energetic';
+  if (max === j) return 'joyful';
+  return 'serious';
+}
 
 const App: React.FC = () => {
   // API Key State
@@ -107,7 +147,7 @@ const App: React.FC = () => {
 
   // UI Tabs & Modals
   // UI Tabs & Modals
-  const [activeTab, setActiveTab] = useState<'PRESETS' | 'DESIGN' | 'TRANSCRIPT' | 'ANIMATE'>('PRESETS');
+  const [activeTab, setActiveTab] = useState<'PRESETS' | 'DESIGN' | 'TRANSCRIPT' | 'ANIMATE' | 'STICKERS'>('PRESETS');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [isSeoModalOpen, setIsSeoModalOpen] = useState(false);
   const [isPublisherOpen, setIsPublisherOpen] = useState(false);
@@ -116,10 +156,10 @@ const App: React.FC = () => {
 
   // Feature Toggles
   const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true);
-  const [autoMotionEnabled, setAutoMotionEnabled] = useState(false);
-  const [autoSfxEnabled, setAutoSfxEnabled] = useState(false);
-  const [smartCompressionEnabled, setSmartCompressionEnabled] = useState(false);
-  const [iconCaptionsEnabled, setIconCaptionsEnabled] = useState(false);
+  const [autoMotionEnabled, setAutoMotionEnabled] = useState(true);
+  const [autoSfxEnabled, setAutoSfxEnabled] = useState(true);
+  const [smartCompressionEnabled, setSmartCompressionEnabled] = useState(true);
+  const [iconCaptionsEnabled, setIconCaptionsEnabled] = useState(true);
   const [autoFrameSafeY, setAutoFrameSafeY] = useState<{ min: number; max: number } | null>(null);
 
   const processedCaptions = useMemo(() => {
@@ -130,6 +170,9 @@ const App: React.FC = () => {
     if (iconCaptionsEnabled) {
       result = mapIconWords(result);
     }
+    // Assign sentiment to every caption that doesn't already have one.
+    // Skip brollDisabled captions — user explicitly removed B-roll for those.
+    result = result.map(c => (c.sentiment || c.brollDisabled) ? c : { ...c, sentiment: assignSentiment(c.text) });
     return result;
   }, [captions, smartCompressionEnabled, iconCaptionsEnabled]);
 
@@ -160,13 +203,34 @@ const App: React.FC = () => {
   const [uppercase, setUppercase] = useState(false);
 
   // Phase 3: Animation Engine State
-  const [entryAnimation, setEntryAnimation] = useState<EntryAnimation>('NONE');
-  const [exitAnimation, setExitAnimation] = useState<ExitAnimation>('NONE');
-  const [wordHighlight, setWordHighlight] = useState<WordHighlightMode>('NONE');
+  const [entryAnimation, setEntryAnimation] = useState<EntryAnimation>('SLIDE_UP');
+  const [exitAnimation, setExitAnimation] = useState<ExitAnimation>('FADE_OUT');
+  const [wordHighlight, setWordHighlight] = useState<WordHighlightMode>('COLOR_POP');
   const [animationSpeed, setAnimationSpeed] = useState<'FAST' | 'MEDIUM' | 'SLOW'>('MEDIUM');
   const [kineticMode, setKineticMode] = useState<KineticMode>('NONE');
 
+  const [keyframeMap, setKeyframeMap] = useState<KeyframeMap>(new Map());
+  const [beatGrid, setBeatGrid] = useState<BeatGrid | null>(null);
+
+  // Stickers State & Handlers
+  const [stickers, setStickers] = useState<StickerItem[]>([]);
+
+  const handleAddSticker = useCallback((sticker: StickerItem) => {
+    setStickers(prev => [...prev, sticker]);
+  }, []);
+
+  const handleUpdateSticker = useCallback((id: string, updates: Partial<StickerItem>) => {
+    setStickers(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
+  const handleRemoveSticker = useCallback((id: string) => {
+    setStickers(prev => prev.filter(s => s.id !== id));
+  }, []);
+
   const [isExportPanelOpen, setIsExportPanelOpen] = useState(false);
+  const [isChatEditOpen, setIsChatEditOpen] = useState(false);
+  const [isClipPickerOpen, setIsClipPickerOpen] = useState(false);
+  const [isKeyframeEditorOpen, setIsKeyframeEditorOpen] = useState(false);
   const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
   const [isShortcutPanelOpen, setIsShortcutPanelOpen] = useState(false);
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<Record<string, string>>({});
@@ -235,6 +299,10 @@ const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const soundEngineRef = useRef(new SoundEngine());
+  const soundLibraryRef = useRef<SoundEffectsLibrary | null>(null);
+  if (!soundLibraryRef.current) {
+    soundLibraryRef.current = new SoundEffectsLibrary(soundEngineRef.current);
+  }
   const captionRendererRef = useRef(new CaptionRenderer());
   const videoObjectUrlRef = useRef<string | null>(null);
 
@@ -483,8 +551,14 @@ const App: React.FC = () => {
       );
 
       let finalCaps = genCaps;
+
+      // Strip filler words, annotate per-word emphasis + speaker turns
+      finalCaps = removeFillerWords(finalCaps);
+      finalCaps = annotateWordEmphasis(finalCaps);
+      finalCaps = annotateSpeakers(finalCaps);
+
       if (currentStyle === CaptionStyle.EMOJI_AUTO) {
-        finalCaps = applyAutoEmojis(genCaps);
+        finalCaps = applyAutoEmojis(finalCaps);
       }
 
       resetCaptionsHistory(finalCaps);
@@ -501,6 +575,17 @@ const App: React.FC = () => {
       if (language) setDetectedLanguage(language);
       setStatus('READY');
       soundEngineRef.current.init();
+
+      // Beat analysis — runs async in background, wires into SFX library when done.
+      // Guard: skip for very large files (>50MB) to avoid OOM on decode.
+      if (videoFile && videoFile.size < 50 * 1024 * 1024) {
+        analyzeBeats(videoFile)
+          .then(grid => {
+            soundLibraryRef.current?.setBeatGrid(grid);
+            setBeatGrid(grid);
+          })
+          .catch(() => { /* beat analysis is optional */ });
+      }
     } catch (error) {
       console.error("Processing Error:", error);
       setStatus('IDLE');
@@ -630,15 +715,20 @@ const App: React.FC = () => {
       iconCaptionsEnabled,
       autoFramingEnabled: autoAdjustEnabled,
       autoFrameSafeY: autoFrameSafeY ?? undefined,
+      keyframeMap,
+      stickers,
     }, {
       onNewCaption: (caption) => {
-        soundEngineRef.current.playWhoosh();
-        if ((caption.customScale ?? 0) > 1.2) {
-          setTimeout(() => soundEngineRef.current.playPop(), 100);
-        }
-      }
+        soundLibraryRef.current?.onCaptionChange(
+          currentTimeRef.current,
+          (caption.customScale ?? 0) > 1.2
+        );
+      },
+      onEmphasizedWord: () => {
+        soundLibraryRef.current?.onEmphasizedWord(85, currentTimeRef.current);
+      },
     });
-  }, [processedCaptions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio, iconCaptionsEnabled, autoFrameSafeY]);
+  }, [processedCaptions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio, iconCaptionsEnabled, autoFrameSafeY, stickers, keyframeMap]);
 
   // --- ANIMATION LOOP: only run when playing or exporting ---
   useEffect(() => {
@@ -1067,9 +1157,49 @@ const App: React.FC = () => {
             onClose={() => setIsExportPanelOpen(false)}
             isExporting={status === 'EXPORTING'}
             exportProgress={exportProgress}
+            captions={processedCaptions}
           />
         </Suspense>
       )}
+      {isChatEditOpen && (
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50">
+          <Suspense fallback={null}>
+            <ChatEditPanel
+              captions={captions}
+              currentTime={videoRef.current?.currentTime ?? 0}
+              onCaptionsChange={newCaps => setCaptions(() => newCaps)}
+              onClose={() => setIsChatEditOpen(false)}
+            />
+          </Suspense>
+        </div>
+      )}
+
+      {isClipPickerOpen && (
+        <div className="fixed bottom-28 right-4 z-50">
+          <Suspense fallback={null}>
+            <ClipPickerPanel
+              captions={captions}
+              onSeek={handleSeek}
+              onClose={() => setIsClipPickerOpen(false)}
+            />
+          </Suspense>
+        </div>
+      )}
+
+      {isKeyframeEditorOpen && (
+        <div className="fixed bottom-28 left-4 z-50">
+          <Suspense fallback={null}>
+            <KeyframeEditor
+              captions={captions}
+              keyframeMap={keyframeMap}
+              onKeyframeMapChange={setKeyframeMap}
+              currentTime={currentTimeRef.current}
+              onClose={() => setIsKeyframeEditorOpen(false)}
+            />
+          </Suspense>
+        </div>
+      )}
+
       {isShortcutPanelOpen && (
         <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"><Loader2 className="animate-spin text-blue-500" /></div>}>
           <KeyboardShortcutPanel
@@ -1089,7 +1219,7 @@ const App: React.FC = () => {
             </button>
           )}
           <img
-            src="https://createrin.com/wp-content/uploads/2025/03/createrin_logo.jpg"
+            src="/logo.svg"
             alt="Createrin"
             className="h-7 w-auto rounded object-contain bg-white"
             onError={(e) => { e.currentTarget.style.display = 'none'; const f = document.getElementById('logo-fallback'); if (f) f.classList.remove('hidden'); }}
@@ -1152,6 +1282,30 @@ const App: React.FC = () => {
                 <UploadCloud size={13} /> Publish
               </button>
               */}
+              <button
+                onClick={() => setIsClipPickerOpen(v => !v)}
+                className={`cc-btn ${isClipPickerOpen ? 'cc-btn-primary' : 'cc-btn-ghost'}`}
+                title="Best Clips Picker"
+              >
+                <Scissors size={14} />
+                <span className="hidden sm:inline">Clips</span>
+              </button>
+              <button
+                onClick={() => setIsChatEditOpen(v => !v)}
+                className={`cc-btn ${isChatEditOpen ? 'cc-btn-primary' : 'cc-btn-ghost'}`}
+                title="Chat Caption Editor"
+              >
+                <MessageSquare size={14} />
+                <span className="hidden sm:inline">Edit</span>
+              </button>
+              <button
+                onClick={() => setIsKeyframeEditorOpen(v => !v)}
+                className={`cc-btn ${isKeyframeEditorOpen ? 'cc-btn-primary' : 'cc-btn-ghost'}`}
+                title="Keyframe Editor"
+              >
+                <Diamond size={13} />
+                <span className="hidden sm:inline">Keys</span>
+              </button>
               <button onClick={() => setIsExportPanelOpen(true)} className="cc-btn cc-btn-white">
                 <Download size={14} /> <span className="hidden sm:inline">Export</span>
               </button>
@@ -1276,7 +1430,50 @@ const App: React.FC = () => {
                   horizontalPos={horizontalPos}
                   isSandboxMode={isSandboxMode}
                   onSandboxModeToggle={setIsSandboxMode}
+                  stickers={stickers}
+                  onUpdateSticker={handleUpdateSticker}
+                  isStickersTabActive={activeTab === 'STICKERS'}
                 />
+
+                {/* FX Quick-Toggle Bar — always visible after generation */}
+                {videoSrc && status === 'READY' && (
+                  <div className="absolute bottom-3 left-3 z-40 flex items-center gap-1 backdrop-blur-md bg-black/70 border border-white/10 rounded-xl px-2 py-1.5 shadow-xl">
+                    {/* B-Roll */}
+                    <button
+                      onClick={() => setAutoMotionEnabled(v => !v)}
+                      title={autoMotionEnabled ? 'B-Roll ON — click to disable' : 'B-Roll OFF — click to enable'}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoMotionEnabled ? 'bg-violet-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                    >
+                      <Video size={11} /> B-Roll
+                    </button>
+                    {/* SFX */}
+                    <button
+                      onClick={() => setAutoSfxEnabled(v => !v)}
+                      title={autoSfxEnabled ? 'SFX ON — click to disable' : 'SFX OFF — click to enable'}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoSfxEnabled ? 'bg-green-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                    >
+                      <Music size={11} /> SFX
+                    </button>
+                    {/* Word Highlight */}
+                    <button
+                      onClick={() => setWordHighlight(w => w === 'NONE' ? 'COLOR_POP' : 'NONE')}
+                      title={wordHighlight !== 'NONE' ? `Word Highlight: ${wordHighlight} — click to disable` : 'Word Highlight OFF — click to enable'}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${wordHighlight !== 'NONE' ? 'bg-pink-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                    >
+                      <Sparkles size={11} /> Highlight
+                    </button>
+                    {/* Entry Animation */}
+                    <button
+                      onClick={() => setEntryAnimation(a => a === 'NONE' ? 'SLIDE_UP' : 'NONE')}
+                      title={entryAnimation !== 'NONE' ? `Entry: ${entryAnimation} — click to disable` : 'Entry animation OFF — click to enable'}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${entryAnimation !== 'NONE' ? 'bg-blue-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                    >
+                      <Zap size={11} /> Anim
+                    </button>
+                    <div className="w-px h-3 bg-white/10 mx-0.5" />
+                    <span className="text-[9px] text-white/20 uppercase tracking-widest">FX</span>
+                  </div>
+                )}
 
                 {/* Safe Zones Toggle */}
                 {videoSrc && status === 'READY' && (
@@ -1320,7 +1517,13 @@ const App: React.FC = () => {
                 onDuplicateCaption={duplicateCaption}
                 selectedCaptionId={selectedCaptionId}
                 onSelectCaption={setSelectedCaptionId}
-
+                keyframeMap={keyframeMap}
+                onKeyframeMapChange={setKeyframeMap}
+                beatGrid={beatGrid ?? undefined}
+                autoMotionEnabled={autoMotionEnabled}
+                autoSfxEnabled={autoSfxEnabled}
+                entryAnimation={entryAnimation}
+                wordHighlight={wordHighlight}
               />
             )}
           </div>
@@ -1422,6 +1625,7 @@ const App: React.FC = () => {
                       { id: 'PRESETS', label: 'Templates' },
                       { id: 'DESIGN', label: 'Customize' },
                       { id: 'ANIMATE', label: 'Animate' },
+                      { id: 'STICKERS', label: 'Stickers' },
                       { id: 'TRANSCRIPT', label: 'Transcript' },
                     ].map(tab => (
                       <button
@@ -1451,7 +1655,22 @@ const App: React.FC = () => {
                       setAnimationSpeed={setAnimationSpeed}
                       kineticMode={kineticMode}
                       setKineticMode={setKineticMode}
+                      autoMotionEnabled={autoMotionEnabled}
+                      setAutoMotionEnabled={setAutoMotionEnabled}
+                      autoSfxEnabled={autoSfxEnabled}
+                      setAutoSfxEnabled={setAutoSfxEnabled}
                     />
+                    </Suspense>
+                  ) : activeTab === 'STICKERS' ? (
+                    <Suspense fallback={<div className="flex-1 flex items-center justify-center p-6"><Loader2 className="animate-spin text-blue-500" /></div>}>
+                      <StickersPanel
+                        stickers={stickers}
+                        onAddSticker={handleAddSticker}
+                        onUpdateSticker={handleUpdateSticker}
+                        onRemoveSticker={handleRemoveSticker}
+                        currentTime={currentTimeRef.current}
+                        videoDuration={videoRef.current?.duration || 0}
+                      />
                     </Suspense>
                   ) : activeTab === 'PRESETS' ? (
                     <Suspense fallback={<div className="flex-1 flex items-center justify-center p-6"><Loader2 className="animate-spin text-blue-500" /></div>}>
