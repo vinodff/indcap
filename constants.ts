@@ -521,6 +521,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#FF6B00', shadowBlur: 14, shadowOffsetY: 10,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['TIKTOK', 'SHORTS'],
   },
   // Hyper-Impact Bold (Hormozi Gradient) — white italic words with a thick black
   // stroke + deep shadow; the emphasized word pops in a vibrant orange→yellow
@@ -534,6 +535,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 12, shadowOffsetY: 8,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['TIKTOK', 'SHORTS'],
   },
   [CaptionStyle.BEAST_MODE]: {
     name: 'Mr. Beast', category: 'BOLD',
@@ -543,6 +545,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#FF2200', shadowBlur: 0, shadowOffsetY: 12,
     animation: 'SCALE_UP', displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['YOUTUBE', 'SHORTS'],
   },
   [CaptionStyle.VIRAL_SLAM]: {
     name: 'Viral Slam', category: 'BOLD',
@@ -552,6 +555,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#FF4500', shadowBlur: 30, shadowOffsetY: 6,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['TIKTOK'],
   },
 
   // ─── WORD-BY-WORD ───
@@ -563,6 +567,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#FF8C00', shadowBlur: 20, shadowOffsetY: 5,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['TIKTOK', 'INSTAGRAM', 'SHORTS'],
   },
   [CaptionStyle.KARAOKE_FLOW]: {
     name: 'Karaoke Flow', category: 'NEON',
@@ -629,6 +634,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#EC4899', shadowBlur: 50,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'FIXED',
+    platforms: ['INSTAGRAM'],
   },
 
   // ─── HIGHLIGHT ───
@@ -682,6 +688,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     backgroundPadding: 14, backgroundBorderRadius: 12,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['TIKTOK', 'SHORTS'],
   },
 
   // ─── ANIMATED EMOJI ───
@@ -748,11 +755,10 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     textColor: '#FFFFFF', activeTextColor: '#FFE000',
     strokeColor: '#000000', strokeWidth: 8,
     shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 16, shadowOffsetY: 5,
-    // Vibrant semi-transparent background pill for legibility
     backgroundColor: 'rgba(15, 15, 30, 0.72)', backgroundPadding: 22, backgroundBorderRadius: 28,
     animation: 'POP', uppercase: true, displayMode: 'BLOCK',
     colorBehavior: 'CONTEXTUAL',
-    // The emoji Auto Matcher handles dynamic emojis per caption sentence, so no static prefix/suffix here.
+    platforms: ['TIKTOK', 'INSTAGRAM'],
   },
 
   // ─── TYPOGRAPHIC ───
@@ -780,6 +786,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 5, shadowOffsetY: 14,
     animation: 'POP', uppercase: true, displayMode: 'BLOCK',
     colorBehavior: 'FIXED',
+    platforms: ['TIKTOK', 'INSTAGRAM'],
   },
 
   // Storytime — clean, podcast-style comfort captions used by story-driven creators
@@ -792,6 +799,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     backgroundColor: 'rgba(10, 10, 10, 0.72)', backgroundPadding: 22, backgroundBorderRadius: 40,
     animation: 'NONE', uppercase: false, displayMode: 'BLOCK',
     colorBehavior: 'FIXED',
+    platforms: ['INSTAGRAM', 'YOUTUBE', 'LINKEDIN'],
   },
 
   // 3D Chrome — metallic extrusion effect, dominant on Shorts gaming / tech channels
@@ -806,6 +814,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     activeTextColor: '#FFD700',
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
+    platforms: ['SHORTS', 'YOUTUBE'],
   },
 
   // Auto Highlight — CapCut's biggest viral feature: each active word gets a colored highlight box
@@ -821,6 +830,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     backgroundPadding: 18, backgroundBorderRadius: 10,
     animation: 'POP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'CONTEXTUAL',
+    platforms: ['TIKTOK', 'INSTAGRAM'],
   },
 
   // Glitch RGB — cyberpunk neon + RGB split. Uses GLITCH entry animation + cyan/magenta gradient.
@@ -868,6 +878,7 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
   // The "film opening titles" look used by documentary and storytelling creators.
   [CaptionStyle.CINEMATIC_TITLES]: {
     name: 'Cinematic Titles', category: 'MINIMAL',
+    platforms: ['YOUTUBE', 'LINKEDIN'],
     fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, fontWeight: 400,
     textColor: '#FFFFFF',
     strokeColor: '#000000', strokeWidth: 0,

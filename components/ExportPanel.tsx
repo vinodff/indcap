@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Download, Film, Zap, Settings2, X, Loader2, Smartphone } from 'lucide-react';
-import { ExportOptions } from '../types';
+import { Download, Film, Zap, Settings2, X, Loader2, Smartphone, FileText } from 'lucide-react';
+import { ExportOptions, Caption } from '../types';
 import { SOCIAL_EXPORT_PRESETS, SocialExportPreset } from '../services/GradientTextPresets';
+import { downloadSrt } from '../services/exporters/srtExporter';
+import { downloadVtt } from '../services/exporters/vttExporter';
 
 interface ExportPanelProps {
     onExport: (options: ExportOptions) => void;
     onClose: () => void;
     isExporting: boolean;
     exportProgress: number;
+    captions?: Caption[];
 }
 
 const ExportPanel: React.FC<ExportPanelProps> = ({
@@ -15,6 +18,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({
     onClose,
     isExporting,
     exportProgress,
+    captions = [],
 }) => {
     const [options, setOptions] = useState<ExportOptions>({
         resolution: '1080p',
@@ -195,6 +199,34 @@ const ExportPanel: React.FC<ExportPanelProps> = ({
                         </section>
                     </div>
                 </div>
+
+                {/* Subtitle Export */}
+                {captions.length > 0 && (
+                  <section className="space-y-3 px-6 py-4 border-t border-white/5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <FileText size={12} className="text-green-400" /> Subtitle Files
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => downloadSrt(captions)}
+                        className="flex items-center justify-center gap-2 p-3 rounded-xl border border-white/10 bg-black/40 hover:bg-white/5 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-all"
+                      >
+                        <Download size={13} className="text-green-400" />
+                        SRT
+                      </button>
+                      <button
+                        onClick={() => downloadVtt(captions)}
+                        className="flex items-center justify-center gap-2 p-3 rounded-xl border border-white/10 bg-black/40 hover:bg-white/5 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-all"
+                      >
+                        <Download size={13} className="text-blue-400" />
+                        VTT
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-gray-600 tracking-wide">
+                      SRT/VTT files work with YouTube, Vimeo, and all major players.
+                    </p>
+                  </section>
+                )}
 
                 {/* Export Button */}
                 <div className="p-6 pt-2 flex-shrink-0 relative z-10 border-t border-white/5 mt-2 bg-[#0a0a0add]">

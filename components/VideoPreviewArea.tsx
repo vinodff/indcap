@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Video, Zap, Play, Pause, Loader2, Smartphone, ThumbsUp, ThumbsDown, MessageSquare, Share2, Repeat, Heart, Send, Bookmark, MoreHorizontal, MoreVertical, Music, User, Camera, MessageCircle, Forward, Search, Type } from 'lucide-react';
-import { ProcessingStatus, Caption, AspectRatio, CaptionStyle, StyleConfig } from '../types';
+import { ProcessingStatus, Caption, AspectRatio, CaptionStyle, StyleConfig, StickerItem } from '../types';
 
 // ─── YouTube Shorts Platform SVGs ────────────────────────────────────────────
 const YTLogo = () => (
@@ -104,6 +104,11 @@ interface VideoPreviewAreaProps {
   horizontalPos?: number;
   isSandboxMode?: boolean;
   onSandboxModeToggle?: (val: boolean) => void;
+
+  // Stickers integration
+  stickers?: StickerItem[];
+  onUpdateSticker?: (id: string, updates: Partial<StickerItem>) => void;
+  isStickersTabActive?: boolean;
 }
 
 // Map aspect ratio enum to CSS class
@@ -144,9 +149,13 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   horizontalPos = 50,
   isSandboxMode = false,
   onSandboxModeToggle,
+  stickers = [],
+  onUpdateSticker,
+  isStickersTabActive = false,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedCaptionId, setDraggedCaptionId] = useState<string | null>(null);
+  const [draggedStickerId, setDraggedStickerId] = useState<string | null>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
 
   // ── File drop zone handlers ──────────────────────────────────────────────
@@ -178,13 +187,41 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
 
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!videoRef.current) {
+    if (!videoRef.current || !canvasRef.current) {
       togglePlay();
       return;
     }
     const time = videoRef.current.currentTime;
-    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const clickX = cx / rect.width;
+    const clickY = cy / rect.height;
 
+    // 1. If stickers tab is active, try selecting/dragging a sticker first
+    if (isStickersTabActive && stickers.length > 0) {
+      const activeStickers = stickers.filter(s => time >= s.startTime && time <= s.endTime);
+      let foundSticker: StickerItem | null = null;
+      let minDistance = 0.15; // Normalized click threshold radius
+
+      for (const s of activeStickers) {
+        const dist = Math.hypot(clickX - s.x, clickY - s.y);
+        if (dist < minDistance) {
+          minDistance = dist;
+          foundSticker = s;
+        }
+      }
+
+      if (foundSticker && onUpdateSticker) {
+        setIsDragging(true);
+        setDraggedStickerId(foundSticker.id);
+        dragStartPos.current = { x: e.clientX, y: e.clientY };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
+    // 2. Fallback to dragging captions
     const activeCaption = captions.find(c => time >= c.startTime && time <= c.endTime);
 
     if (activeCaption && updateCaption) {
@@ -212,7 +249,9 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
     normX = Math.max(0.05, Math.min(normX, 0.95));
     normY = Math.max(0.05, Math.min(normY, 0.95));
 
-    if (draggedCaptionId && updateCaption) {
+    if (draggedStickerId && onUpdateSticker) {
+      onUpdateSticker(draggedStickerId, { x: normX, y: normY });
+    } else if (draggedCaptionId && updateCaption) {
       updateCaption(draggedCaptionId, { customX: normX, customY: normY });
     }
   };
@@ -221,6 +260,7 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
     if (isDragging) {
       setIsDragging(false);
       setDraggedCaptionId(null);
+      setDraggedStickerId(null);
       e.currentTarget.releasePointerCapture(e.pointerId);
       
       // If mouse moved very little, treat as click to toggle play
@@ -668,6 +708,16 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
               <p className="text-gray-400 text-xs font-medium max-w-[200px]">
                 {status === 'EXPORTING' ? `Burning captions: ${exportProgress}%` : 'Analyzing speech patterns and generating viral captions.'}
               </p>
+              {/* Escape hatch — a stalled network request must never trap the user */}
+              {(status === 'UPLOADING' || status === 'TRANSCRIBING') && (
+                <button
+                  type="button"
+                  onClick={() => setStatus('IDLE')}
+                  className="mt-5 px-4 py-2 text-xs font-bold text-gray-300 border border-gray-600 rounded-lg hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           )}
 

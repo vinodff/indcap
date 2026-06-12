@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Type, Palette, Square, MousePointer2, AlignLeft, AlignCenter, AlignRight,
   ToggleLeft, ToggleRight, Play, ChevronRight
 } from 'lucide-react';
 import TranscriptEditor from './TranscriptEditor';
 import { STYLES_CONFIG } from '../constants';
-import { CaptionStyle, Caption } from '../types';
+import { CaptionStyle, Caption, Platform } from '../types';
 import { GRADIENT_PRESETS } from '../services/GradientTextPresets';
 
 interface StyleCustomizerProps {
@@ -78,6 +78,15 @@ const CATEGORIES = [
   'EMOJI', 'TYPOGRAPHIC', 'TYPOGRAPHY', 'CUSTOM'
 ];
 
+const PLATFORMS: { key: Platform | 'ALL'; label: string; icon: string }[] = [
+  { key: 'ALL',       label: 'All',       icon: '◉' },
+  { key: 'TIKTOK',    label: 'TikTok',    icon: '♪' },
+  { key: 'INSTAGRAM', label: 'Instagram', icon: '◈' },
+  { key: 'YOUTUBE',   label: 'YouTube',   icon: '▶' },
+  { key: 'SHORTS',    label: 'Shorts',    icon: '⟳' },
+  { key: 'LINKEDIN',  label: 'LinkedIn',  icon: 'in' },
+];
+
 const NEW_KEYS = new Set([
   'BOLD_SHADOW', 'STORYTIME', 'CHROME_3D', 'AUTO_HIGHLIGHT',
   'GLITCH_RGB', 'RETRO_WAVE', 'GHOST_FADE', 'CINEMATIC_TITLES',
@@ -131,6 +140,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
   smartCompressionEnabled = false, setSmartCompressionEnabled,
   iconCaptionsEnabled = false, setIconCaptionsEnabled,
 }) => {
+  const [filterPlatform, setFilterPlatform] = useState<Platform | 'ALL'>('ALL');
 
   /* ─── TAB BAR ─── */
   const TabBar = () => (
@@ -172,6 +182,12 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
       c !== 'ALL' && (filterCategory === 'ALL' || filterCategory === c)
     );
 
+    const platformMatch = (config: typeof STYLES_CONFIG[keyof typeof STYLES_CONFIG]) => {
+      if (filterPlatform === 'ALL') return true;
+      if (!config.platforms || config.platforms.length === 0) return true; // untagged = universal
+      return config.platforms.includes(filterPlatform as Platform);
+    };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <TabBar />
@@ -207,10 +223,32 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
           ))}
         </div>
 
+        {/* Platform filter pills */}
+        <div
+          className="scrollbar-hide"
+          style={{
+            display: 'flex', gap: 5, padding: '0 14px 8px',
+            overflowX: 'auto', flexShrink: 0,
+            borderBottom: '1px solid var(--cc-border)',
+          }}
+        >
+          {PLATFORMS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setFilterPlatform(p.key)}
+              className={`cc-pill ${filterPlatform === p.key ? 'active' : ''}`}
+              style={{ fontSize: 9, gap: 3 }}
+            >
+              <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{p.icon}</span>
+              {p.label}
+            </button>
+          ))}
+        </div>
+
         {/* Template grid */}
         <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '0 14px 20px' }}>
           {displayCats.map(cat => {
-            const items = Object.entries(STYLES_CONFIG).filter(([, c]) => c.category === cat);
+            const items = Object.entries(STYLES_CONFIG).filter(([, c]) => c.category === cat && platformMatch(c));
             if (!items.length) return null;
             const accent = CAT_COLORS[cat] || '#888';
             return (
@@ -240,6 +278,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                   {items.map(([key, config]) => {
                     const isActive = currentStyle === key;
                     const isNew = NEW_KEYS.has(key);
+                    const isTopPick = filterPlatform !== 'ALL' && config.platforms?.includes(filterPlatform as Platform);
                     const sampleWord = config.displayMode === 'WORD' ? 'FIRE' : 'CAPTION';
                     const isTypography = !!config.typographyLayout;
                     const gradBg = config.gradientColors && config.gradientColors.length >= 2
@@ -259,6 +298,16 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                       >
                         {/* NEW badge */}
                         {isNew && <span className="cc-badge-new">NEW</span>}
+                        {/* TOP PICK badge when platform filter matches */}
+                        {isTopPick && !isNew && (
+                          <span style={{
+                            position: 'absolute', top: 6, right: 6, zIndex: 5,
+                            fontSize: 7, fontWeight: 800, letterSpacing: '0.06em',
+                            padding: '2px 5px', borderRadius: 4,
+                            background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+                            color: '#fff', textTransform: 'uppercase',
+                          }}>★ Top Pick</span>
+                        )}
 
                         {/* Preview area */}
                         <div style={{
@@ -372,6 +421,26 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
                               color: 'var(--cc-text-3)',
                               letterSpacing: '0.06em',
                             }}>{config.displayMode}</span>
+                            {/* Platform icons */}
+                            {config.platforms && config.platforms.map((plat: Platform) => {
+                              const platDef = PLATFORMS.find(p => p.key === plat);
+                              if (!platDef) return null;
+                              return (
+                                <span
+                                  key={plat}
+                                  title={platDef.label}
+                                  style={{
+                                    fontSize: 7, fontWeight: 900,
+                                    padding: '2px 5px', borderRadius: 4,
+                                    background: filterPlatform === plat ? `${accent}25` : 'rgba(255,255,255,0.04)',
+                                    color: filterPlatform === plat ? accent : 'var(--cc-text-3)',
+                                    letterSpacing: '0.02em', fontFamily: 'monospace',
+                                  }}
+                                >
+                                  {platDef.icon}
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       </button>

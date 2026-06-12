@@ -9,6 +9,8 @@ export interface WordTiming {
   end: number;
   iconEmoji?: string;
   iconUrl?: string;
+  emphasis?: number;    // 0-100: computed by zoomEffect.annotateWordEmphasis
+  speakerLabel?: string; // e.g. "SPEAKER_1", "SPEAKER_2" — from speakerColorMap
 }
 
 export interface Caption {
@@ -27,6 +29,10 @@ export interface Caption {
   customX?: number; // Normalized 0-1 offset horizontally
   customY?: number; // Normalized 0-1 offset vertically
   wordColors?: string[]; // Array of hex codes matching the word count
+
+  // Per-caption resource overrides (set from Resources Track in timeline)
+  brollDisabled?: boolean;  // true = skip B-roll/emotion-bg for this caption
+  sfxDisabled?: boolean;    // true = skip SFX trigger for this caption
 
   // Multi-part text for TRENDING style
   secondaryText?: string;
@@ -284,9 +290,13 @@ export type ColorBehavior =
   | 'WORD_POP'      // Active word pops with scale+color animation (Mr. Beast, Hormozi)
   | 'CONTEXTUAL';   // Uses AI-assigned wordColors from transcript (Color Pop)
 
+export type Platform = 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'SHORTS' | 'LINKEDIN';
+
 export interface StyleConfig {
   name: string;
   category: StyleCategory;
+  /** Platform tags for the style filter in StyleCustomizer */
+  platforms?: Platform[];
   fontFamily: string;
   fontSize: number;
   fontWeight: string | number;
@@ -667,6 +677,24 @@ export interface ViralTypographyCaption {
   };
 }
 
+/** Per-caption or per-word timed transform override. */
+export interface Keyframe {
+  time: number;       // absolute video time (s) this keyframe applies at
+  wordIdx?: number;   // undefined = caption-level; 0+ = specific word index
+  scale?: number;
+  color?: string;     // hex — overrides fill color
+  opacity?: number;   // 0-1
+  offsetX?: number;   // canvas pixels from anchor
+  offsetY?: number;
+  rotation?: number;  // radians
+  /** Easing applied from this keyframe TO the next. Matches captions.ai curves. */
+  easing?: 'linear' | 'ease' | 'instant';
+  controlPoints?: [number, number, number, number]; // [x1, y1, x2, y2] for custom Bezier
+}
+
+/** captionId → sorted Keyframe[] (sorted ascending by time). */
+export type KeyframeMap = Map<string, Keyframe[]>;
+
 export interface RendererState {
   currentTime?: number;
   captions: Caption[];
@@ -697,8 +725,11 @@ export interface RendererState {
   smartBrevityEnabled?: boolean;
   autoFramingEnabled?: boolean;
   autoFrameSafeY?: { min: number; max: number };
+  // Keyframe overrides
+  keyframeMap?: KeyframeMap;
 }
 
 export interface RendererCallbacks {
-  onNewCaption?: (caption: Caption) => void; // For SFX triggers
+  onNewCaption?: (caption: Caption) => void;
+  onEmphasizedWord?: () => void; // Fires when a high-emphasis word becomes active
 }

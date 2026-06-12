@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { Upload, Play, Pause, Download, Wand2, Type, Music, Video, Loader2, Grid, Zap, Maximize2, ArrowUpDown, Palette, ToggleLeft, ToggleRight, Camera, Move, Volume2, Scissors, Globe, AlignLeft, AlignCenter, AlignRight, Square, Layers, MousePointer2, RefreshCw, ChevronRight, Check, Image as ImageIcon, Share2, UploadCloud, Key, ChevronLeft, Smartphone, Undo, Redo, Menu, Settings2, ChevronDown, X, RotateCcw, Youtube, Instagram, MessageSquare, Diamond, Sparkles } from 'lucide-react';
-import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, AspectRatio, ViralTypographyCaption, KeyframeMap } from './types';
+import { Caption, CaptionStyle, ProcessingStatus, ProcessingStats, StyleConfig, DisplayMode, LanguageMode, TextAlign, EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode, ExportOptions, AspectRatio, ViralTypographyCaption, KeyframeMap, StickerItem } from './types';
 
 import { STYLES_CONFIG } from './constants';
 
@@ -305,6 +305,10 @@ const App: React.FC = () => {
   }
   const captionRendererRef = useRef(new CaptionRenderer());
   const videoObjectUrlRef = useRef<string | null>(null);
+  // Increments on every generation start AND on cancel; a finishing run only
+  // applies its results if its id is still current (prevents a stale in-flight
+  // request from clobbering state after the user hits Cancel or regenerates).
+  const generationRunRef = useRef(0);
 
   // Cleanup Object URLs on unmount to prevent memory leaks
   useEffect(() => {
@@ -533,12 +537,14 @@ const App: React.FC = () => {
     }
 
     if (!videoFile) return;
+    const runId = ++generationRunRef.current;
     setStatus('UPLOADING');
     const startTime = Date.now();
 
     try {
       // Extract audio to reduce payload size and avoid 500 RPC errors
       const { base64: audioBase64, mimeType: audioMimeType } = await extractAudioFromVideo(videoFile);
+      if (generationRunRef.current !== runId) return; // cancelled while extracting
 
       setStatus('TRANSCRIBING');
       const { captions: genCaps, language } = await generateCaptionsFromVideo(
@@ -549,6 +555,7 @@ const App: React.FC = () => {
         languageMode,
         currentStyle
       );
+      if (generationRunRef.current !== runId) return; // cancelled while transcribing
 
       let finalCaps = genCaps;
 
@@ -587,6 +594,7 @@ const App: React.FC = () => {
           .catch(() => { /* beat analysis is optional */ });
       }
     } catch (error) {
+      if (generationRunRef.current !== runId) return; // cancelled — stay silent
       console.error("Processing Error:", error);
       setStatus('IDLE');
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -1410,7 +1418,12 @@ const App: React.FC = () => {
                   onLoadSampleVideo={startPreviewMode}
                   setVideoSrc={setVideoSrc}
                   setVideoFile={setVideoFile}
-                  setStatus={setStatus}
+                  setStatus={(s) => {
+                    // Cancel (→ IDLE) invalidates any in-flight generation so a
+                    // late-resolving request can't clobber state afterwards.
+                    if (s === 'IDLE') generationRunRef.current++;
+                    setStatus(s);
+                  }}
                   handleTimeUpdate={handleTimeUpdate}
                   isPlaying={isPlaying}
                   togglePlay={togglePlay}

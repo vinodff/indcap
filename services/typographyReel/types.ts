@@ -137,6 +137,11 @@ export interface BeatGrid {
   energyHz: number;
   /** Total audio duration in seconds. */
   duration: number;
+  /**
+   * Downsampled waveform for timeline display. 1000 points, each in [0, 1].
+   * Index maps linearly to time: index / 1000 * duration = seconds.
+   */
+  waveform: number[];
 }
 
 // ─── Stage 3 output: full reel timeline ──────────────────────────────────────

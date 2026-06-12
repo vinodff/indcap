@@ -70,6 +70,38 @@ export class SoundEngine {
     osc.stop(t + 0.15);
   }
 
+  /** High-impact punch sound for emphasis≥85 words — freq sweep + layered noise burst. */
+  playImpact(): void {
+    if (!this.ctx || !this.masterGain) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.12);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.7, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.12);
+    if (this.noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = this.noiseBuffer;
+      const hpf = this.ctx.createBiquadFilter();
+      hpf.type = 'highpass';
+      hpf.frequency.value = 1200;
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.15, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      noise.connect(hpf);
+      hpf.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+      noise.start(t);
+      noise.stop(t + 0.05);
+    }
+  }
+
   connectToNode(node: AudioNode): void {
     if (this.masterGain) {
       try {

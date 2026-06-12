@@ -19,3 +19,31 @@ export const emojiToNotoUrl = (emoji: string): string => {
   // For multi-codepoint (ZWJ sequences), join with underscore
   return `https://fonts.gstatic.com/s/e/notoemoji/latest/${codepoints.join('_')}/512.gif`;
 };
+
+export async function fetchAndCacheEmojiGif(url: string): Promise<string> {
+  if (typeof caches === 'undefined') {
+    return url;
+  }
+  try {
+    const cache = await caches.open('createrin-emoji-cache');
+    const cachedResponse = await cache.match(url);
+    if (cachedResponse) {
+      const blob = await cachedResponse.blob();
+      return URL.createObjectURL(blob);
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch emoji: ${response.status}`);
+    }
+
+    // Cache the response
+    await cache.put(url, response.clone());
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.warn('Emoji caching failed, falling back to direct URL:', error);
+    return url;
+  }
+}

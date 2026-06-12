@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, ArrowUp, ArrowDown, Sparkles, Waves } from 'lucide-react';
+import { Zap, ArrowUp, ArrowDown, Sparkles, Waves, ToggleLeft, ToggleRight, Film, Music } from 'lucide-react';
 import { EntryAnimation, ExitAnimation, WordHighlightMode, KineticMode } from '../types';
 
 interface AnimationPanelProps {
@@ -13,6 +13,10 @@ interface AnimationPanelProps {
     setAnimationSpeed: (val: 'FAST' | 'MEDIUM' | 'SLOW') => void;
     kineticMode?: KineticMode;
     setKineticMode?: (val: KineticMode) => void;
+    autoMotionEnabled?: boolean;
+    setAutoMotionEnabled?: (val: boolean) => void;
+    autoSfxEnabled?: boolean;
+    setAutoSfxEnabled?: (val: boolean) => void;
 }
 
 const ENTRY_ANIMATIONS: { id: EntryAnimation; label: string; icon: string }[] = [
@@ -76,9 +80,46 @@ const AnimationPanel: React.FC<AnimationPanelProps> = ({
     setAnimationSpeed,
     kineticMode = 'NONE',
     setKineticMode,
+    autoMotionEnabled = true,
+    setAutoMotionEnabled,
+    autoSfxEnabled = true,
+    setAutoSfxEnabled,
 }) => {
     return (
         <div className="space-y-6 p-4">
+            {/* Master toggles — B-roll & SFX */}
+            <section className="space-y-2">
+                <div className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
+                    Master Effects
+                </div>
+                <div className="flex items-center justify-between py-1.5 px-1">
+                    <div className="flex items-center gap-2">
+                        <Film size={13} className={autoMotionEnabled ? 'text-violet-400' : 'text-gray-600'} />
+                        <span className="text-xs text-gray-300">B-Roll & Motion</span>
+                        <span className="text-[9px] text-gray-600 uppercase tracking-wider">Ken Burns, video clips</span>
+                    </div>
+                    <button
+                        onClick={() => setAutoMotionEnabled?.(!autoMotionEnabled)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: autoMotionEnabled ? '#a78bfa' : '#4b5563', display: 'flex' }}
+                    >
+                        {autoMotionEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                    </button>
+                </div>
+                <div className="flex items-center justify-between py-1.5 px-1">
+                    <div className="flex items-center gap-2">
+                        <Music size={13} className={autoSfxEnabled ? 'text-green-400' : 'text-gray-600'} />
+                        <span className="text-xs text-gray-300">Sound Effects</span>
+                        <span className="text-[9px] text-gray-600 uppercase tracking-wider">beat-sync SFX</span>
+                    </div>
+                    <button
+                        onClick={() => setAutoSfxEnabled?.(!autoSfxEnabled)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: autoSfxEnabled ? '#4ade80' : '#4b5563', display: 'flex' }}
+                    >
+                        {autoSfxEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                    </button>
+                </div>
+            </section>
+
             {/* Entry Animation */}
             <section className="space-y-3">
                 <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">

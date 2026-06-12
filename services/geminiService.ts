@@ -68,6 +68,80 @@ const COLOR_MAP: Record<string, string> = {
   'action': '#FB923C'     // Orange
 };
 
+// ─── Network resilience ──────────────────────────────────────────────────────
+// A browser fetch has NO default timeout: on a stalled connection the request
+// pends forever and the UI spinner never clears. Every transcription call is
+// therefore bounded by a hard timeout and retried (with backoff) on transient
+// errors (429 rate limit / 5xx). Errors are rewritten into messages a user can
+// act on.
+
+const TRANSCRIBE_TIMEOUT_MS = 180_000; // 3 min — covers slow uploads of large audio
+const MAX_ATTEMPTS = 3;
+
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`TIMEOUT after ${Math.round(ms / 1000)}s`)),
+      ms
+    );
+    promise.then(
+      v => { clearTimeout(timer); resolve(v); },
+      e => { clearTimeout(timer); reject(e); }
+    );
+  });
+};
+
+/** Rewrite raw API/network errors into actionable user-facing messages. */
+const toFriendlyError = (error: unknown): Error => {
+  const msg = String((error as Error)?.message || error || '');
+  if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+    return new Error('Gemini rate limit reached (free tier). Wait ~60 seconds and try again, or enable billing on your Google AI key.');
+  }
+  if (msg.includes('TIMEOUT')) {
+    return new Error('The request timed out — your connection may be slow or unstable. Try a shorter video or check your internet.');
+  }
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ERR_NAME_NOT_RESOLVED')) {
+    return new Error('Network error — could not reach Gemini. Check your internet connection and try again.');
+  }
+  if (msg.includes('API Key') || msg.includes('API_KEY_INVALID') || msg.includes('403')) {
+    return new Error('Invalid or missing Gemini API key. Click the key icon in the header to update it.');
+  }
+  return error instanceof Error ? error : new Error(msg);
+};
+
+const isRetryable = (error: unknown): boolean => {
+  const msg = String((error as Error)?.message || error || '');
+  return msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')
+    || msg.includes('500') || msg.includes('503') || msg.includes('UNAVAILABLE')
+    || msg.includes('Failed to fetch') || msg.includes('NetworkError');
+};
+
+/**
+ * generateContent with hard timeout + bounded retry (2s, then 6s backoff).
+ * Guarantees the returned promise ALWAYS settles — the UI can never hang on it.
+ */
+const generateContentBounded = async (
+  ai: GoogleGenAI,
+  request: Parameters<GoogleGenAI['models']['generateContent']>[0]
+): Promise<Awaited<ReturnType<GoogleGenAI['models']['generateContent']>>> => {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await withTimeout(ai.models.generateContent(request), TRANSCRIBE_TIMEOUT_MS);
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryable(error);
+      console.warn(`[GEMINI] attempt ${attempt}/${MAX_ATTEMPTS} failed${retryable ? ' (retryable)' : ''}:`, error);
+      if (attempt < MAX_ATTEMPTS && retryable) {
+        await new Promise(r => setTimeout(r, attempt === 1 ? 2000 : 6000));
+        continue;
+      }
+      throw toFriendlyError(error);
+    }
+  }
+  throw toFriendlyError(lastError);
+};
+
 export const generateCaptionsFromVideo = async (
   audioBase64: string,
   mimeType: string,
@@ -159,9 +233,11 @@ export const generateCaptionsFromVideo = async (
 
     console.log("[GEMINI] Sending audio as inline data...");
 
-    // Generate Content using inline base64 data — no backend proxy needed
+    // Generate Content using inline base64 data — no backend proxy needed.
+    // Routed through generateContentBounded: hard 3-min timeout + retry on
+    // 429/5xx so the promise always settles and the spinner can never hang.
     try {
-      const response = await ai.models.generateContent({
+      const response = await generateContentBounded(ai, {
         model: GEMINI_MODEL,
         contents: {
           parts: [

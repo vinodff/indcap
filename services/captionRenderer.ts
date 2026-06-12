@@ -19,7 +19,12 @@ import { drawTrending } from './caption/renderers/trending';
 import { drawInstagramTemplate } from './caption/renderers/instagram';
 import { drawTypographyCaption } from './caption/renderers/typography';
 import { drawTypograph } from './caption/renderers/editorial';
-import { EMOJI_REGEX, isEmojiWord, emojiToNotoUrl } from './caption/emojiUtils';
+import { EMOJI_REGEX, isEmojiWord, emojiToNotoUrl, fetchAndCacheEmojiGif } from './caption/emojiUtils';
+import { getActiveWordEmphasis } from './caption/zoomEffect';
+import { drawEmotionBackground } from './caption/backgroundEffect';
+import { evaluateKeyframe, applyCaptionKeyframe } from './caption/keyframeEngine';
+import { getBrollImage } from './caption/brollCache';
+import { getBrollVideo, syncBrollTime } from './caption/brollVideo';
 
 // --- MATH UTILS ---
 const lerp = (start: number, end: number, t: number): number => start * (1 - t) + end * t;
@@ -45,6 +50,7 @@ const easeOutQuint = (t: number): number => {
 export class CaptionRenderer implements RenderHelpers {
   private currentZoom = 1.0;
   private lastCaptionId: string | null = null;
+  private lastWordKey = '';
   private cachedFont: string = '';
   private imageCache = new Map<string, HTMLImageElement>();
   private static readonly IMAGE_CACHE_MAX = 200;
@@ -218,7 +224,7 @@ export class CaptionRenderer implements RenderHelpers {
         if (!isStroke) {
           const gifUrl = emojiToNotoUrl(p.trim());
           const img = this.getOrLoadImage(gifUrl);
-          if (img && img.naturalWidth > 0) {
+          if (img && img.naturalWidth > 0 && img.dataset.failed !== 'true') {
             let imgY = y - gifSize / 2;
             if (ctx.textBaseline === 'top') imgY = y;
             else if (ctx.textBaseline === 'bottom') imgY = y - gifSize;
@@ -294,19 +300,45 @@ export class CaptionRenderer implements RenderHelpers {
     // --- Find active caption via binary search ---
     const activeCaption = this.findActiveCaption(state.captions, renderTime);
 
-    // --- Zoom logic ---
+    // --- Zoom logic (word-level emphasis) ---
     let targetZoom = 1.0;
     if (state.autoMotionEnabled && activeCaption) {
-      targetZoom = activeCaption.customScale && activeCaption.customScale > 1.2 ? 1.15 : 1.05;
-      const progress = (renderTime - activeCaption.startTime) / (activeCaption.endTime - activeCaption.startTime);
-      targetZoom += progress * 0.05;
+      const wordEmphasis = getActiveWordEmphasis(activeCaption, renderTime);
+      if (wordEmphasis >= 90) {
+        targetZoom = 1.22;
+      } else if (wordEmphasis >= 70) {
+        targetZoom = 1.15;
+      } else if (wordEmphasis >= 50) {
+        targetZoom = 1.10;
+      } else {
+        targetZoom = activeCaption.customScale && activeCaption.customScale > 1.2 ? 1.15 : 1.05;
+        const progress = (renderTime - activeCaption.startTime) / (activeCaption.endTime - activeCaption.startTime);
+        targetZoom += progress * 0.03;
+      }
     }
-    this.currentZoom = lerp(this.currentZoom, targetZoom, 0.05);
+    // Faster lerp during emphasis for snappier punch-in; slower release
+    this.currentZoom = lerp(this.currentZoom, targetZoom, targetZoom > this.currentZoom ? 0.09 : 0.05);
 
     // --- SFX trigger ---
-    if (state.autoSfxEnabled && state.isPlaying && activeCaption && this.lastCaptionId !== activeCaption.id) {
-      callbacks?.onNewCaption?.(activeCaption);
-      this.lastCaptionId = activeCaption.id;
+    if (state.autoSfxEnabled && state.isPlaying && activeCaption && !activeCaption.sfxDisabled) {
+      if (this.lastCaptionId !== activeCaption.id) {
+        callbacks?.onNewCaption?.(activeCaption);
+        this.lastCaptionId = activeCaption.id;
+      }
+      // Pop sound on emphasized words
+      const wordEmphasis = getActiveWordEmphasis(activeCaption, renderTime);
+      if (wordEmphasis >= 80 && activeCaption.words) {
+        const wIdx = activeCaption.words.findIndex(
+          w => renderTime >= w.start - 0.06 && renderTime <= w.end + 0.06
+        );
+        if (wIdx >= 0) {
+          const wordKey = `${activeCaption.id}:${wIdx}`;
+          if (wordKey !== this.lastWordKey) {
+            callbacks?.onEmphasizedWord?.();
+            this.lastWordKey = wordKey;
+          }
+        }
+      }
     } else if (!activeCaption) {
       this.lastCaptionId = null;
     }
@@ -522,6 +554,41 @@ export class CaptionRenderer implements RenderHelpers {
     const anchorY = caption.customY !== undefined ? vis.y + caption.customY * vis.h : vis.y + vis.h * (finalVPos / 100);
     const anchorX = caption.customX !== undefined ? vis.x + caption.customX * vis.w : vis.x + vis.w * (finalHPos / 100);
 
+    // ── Emotion background gradient (autoMotionEnabled gate) ──
+    if (state.autoMotionEnabled && !caption.brollDisabled && caption.sentiment) {
+      const lineH = (state.activeConfig.fontSize || 48) * scaleFactor;
+      drawEmotionBackground(ctx, canvas, caption.sentiment, anchorY, lineH);
+    }
+
+    // ── B-roll overlay — video clip preferred, still-image fallback ──
+    if (state.autoMotionEnabled && !caption.brollDisabled) {
+      const videoEl = getBrollVideo(caption.sentiment, caption.id, caption.text);
+      if (videoEl) {
+        const captionElapsed = Math.max(0, renderTime - caption.startTime);
+        syncBrollTime(videoEl, captionElapsed);
+        this.drawBrollKenBurns(ctx, canvas, videoEl, caption, renderTime);
+      } else {
+        // Still loading video — fall back to still image so the canvas isn't empty
+        const stillImg = getBrollImage(caption.sentiment, caption.id, caption.text);
+        if (stillImg) {
+          this.drawBrollKenBurns(ctx, canvas, stillImg, caption, renderTime);
+        }
+      }
+    }
+
+    // ── Keyframe overrides ──
+    const captionFrames = state.keyframeMap?.get(caption.id);
+    let hasKeyframe = false;
+    if (captionFrames && captionFrames.length > 0) {
+      const kf = evaluateKeyframe(captionFrames, renderTime, undefined);
+      if (kf) {
+        hasKeyframe = true;
+        ctx.save();
+        const kfAlpha = applyCaptionKeyframe(ctx, kf, anchorX, anchorY);
+        if (kf.opacity !== undefined) ctx.globalAlpha = Math.max(0, Math.min(1, kfAlpha));
+      }
+    }
+
     // Apply entry/exit animation transforms
     const hasEntryExit = (state.entryAnimation && state.entryAnimation !== 'NONE') ||
       (state.exitAnimation && state.exitAnimation !== 'NONE');
@@ -566,7 +633,7 @@ export class CaptionRenderer implements RenderHelpers {
         const entryT = easeOutQuint(Math.min(elapsed / 0.4, 1));
         const entryScale = lerp(0.2, 1, entryT);
         // Only render if GIF is loaded — skip static text fallback entirely
-        if (img && img.naturalWidth > 0) {
+        if (img && img.naturalWidth > 0 && img.dataset.failed !== 'true') {
           ctx.save();
           ctx.globalAlpha = entryT;
           ctx.translate(anchorX, anchorY - iconSize * 1.8 + floatY);
@@ -580,7 +647,13 @@ export class CaptionRenderer implements RenderHelpers {
       }
     }
 
-    if (hasEntryExit) {
+    const isPerWordAnim = !(
+      state.currentStyle === CaptionStyle.TYPOGRAPH ||
+      state.currentStyle === CaptionStyle.MINIMAL_BAR ||
+      !!style.typographyLayout
+    );
+
+    if (hasEntryExit && !isPerWordAnim) {
       const anim = this.getAnimationTransform(ctx, caption, renderTime, anchorX, anchorY, state);
       ctx.save();
       ctx.globalAlpha = Math.max(0, Math.min(1, anim.alpha));
@@ -601,7 +674,11 @@ export class CaptionRenderer implements RenderHelpers {
       drawGeneric(this, ctx, canvas, caption, style, scaleFactor, anchorX, anchorY, renderTime, state);
     }
 
-    if (hasEntryExit) {
+    if (hasEntryExit && !isPerWordAnim) {
+      ctx.restore();
+    }
+
+    if (hasKeyframe) {
       ctx.restore();
     }
 
@@ -685,7 +762,25 @@ export class CaptionRenderer implements RenderHelpers {
       window.dispatchEvent(new CustomEvent('createrin-force-render'));
     };
 
-    img.src = url;
+    img.onerror = () => {
+      img.dataset.failed = 'true';
+      window.dispatchEvent(new CustomEvent('createrin-force-render'));
+    };
+
+    if (url.startsWith('https://fonts.gstatic.com/')) {
+      fetchAndCacheEmojiGif(url)
+        .then(cachedUrl => {
+          img.src = cachedUrl;
+        })
+        .catch(err => {
+          console.error('Error fetching/caching emoji gif:', err);
+          img.dataset.failed = 'true';
+          window.dispatchEvent(new CustomEvent('createrin-force-render'));
+        });
+    } else {
+      img.src = url;
+    }
+
     if (this.imageCache.size >= CaptionRenderer.IMAGE_CACHE_MAX) {
       const oldest = this.imageCache.keys().next().value;
       if (oldest !== undefined) this.imageCache.delete(oldest);
@@ -811,11 +906,88 @@ export class CaptionRenderer implements RenderHelpers {
       const gifUrl = sticker.gifUrl || emojiToNotoUrl(sticker.emoji);
       const img = this.getOrLoadImage(gifUrl);
       const halfSz = baseFontSize * 0.55;
-      if (img.naturalWidth > 0) {
+      if (img.naturalWidth > 0 && img.dataset.failed !== 'true') {
         ctx.drawImage(img, -halfSz, -halfSz, halfSz * 2, halfSz * 2);
       }
 
       ctx.restore();
     });
+  }
+
+  /**
+   * Draws a B-roll image with Ken Burns effect:
+   *  - Cover-fit with animated source rect (slow zoom + pan)
+   *  - Alpha fade in over first 0.3 s, fade out over last 0.3 s
+   *  - Gradient vignette to darken edges for text readability
+   * Direction (pan L/R, zoom in/out) is seeded by captionId for variety.
+   */
+  private drawBrollKenBurns(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    img: HTMLImageElement | HTMLVideoElement,
+    caption: Caption,
+    renderTime: number
+  ): void {
+    const duration = caption.endTime - caption.startTime;
+    const elapsed = Math.max(0, renderTime - caption.startTime);
+    const t = duration > 0 ? Math.min(elapsed / duration, 1) : 0;
+
+    // Fade alpha: 0→0.50 in first 0.3 s, hold, 0.50→0 in last 0.3 s
+    const fadeIn = Math.min(elapsed / 0.3, 1);
+    const fadeOut = Math.min((duration - elapsed) / 0.3, 1);
+    const alpha = 0.50 * Math.min(fadeIn, fadeOut);
+    if (alpha <= 0) return;
+
+    // Seed a direction from captionId hash (FNV-like inline)
+    let h = 2166136261;
+    for (let i = 0; i < caption.id.length; i++) {
+      h ^= caption.id.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    const zoomIn = (h & 1) === 0;       // even hash → zoom in, odd → zoom out
+    const panRight = (h & 2) === 0;     // bit 1 → pan direction
+
+    // Ken Burns: cover-fit source rect animates slowly
+    const zoom = zoomIn ? lerp(1.0, 1.08, t) : lerp(1.08, 1.0, t);
+    // HTMLImageElement uses naturalWidth/Height; HTMLVideoElement uses videoWidth/Height
+    const srcNatW = (img as HTMLImageElement).naturalWidth  || (img as HTMLVideoElement).videoWidth  || canvas.width;
+    const srcNatH = (img as HTMLImageElement).naturalHeight || (img as HTMLVideoElement).videoHeight || canvas.height;
+    const imgAspect = srcNatW / srcNatH;
+    const canvasAspect = canvas.width / canvas.height;
+
+    let srcW: number, srcH: number, srcX: number, srcY: number;
+    if (imgAspect > canvasAspect) {
+      srcH = srcNatH / zoom;
+      srcW = srcH * canvasAspect;
+      const maxOffsetX = srcNatW - srcW;
+      srcX = panRight ? maxOffsetX * t : maxOffsetX * (1 - t);
+      srcY = (srcNatH - srcH) / 2;
+    } else {
+      srcW = srcNatW / zoom;
+      srcH = srcW / canvasAspect;
+      srcX = (srcNatW - srcW) / 2;
+      const maxOffsetY = srcNatH - srcH;
+      srcY = panRight ? maxOffsetY * t : maxOffsetY * (1 - t);
+    }
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+
+    // Vignette gradient: darken top + bottom so text remains readable
+    const vTop = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.35);
+    vTop.addColorStop(0, 'rgba(0,0,0,0.55)');
+    vTop.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = vTop;
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.35);
+
+    const vBot = ctx.createLinearGradient(0, canvas.height * 0.65, 0, canvas.height);
+    vBot.addColorStop(0, 'rgba(0,0,0,0)');
+    vBot.addColorStop(1, 'rgba(0,0,0,0.65)');
+    ctx.fillStyle = vBot;
+    ctx.fillRect(0, canvas.height * 0.65, canvas.width, canvas.height * 0.35);
+
+    ctx.restore();
   }
 }

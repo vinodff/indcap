@@ -146,4 +146,66 @@ router.post('/clear', (req, res) => {
   }
 });
 
+/**
+ * GET /api/imageAssets/search
+ *
+ * Proxy endpoint to query Google Custom Search API for content-relevant images.
+ *
+ * Query params:
+ *   q: search query string
+ *
+ * Response:
+ *   {
+ *     "success": true,
+ *     "items": [
+ *       { "link": "https://..." }
+ *     ]
+ *   }
+ */
+router.get('/search', async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query parameter q is required',
+      });
+    }
+
+    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+    const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+    if (!apiKey || !cx) {
+      console.warn('[imageAssets] GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID not configured on backend.');
+      return res.status(503).json({
+        success: false,
+        error: 'Google Search API keys are not configured on the server.',
+      });
+    }
+
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=5`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Google Search API returned status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const items = (data.items || []).map(item => ({
+      link: item.link
+    }));
+
+    return res.json({
+      success: true,
+      items,
+    });
+  } catch (error) {
+    console.error('[imageAssets] Search error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
+  }
+});
+
 export default router;

@@ -45,6 +45,7 @@ export async function analyzeBeats(audioFile: File): Promise<BeatGrid> {
   const flux = spectralFlux(pcm, FRAME_SIZE, hop);
   const onsets = pickPeaks(flux, ENERGY_HZ);
   const bpm = estimateBPM(onsets);
+  const waveform = buildWaveform(pcm, sampleRate, 1000);
 
   return {
     beats: onsets,
@@ -52,6 +53,7 @@ export async function analyzeBeats(audioFile: File): Promise<BeatGrid> {
     energy,
     energyHz: ENERGY_HZ,
     duration: audioBuffer.duration,
+    waveform,
   };
 }
 
@@ -197,6 +199,38 @@ function estimateBPM(onsets: number[]): number {
     }
   });
   return bestBin;
+}
+
+// ─── waveform builder: downsample PCM → N normalized amplitude points ────────
+
+/**
+ * Produce N data points suitable for waveform rendering on a timeline.
+ * Each point is the peak absolute amplitude within that time slice, normalised
+ * to [0, 1] so the renderer never needs to know the source amplitude range.
+ */
+function buildWaveform(pcm: Float32Array, sampleRate: number, points: number): number[] {
+  const totalSamples = pcm.length;
+  const waveform = new Array<number>(points);
+  let globalPeak = 0;
+
+  for (let p = 0; p < points; p++) {
+    const start = Math.floor((p / points) * totalSamples);
+    const end = Math.floor(((p + 1) / points) * totalSamples);
+    let peak = 0;
+    for (let i = start; i < end; i++) {
+      const abs = Math.abs(pcm[i]);
+      if (abs > peak) peak = abs;
+    }
+    waveform[p] = peak;
+    if (peak > globalPeak) globalPeak = peak;
+  }
+
+  // Normalize so the loudest point = 1.0
+  if (globalPeak > 0) {
+    for (let p = 0; p < points; p++) waveform[p] /= globalPeak;
+  }
+
+  return waveform;
 }
 
 // ─── helper: snap a time to the nearest beat within tolerance ───────────────

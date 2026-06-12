@@ -14,15 +14,42 @@ import multer from 'multer';
 import thumbnailRouter from './routes/thumbnail.js';
 import motionRouter from './routes/motion.js';
 import imageAssetsRouter from './routes/imageAssets.js';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// --- LOAD ENVIRONMENT VARIABLES ---
+function loadEnvFile(filePath) {
+  try {
+    if (existsSync(filePath)) {
+      const content = readFileSync(filePath, 'utf-8');
+      content.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx !== -1) {
+            const key = trimmed.slice(0, eqIdx).trim();
+            const val = trimmed.slice(eqIdx + 1).trim();
+            const cleanVal = val.replace(/^["']|["']$/g, '');
+            process.env[key] = cleanVal;
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.error(`Error loading env file ${filePath}:`, err);
+  }
+}
+
+const rootDir = join(__dirname, '..');
+loadEnvFile(join(rootDir, '.env'));
+loadEnvFile(join(rootDir, '.env.local'));
 
 // ─── DATABASE SETUP ──────────────────────────────────────────────────────────
 const DB_PATH = join(__dirname, 'db', 'createrin.db');
 
 // Ensure db directory exists
-import { mkdirSync } from 'fs';
 mkdirSync(join(__dirname, 'db'), { recursive: true });
 
 const db = new Database(DB_PATH);
