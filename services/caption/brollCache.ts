@@ -141,7 +141,14 @@ function getPexelsImage(apiKey: string, sentiment: string, captionId: string, te
   return null;
 }
 
+// Once the search proxy fails (missing/unconfigured API keys, quota, network),
+// it will not recover mid-session — disable it after the first failure so we
+// don't fire a doomed HTTP request for every new caption (console spam + waste).
+let googleSearchDisabled = false;
+
 function getGoogleSearchImage(sentiment: string, captionId: string, text: string): HTMLImageElement | null {
+  if (googleSearchDisabled) return getFallbackImage(sentiment, captionId);
+
   const noun = extractNoun(text);
   const query = noun ? `${sentiment} ${noun}` : sentiment;
   const key = `google:${sentiment}:${noun}`;
@@ -153,7 +160,17 @@ function getGoogleSearchImage(sentiment: string, captionId: string, text: string
   imageCache.set(key, null);
 
   fetch(`/api/imageAssets/search?q=${encodeURIComponent(query)}`)
-    .then(r => r.json())
+    .then(r => {
+      // 5xx = server-side config problem (API key not set / Custom Search JSON
+      // API not enabled on the Cloud project / quota). This will not recover
+      // mid-session — switch to the Picsum tier globally to stop the spam.
+      if (r.status >= 500) {
+        googleSearchDisabled = true;
+        console.warn('[broll] Image search API unavailable — using fallback images for this session. (Enable "Custom Search JSON API" on your Google Cloud project for content-relevant B-roll.)');
+        throw new Error(`search proxy ${r.status}`);
+      }
+      return r.json();
+    })
     .then((data: any) => {
       if (!data.success || !data.items || data.items.length === 0) throw new Error('no photos');
       // Pick one of the results, seeded by captionId for variety
@@ -162,10 +179,13 @@ function getGoogleSearchImage(sentiment: string, captionId: string, text: string
       if (!url) throw new Error('no url');
       loadImage(key, url);
     })
-    .catch(() => {
-      // Google search proxy failed → fall back to Picsum
-      const fallback = getFallbackImage(sentiment, captionId);
-      if (fallback) imageCache.set(key, fallback);
+    .catch((err: unknown) => {
+      // Network-level failure (server down) also disables the tier for the session.
+      if (err instanceof TypeError) googleSearchDisabled = true;
+      // Re-route this query to the Picsum tier: remove the dead cache entry so
+      // the next render call falls through to getFallbackImage (which resolves
+      // asynchronously under its own cache key).
+      imageCache.delete(key);
       pendingTags.delete(key);
     });
 

@@ -27,37 +27,12 @@
  * with the caption's elapsed time on each render call.
  */
 
-// ─── Curated free portrait video seeds per emotion ────────────────────────────
-// Uses verified Mixkit free-preview URLs (confirmed format: mixkit-[slug]-[id]-large.mp4)
-// plus Coverr.co embed URLs as a secondary tier — both have CORS headers for canvas.
-const EMOTION_CLIPS: Record<string, string[]> = {
-  energetic: [
-    'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0543e33b4d6622ec92d1f60&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/434045526.sd.mp4?s=c27d2abde53fb5dfce4054ab709d7b36&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/403848981.sd.mp4?s=d7e7e60b240ef1a1f0a273644f1c1075&profile_id=139&oauth2_token_id=57447761',
-  ],
-  joyful: [
-    'https://player.vimeo.com/external/435674703.sd.mp4?s=7f26c71c4c83b8b1dbcd3a426bf767db&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/459389137.sd.mp4?s=75cf79409e69c766755106d9d150f14d&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/482062325.sd.mp4?s=e798ec4dc4f3ff5d86241a77d49b29cb&profile_id=139&oauth2_token_id=57447761',
-  ],
-  calm: [
-    'https://player.vimeo.com/external/384761655.sd.mp4?s=3828efbaba76c33c37353f0be712f2c8&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/400845934.sd.mp4?s=e24da2b512c1b18361b9a9f24c3dfcfb&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/394334335.sd.mp4?s=b6bc30e462bb821a7191d8435d88da53&profile_id=139&oauth2_token_id=57447761',
-  ],
-  serious: [
-    'https://player.vimeo.com/external/538902506.sd.mp4?s=2318b8f2a24d27161b9e15910fae10c7&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/384761372.sd.mp4?s=a78f4a34f4d22da33d83856269eb858f&profile_id=139&oauth2_token_id=57447761',
-    'https://player.vimeo.com/external/400843657.sd.mp4?s=27bdcfab8637508ef8646b9a957a0da7&profile_id=139&oauth2_token_id=57447761',
-  ],
-};
-
-const GENERIC_CLIPS = [
-  'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0543e33b4d6622ec92d1f60&profile_id=139&oauth2_token_id=57447761',
-  'https://player.vimeo.com/external/384761655.sd.mp4?s=3828efbaba76c33c37353f0be712f2c8&profile_id=139&oauth2_token_id=57447761',
-  'https://player.vimeo.com/external/538902506.sd.mp4?s=2318b8f2a24d27161b9e15910fae10c7&profile_id=139&oauth2_token_id=57447761',
-];
+// NOTE: This module previously shipped "curated" clip URLs on player.vimeo.com
+// with a shared oauth2 token. That token expired — every URL now returns
+// 403 + CORS errors, so the curated tier was removed entirely. Video B-roll is
+// available only via the Pexels Videos API (VITE_PEXELS_API_KEY). Without a
+// key, getBrollVideo returns null and the caption renderer automatically falls
+// back to the still-image B-roll tier (see captionRenderer.drawCaption).
 
 const STOP_WORDS = new Set([
   'the','a','an','and','or','but','in','on','at','to','for','of','with','by',
@@ -148,31 +123,11 @@ function getPexelsVideo(
       createVideoElement(url, key);
     })
     .catch(() => {
-      // Fall back to curated clips
-      const fallbackKey = `mixkit:${sentiment}:${hashId(captionId)}`;
-      if (!videoPool.has(fallbackKey) && !pendingKeys.has(fallbackKey)) {
-        const clips = EMOTION_CLIPS[sentiment] ?? GENERIC_CLIPS;
-        const url = clips[hashId(captionId) % clips.length];
-        pendingKeys.add(fallbackKey);
-        createVideoElement(url, fallbackKey);
-      }
+      // Mark this query failed (no retry) — caller falls back to still images.
+      videoPool.set(key, null);
       pendingKeys.delete(key);
     });
 
-  return null;
-}
-
-// ─── Tier 2: Curated Mixkit clips ─────────────────────────────────────────────
-function getMixkitVideo(sentiment: string, captionId: string): HTMLVideoElement | null {
-  const clips = EMOTION_CLIPS[sentiment] ?? GENERIC_CLIPS;
-  const url = clips[hashId(captionId) % clips.length];
-  const key = `mixkit:${url}`;
-
-  if (videoPool.has(key)) return videoPool.get(key) ?? null;
-  if (pendingKeys.has(key)) return null;
-
-  pendingKeys.add(key);
-  createVideoElement(url, key);
   return null;
 }
 
@@ -182,20 +137,18 @@ function getMixkitVideo(sentiment: string, captionId: string): HTMLVideoElement 
  * Returns a ready HTMLVideoElement for the caption's B-roll, or null while loading.
  * The video plays muted + looping in the background.
  * Caller should draw it each render frame with ctx.drawImage().
+ *
+ * Requires VITE_PEXELS_API_KEY. Without it this returns null immediately and
+ * the renderer uses the still-image B-roll tier instead (zero network waste).
  */
 export function getBrollVideo(
   sentiment: string | undefined,
   captionId: string,
   text: string
 ): HTMLVideoElement | null {
-  const effectiveSentiment = sentiment ?? 'calm';
   const apiKey = (import.meta as any).env?.VITE_PEXELS_API_KEY as string | undefined;
-
-  if (apiKey) {
-    return getPexelsVideo(apiKey, effectiveSentiment, captionId, text);
-  }
-  // Fall back to working direct public Pexels CDN clips
-  return getMixkitVideo(effectiveSentiment, captionId);
+  if (!apiKey) return null;
+  return getPexelsVideo(apiKey, sentiment ?? 'calm', captionId, text);
 }
 
 /**
