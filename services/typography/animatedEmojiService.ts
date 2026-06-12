@@ -32,7 +32,18 @@
  *   else   ctx.fillText('😂', x, y);             // static fallback
  */
 
-import lottie, { AnimationItem } from 'lottie-web';
+import type { AnimationItem } from 'lottie-web';
+
+// lottie-web touches `document` at module-load time, which crashes Node test
+// environments that import anything in this dependency chain (e.g. the caption
+// renderer). Load it lazily and only when a DOM exists; getFrame() simply
+// returns null (native-glyph fallback) until the module arrives.
+let lottie: typeof import('lottie-web').default | null = null;
+if (typeof document !== 'undefined') {
+  import('lottie-web').then(m => {
+    lottie = (m as any).default ?? m;
+  }).catch(() => { /* keep null — native glyph fallback */ });
+}
 
 // ─── Bundled Lottie data (Vite glob — bundled at build, zero runtime fetch) ────
 // Each file is named by its runtime key (lowercase hex codepoints, FE0F stripped,
@@ -141,7 +152,9 @@ class AnimatedEmojiService {
 
   private init(key: string): Entry | null {
     // Guard non-DOM environments (Node test/SSR) — lottie-web needs `document`.
-    if (typeof document === 'undefined') return null;
+    // Also wait until the lazy lottie module has arrived; returning null here
+    // (without caching an entry) means the next frame simply retries.
+    if (typeof document === 'undefined' || !lottie) return null;
 
     const container = document.createElement('div');
     container.style.cssText =
@@ -189,6 +202,9 @@ class AnimatedEmojiService {
         anim.addEventListener('DOMLoaded', () => {
           entry.totalFrames = (anim as any).totalFrames || 60;
           entry.loaded = true;
+          // Repaint paused canvases that already drew the static fallback —
+          // the caption renderer listens for this and re-renders one frame.
+          window.dispatchEvent(new CustomEvent('createrin-force-render'));
         });
         const onFail = () => {
           entry.failed = true;

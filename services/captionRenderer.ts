@@ -20,6 +20,7 @@ import { drawInstagramTemplate } from './caption/renderers/instagram';
 import { drawTypographyCaption } from './caption/renderers/typography';
 import { drawTypograph } from './caption/renderers/editorial';
 import { EMOJI_REGEX, isEmojiWord, emojiToNotoUrl, fetchAndCacheEmojiGif } from './caption/emojiUtils';
+import { animatedEmojiService } from './typography/animatedEmojiService';
 import { getActiveWordEmphasis } from './caption/zoomEffect';
 import { drawEmotionBackground } from './caption/backgroundEffect';
 import { evaluateKeyframe, applyCaptionKeyframe } from './caption/keyframeEngine';
@@ -51,6 +52,10 @@ export class CaptionRenderer implements RenderHelpers {
   private currentZoom = 1.0;
   private lastCaptionId: string | null = null;
   private lastWordKey = '';
+  // Current playback time, set once per render() pass. drawMixedText runs deep
+  // inside style renderers without a time parameter; TRUE animated emojis
+  // (Noto Lottie — the smiley actually smiles) need the time to pick a frame.
+  private renderTime = 0;
   private cachedFont: string = '';
   private imageCache = new Map<string, HTMLImageElement>();
   private static readonly IMAGE_CACHE_MAX = 200;
@@ -222,17 +227,26 @@ export class CaptionRenderer implements RenderHelpers {
       if (isEmoji[i]) {
         const gifSize = fontSize * 1.4;
         if (!isStroke) {
-          const gifUrl = emojiToNotoUrl(p.trim());
-          const img = this.getOrLoadImage(gifUrl);
-          if (img && img.naturalWidth > 0 && img.dataset.failed !== 'true') {
-            let imgY = y - gifSize / 2;
-            if (ctx.textBaseline === 'top') imgY = y;
-            else if (ctx.textBaseline === 'bottom') imgY = y - gifSize;
+          let imgY = y - gifSize / 2;
+          if (ctx.textBaseline === 'top') imgY = y;
+          else if (ctx.textBaseline === 'bottom') imgY = y - gifSize;
 
-            ctx.drawImage(img, curX, imgY, gifSize, gifSize);
+          // TRUE animation first: Noto Lottie frame for the current playback
+          // time (a laughing emoji actually laughs). drawImage(gif) only ever
+          // shows a GIF's first frame on canvas, so the Lottie path is the
+          // only way emojis genuinely move.
+          const lottieFrame = animatedEmojiService.getFrame(p.trim(), this.renderTime);
+          if (lottieFrame) {
+            ctx.drawImage(lottieFrame, curX, imgY, gifSize, gifSize);
           } else {
-            ctx.fillStyle = fill;
-            ctx.fillText(p, curX, y);
+            const gifUrl = emojiToNotoUrl(p.trim());
+            const img = this.getOrLoadImage(gifUrl);
+            if (img && img.naturalWidth > 0 && img.dataset.failed !== 'true') {
+              ctx.drawImage(img, curX, imgY, gifSize, gifSize);
+            } else {
+              ctx.fillStyle = fill;
+              ctx.fillText(p, curX, y);
+            }
           }
         }
         curX += gifSize;
@@ -266,6 +280,7 @@ export class CaptionRenderer implements RenderHelpers {
 
     // Prefer state.currentTime if provided (for synthetic playback), fallback to video.currentTime
     const renderTime = state.currentTime !== undefined ? state.currentTime : (video?.currentTime || 0);
+    this.renderTime = renderTime;
 
     // --- Preload emoji GIFs for EMOJI_AUTO mode ---
     if (state.currentStyle === CaptionStyle.EMOJI_AUTO && state.captions) {
@@ -621,9 +636,6 @@ export class CaptionRenderer implements RenderHelpers {
       );
       if (emojiMatch) {
         const emoji = emojiMatch[0].trim();
-        const gifUrl = emojiToNotoUrl(emoji);
-        // Pre-load image; getOrLoadImage starts fetch immediately on first call
-        const img = this.getOrLoadImage(gifUrl);
         const iconSize = 72 * scaleFactor; // Larger for more visual impact
         // Float animation: gentle sine-wave bob
         const floatY = Math.sin(elapsed * 2.8) * 8 * scaleFactor;
@@ -632,8 +644,14 @@ export class CaptionRenderer implements RenderHelpers {
         // Entry pop: scale in during first 0.4s
         const entryT = easeOutQuint(Math.min(elapsed / 0.4, 1));
         const entryScale = lerp(0.2, 1, entryT);
-        // Only render if GIF is loaded — skip static text fallback entirely
-        if (img && img.naturalWidth > 0 && img.dataset.failed !== 'true') {
+
+        // TRUE animated frame (Noto Lottie) — falls back to the static GIF
+        // first-frame only while the Lottie data is still loading.
+        const lottieFrame = animatedEmojiService.getFrame(emoji, renderTime);
+        const img = lottieFrame ? null : this.getOrLoadImage(emojiToNotoUrl(emoji));
+        const drawable: CanvasImageSource | null = lottieFrame
+          ?? (img && img.naturalWidth > 0 && img.dataset.failed !== 'true' ? img : null);
+        if (drawable) {
           ctx.save();
           ctx.globalAlpha = entryT;
           ctx.translate(anchorX, anchorY - iconSize * 1.8 + floatY);
@@ -641,7 +659,7 @@ export class CaptionRenderer implements RenderHelpers {
           // Glow ring behind icon — color matches emoji category
           ctx.shadowColor = 'rgba(255, 220, 50, 0.7)';
           ctx.shadowBlur = 28 * scaleFactor;
-          ctx.drawImage(img, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+          ctx.drawImage(drawable, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
           ctx.restore();
         }
       }
@@ -902,12 +920,19 @@ export class CaptionRenderer implements RenderHelpers {
       ctx.shadowOffsetX = 2;
       ctx.shadowOffsetY = 4;
 
-      // --- Draw: Noto animated GIF only (no text emoji fallback) ---
-      const gifUrl = sticker.gifUrl || emojiToNotoUrl(sticker.emoji);
-      const img = this.getOrLoadImage(gifUrl);
+      // --- Draw: TRUE animated emoji (Noto Lottie frame at renderTime) ---
+      // A GIF drawn to canvas never advances past frame 1, so the Lottie
+      // frame is what makes stickers genuinely animate (laugh, flicker, …).
       const halfSz = baseFontSize * 0.55;
-      if (img.naturalWidth > 0 && img.dataset.failed !== 'true') {
-        ctx.drawImage(img, -halfSz, -halfSz, halfSz * 2, halfSz * 2);
+      const lottieFrame = animatedEmojiService.getFrame(sticker.emoji, renderTime);
+      if (lottieFrame) {
+        ctx.drawImage(lottieFrame, -halfSz, -halfSz, halfSz * 2, halfSz * 2);
+      } else {
+        const gifUrl = sticker.gifUrl || emojiToNotoUrl(sticker.emoji);
+        const img = this.getOrLoadImage(gifUrl);
+        if (img.naturalWidth > 0 && img.dataset.failed !== 'true') {
+          ctx.drawImage(img, -halfSz, -halfSz, halfSz * 2, halfSz * 2);
+        }
       }
 
       ctx.restore();
