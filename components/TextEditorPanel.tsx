@@ -45,6 +45,13 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedWord || e.ctrlKey || e.metaKey) return;
 
+      // Don't hijack keys while typing — arrows must move the text cursor
+      // inside the edit textarea, not jump between words.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        return;
+      }
+
       switch (e.key) {
         case 'ArrowUp':
           if (selectedIndex > 0) {

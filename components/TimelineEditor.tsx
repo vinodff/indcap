@@ -34,7 +34,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   onRestart,
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
-  const pixelsPerSecond = totalDuration > 0 ? 300 / totalDuration : 0;
+  // Fixed scale, horizontally scrollable. The old `300 / totalDuration`
+  // squeezed the ENTIRE timeline into 300px regardless of length, making
+  // word blocks a few pixels wide and unclickable on longer reels.
+  const pixelsPerSecond = 60;
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current) return;

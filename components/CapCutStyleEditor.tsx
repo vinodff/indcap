@@ -118,7 +118,7 @@ export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
           onDeleteWord={onDeleteWord}
           onDuplicateWord={onDuplicateWord}
           totalDuration={totalDuration}
-          currentTime={currentTime}
+          currentTime={currentTime * 1000} // panel expects ms; prop is seconds
         />
       );
     }

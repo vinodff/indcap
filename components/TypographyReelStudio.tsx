@@ -453,12 +453,23 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   };
 
   // ── Image editing handlers ────────────────────────────────────────────────
+
+  // The canvas is displayed scaled-down via CSS (e.g. 1080×1920 internal →
+  // ~320px wide on screen). Mouse events arrive in CSS pixels; image
+  // coordinates live in canvas pixels. Convert before hit-testing/dragging,
+  // otherwise clicks land far away from the images they target.
+  const toCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = toCanvasCoords(e);
 
     // Find which image was clicked
     for (const img of imageAssets) {
@@ -469,6 +480,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         y <= img.y + img.height
       ) {
         setSelectedImageId(img.assetId);
+        setSelectedWordId(null); // selections are mutually exclusive
         setDraggedImageId(img.assetId);
         setDragOffset({
           x: x - img.x,
@@ -481,10 +493,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!draggedImageId || !canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = toCanvasCoords(e);
 
     setImageAssets((prev) =>
       prev.map((img) =>
@@ -497,21 +506,33 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
           : img
       )
     );
-
-    // Update renderer
-    if (rendererRef.current) {
-      rendererRef.current.imageAssets = imageAssets;
-    }
   };
 
   const handleCanvasMouseUp = () => {
     setDraggedImageId(null);
   };
 
+  // Single source of truth for renderer image state. The previous manual
+  // `rendererRef.current.imageAssets = imageAssets` assignments inside the
+  // handlers captured a STALE closure value, so edits never reached the
+  // canvas. Sync here whenever React state actually changes.
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.imageAssets = imageAssets;
+    }
+  }, [imageAssets]);
+
   // ── Keyboard shortcuts for image editing ────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedImageId) return;
+
+      // Never hijack keys while the user is typing (e.g. Backspace in the
+      // word-edit textarea must edit text, not delete the selected image).
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        return;
+      }
 
       const NUDGE_AMOUNT = e.shiftKey ? 1 : 5;
 
@@ -580,21 +601,11 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     setImageAssets((prev) =>
       prev.map((img) => (img.assetId === id ? { ...img, ...updates } : img))
     );
-
-    // Update in renderer if it has the method
-    if (rendererRef.current) {
-      rendererRef.current.imageAssets = imageAssets;
-    }
   };
 
   const handleDeleteImage = (id: string) => {
     setImageAssets((prev) => prev.filter((img) => img.assetId !== id));
     setSelectedImageId(null);
-
-    // Update in renderer
-    if (rendererRef.current) {
-      rendererRef.current.imageAssets = imageAssets.filter((img) => img.assetId !== id);
-    }
   };
 
   // ── Text editing handlers ──────────────────────────────────────────────────
@@ -628,10 +639,16 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
   const handleSelectWord = (wordId: string | null) => {
     setSelectedWordId(wordId);
+    if (wordId) setSelectedImageId(null); // selections are mutually exclusive
     setEditMode(wordId ? 'text' : null);
     if (rendererRef.current) {
       (rendererRef.current as any).selectedWordId = wordId;
     }
+  };
+
+  const handleSelectImage = (imageId: string | null) => {
+    setSelectedImageId(imageId);
+    if (imageId) setSelectedWordId(null); // selections are mutually exclusive
   };
 
   const handleDuplicateWord = (wordId: string) => {
@@ -666,6 +683,10 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     setFindMatches(matches.length);
   };
 
+  // User input must be treated as literal text — "(", "?" etc. would
+  // otherwise throw "Invalid regular expression" and crash the replace.
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   const handleReplace = (find: string, replace: string, replaceAll: boolean) => {
     if (!animationSequence) return;
 
@@ -676,7 +697,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
           ...prev,
           animations: prev.animations.map((anim) =>
             anim.text.toLowerCase().includes(find.toLowerCase())
-              ? { ...anim, text: anim.text.replace(new RegExp(find, 'gi'), replace) }
+              ? { ...anim, text: anim.text.replace(new RegExp(escapeRegExp(find), "gi"), replace) }
               : anim
           ),
         };
@@ -688,7 +709,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         anim.text.toLowerCase().includes(find.toLowerCase())
       );
       if (firstMatch) {
-        handleUpdateWord(firstMatch.wordId, firstMatch.text.replace(new RegExp(find, 'gi'), replace));
+        handleUpdateWord(firstMatch.wordId, firstMatch.text.replace(new RegExp(escapeRegExp(find), "gi"), replace));
       }
     }
   };
@@ -846,7 +867,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         currentTime={currentTime}
         totalDuration={timelineDuration}
         onSelectWord={handleSelectWord}
-        onSelectImage={setSelectedImageId}
+        onSelectImage={handleSelectImage}
         onPlayPause={() => setPlaying(!playing)}
         onSeek={(time) => {
           setCurrentTime(time / 1000);
@@ -1283,13 +1304,13 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 onDuplicateWord={handleDuplicateWord}
                 onOpenFindReplace={() => setShowFindReplace(true)}
                 totalDuration={timelineDuration}
-                currentTime={currentTime}
+                currentTime={currentTime * 1000} // panel expects ms; state is seconds
               />
             ) : (
               <ImageEditorPanel
                 images={imageAssets}
                 selectedImageId={selectedImageId}
-                onSelectImage={setSelectedImageId}
+                onSelectImage={handleSelectImage}
                 onUpdateImage={handleUpdateImage}
                 onDeleteImage={handleDeleteImage}
                 totalDuration={timelineDuration}
