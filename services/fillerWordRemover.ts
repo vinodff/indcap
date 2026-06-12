@@ -47,9 +47,28 @@ export function removeFillerWords(captions: Caption[]): Caption[] {
     const cleaned: WordTiming[] = words.filter((_, i) => !skipIndices.has(i));
     if (cleaned.length === 0) continue; // drop caption if all words were fillers
 
+    // Per-word metadata is indexed by word position — removing words without
+    // remapping shifts every color/highlight onto the WRONG word downstream
+    // (generic renderer reads caption.wordColors[displayWordIndex]).
+    const wordColors = caption.wordColors
+      ? caption.wordColors.filter((_, i) => !skipIndices.has(i))
+      : caption.wordColors;
+    const indexShift = (orig: number) => {
+      let removedBefore = 0;
+      skipIndices.forEach(s => { if (s < orig) removedBefore++; });
+      return orig - removedBefore;
+    };
+    const highlightIndices = caption.highlightIndices
+      ? caption.highlightIndices
+          .filter(i => !skipIndices.has(i))
+          .map(indexShift)
+      : caption.highlightIndices;
+
     result.push({
       ...caption,
       words: cleaned,
+      wordColors,
+      highlightIndices,
       text: cleaned.map(w => w.text).join(' '),
       startTime: cleaned[0].start,
       endTime: cleaned[cleaned.length - 1].end,

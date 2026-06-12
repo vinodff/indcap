@@ -55,7 +55,11 @@ function cloneCaptions(captions: Caption[]): Caption[] {
 
 function findWordInCaption(caption: Caption, target: string): number {
   if (!caption.words) return -1;
-  return caption.words.findIndex(w => w.text.toLowerCase() === target.toLowerCase());
+  // Transcripts keep punctuation attached to words ("amazing,"). Compare with
+  // punctuation stripped on both sides so chat commands match what users type.
+  const norm = (s: string) => s.toLowerCase().replace(/[.,!?'"”“‘’]/g, '').trim();
+  const want = norm(target);
+  return caption.words.findIndex(w => norm(w.text) === want);
 }
 
 // Find the active caption at a given time
