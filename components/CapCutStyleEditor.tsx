@@ -75,7 +75,7 @@ export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
   // Prepare timeline items from both words and images
   const timelineItems = [
     ...animations.map((anim) => ({
-      id: anim.id,
+      id: anim.wordId,
       type: 'text' as const,
       text: anim.text,
       startTime: anim.startTime / 1000,
@@ -92,7 +92,7 @@ export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
 
   // Get selected item for properties panel
   const selectedItem = selectedWordId
-    ? animations.find((a) => a.id === selectedWordId)
+    ? animations.find((a) => a.wordId === selectedWordId)
     : selectedImageId
       ? images.find((i) => i.assetId === selectedImageId)
       : null;

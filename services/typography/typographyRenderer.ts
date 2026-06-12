@@ -231,6 +231,7 @@ export class TypographyRenderer {
 
     // Preload image bitmaps from blob URLs
     for (const asset of assets) {
+      if (!asset.blobUrl) continue; // asset without a preview URL can't render
       try {
         const response = await fetch(asset.blobUrl);
         const blob = await response.blob();
@@ -465,8 +466,17 @@ export class TypographyRenderer {
       const bitmap = this.imageBitmaps.get(asset.assetId);
       if (!bitmap) continue;
 
+      // Editor fields are optional on the wire — default to safe values.
+      const startTime = asset.startTime ?? 0;
+      const endTime = asset.endTime ?? 0;
+      const x = asset.x ?? 0;
+      const y = asset.y ?? 0;
+      const width = asset.width ?? 100;
+      const height = asset.height ?? 100;
+      const { rotation, blendMode } = asset;
+
       // Check if this image should be visible at this time
-      if (playbackTime < asset.startTime || playbackTime > asset.endTime) {
+      if (playbackTime < startTime || playbackTime > endTime) {
         continue;
       }
 
@@ -475,14 +485,11 @@ export class TypographyRenderer {
       const fadeInDuration = 0.2;
       const fadeOutDuration = 0.2;
 
-      if (playbackTime < asset.startTime + fadeInDuration) {
-        opacity = (playbackTime - asset.startTime) / fadeInDuration;
-      } else if (playbackTime > asset.endTime - fadeOutDuration) {
-        opacity = (asset.endTime - playbackTime) / fadeOutDuration;
+      if (playbackTime < startTime + fadeInDuration) {
+        opacity = (playbackTime - startTime) / fadeInDuration;
+      } else if (playbackTime > endTime - fadeOutDuration) {
+        opacity = (endTime - playbackTime) / fadeOutDuration;
       }
-
-      // Get target position and size
-      const { x, y, width, height, rotation, blendMode } = asset;
 
       this.ctx.save();
       this.ctx.globalAlpha = Math.max(0, Math.min(1, opacity));

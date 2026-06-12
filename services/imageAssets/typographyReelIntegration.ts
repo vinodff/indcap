@@ -86,6 +86,8 @@ export class TypographyReelImageIntegrator {
       };
 
       integrations.push({
+        assetId: selectedImage.id,
+        keyword: matchedKeyword,
         wordIndex: i,
         image: selectedImage,
         overlay,

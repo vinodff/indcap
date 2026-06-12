@@ -76,7 +76,7 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
             <div className="text-xs space-y-1">
               <div className="font-medium text-white truncate">{img.keyword}</div>
               <div className="text-gray-400">
-                {img.startTime.toFixed(2)}s – {img.endTime.toFixed(2)}s
+                {(img.startTime ?? 0).toFixed(2)}s – {(img.endTime ?? 0).toFixed(2)}s
               </div>
               <div className="text-gray-400">
                 {img.width} × {img.height}px
@@ -126,7 +126,7 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
                 min="0"
                 max={totalDuration}
                 step="0.1"
-                value={selectedImage.startTime}
+                value={selectedImage.startTime ?? 0}
                 onChange={(e) =>
                   onUpdateImage(selectedImage.assetId, {
                     startTime: parseFloat(e.target.value),
@@ -135,7 +135,7 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
                 className="flex-1 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer"
               />
               <span className="text-xs text-gray-400 w-12 text-right">
-                {selectedImage.startTime.toFixed(2)}s
+                {(selectedImage.startTime ?? 0).toFixed(2)}s
               </span>
             </div>
           </div>
@@ -148,7 +148,7 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
                 min="0"
                 max={totalDuration}
                 step="0.1"
-                value={selectedImage.endTime}
+                value={selectedImage.endTime ?? 0}
                 onChange={(e) =>
                   onUpdateImage(selectedImage.assetId, {
                     endTime: parseFloat(e.target.value),
@@ -157,7 +157,7 @@ export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
                 className="flex-1 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer"
               />
               <span className="text-xs text-gray-400 w-12 text-right">
-                {selectedImage.endTime.toFixed(2)}s
+                {(selectedImage.endTime ?? 0).toFixed(2)}s
               </span>
             </div>
           </div>

@@ -606,7 +606,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       return {
         ...prev,
         animations: prev.animations.map((anim) =>
-          anim.id === wordId ? { ...anim, text: newText } : anim
+          anim.wordId === wordId ? { ...anim, text: newText } : anim
         ),
       };
     });
@@ -619,7 +619,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       if (!prev) return prev;
       return {
         ...prev,
-        animations: prev.animations.filter((anim) => anim.id !== wordId),
+        animations: prev.animations.filter((anim) => anim.wordId !== wordId),
       };
     });
 
@@ -637,12 +637,12 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   const handleDuplicateWord = (wordId: string) => {
     if (!animationSequence) return;
 
-    const wordToDuplicate = animationSequence.animations.find(w => w.id === wordId);
+    const wordToDuplicate = animationSequence.animations.find(w => w.wordId === wordId);
     if (!wordToDuplicate) return;
 
     const newWord = {
       ...wordToDuplicate,
-      id: `${wordToDuplicate.id}-copy-${Date.now()}`,
+      wordId: `${wordToDuplicate.wordId}-copy-${Date.now()}`,
       startTime: wordToDuplicate.startTime + wordToDuplicate.duration + 100, // Add 100ms gap
     };
 
@@ -655,7 +655,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     });
 
     // Select the new word
-    setSelectedWordId(newWord.id);
+    setSelectedWordId(newWord.wordId);
   };
 
   const handleFind = (query: string) => {
@@ -688,7 +688,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         anim.text.toLowerCase().includes(find.toLowerCase())
       );
       if (firstMatch) {
-        onUpdateWord(firstMatch.id, firstMatch.text.replace(new RegExp(find, 'gi'), replace));
+        handleUpdateWord(firstMatch.wordId, firstMatch.text.replace(new RegExp(find, 'gi'), replace));
       }
     }
   };
@@ -872,7 +872,11 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     );
   }
 
-  // Otherwise, show the generation UI
+  // Otherwise, show the generation UI.
+  // After the early-return above, TS narrows animationSequence to null here;
+  // the legacy JSX below still references it conditionally, so keep a widened
+  // alias to satisfy the type checker without changing runtime behavior.
+  const seq = animationSequence as AnimationSequence | null;
   return (
     <div className="flex-1 flex flex-col bg-[#0a0a0a] overflow-hidden">
 
@@ -1047,10 +1051,10 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
               )}
 
               {/* Result summary */}
-              {animationSequence && stage === 'idle' && (
+              {seq && stage === 'idle' && (
                 <p className="mt-2 text-center text-xs text-green-400 flex items-center justify-center gap-1">
                   <CheckCircle2 size={12} />
-                  {animationSequence.animations.length} animations
+                  {seq.animations.length} animations
                   {beatGrid && !Number.isNaN(beatGrid.bpm) && beatGrid.bpm > 0
                     ? ` · ~${beatGrid.bpm} BPM`
                     : ''}
@@ -1093,7 +1097,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
           {/* Canvas container */}
           <div className="w-full max-w-[360px] flex-1 min-h-0 flex items-center justify-center relative">
-            {animationSequence ? (
+            {seq ? (
               <>
                 <canvas
                   ref={canvasRef}
@@ -1101,8 +1105,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                     draggedImageId ? 'cursor-grabbing ring-2 ring-violet-500' : 'cursor-pointer'
                   }`}
                   style={{
-                    aspectRatio: animationSequence
-                      ? `${animationSequence.layout.width} / ${animationSequence.layout.height}`
+                    aspectRatio: seq
+                      ? `${seq.layout.width} / ${seq.layout.height}`
                       : `${REEL_LIMITS.width} / ${REEL_LIMITS.height}`
                   }}
                   onMouseDown={handleCanvasMouseDown}
@@ -1271,7 +1275,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
             {/* Content */}
             {editMode === 'text' || (editMode === null && !imageAssets.length) ? (
               <TextEditorPanel
-                animations={animationSequence?.animations || []}
+                animations={seq?.animations || []}
                 selectedWordId={selectedWordId}
                 onSelectWord={handleSelectWord}
                 onUpdateWord={handleUpdateWord}

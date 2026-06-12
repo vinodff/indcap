@@ -28,10 +28,10 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
 }) => {
   const [editText, setEditText] = useState('');
   const selectedWord = selectedWordId
-    ? animations.find(w => w.id === selectedWordId)
+    ? animations.find(w => w.wordId === selectedWordId)
     : null;
   const selectedIndex = selectedWord
-    ? animations.findIndex(w => w.id === selectedWordId)
+    ? animations.findIndex(w => w.wordId === selectedWordId)
     : -1;
 
   React.useEffect(() => {
@@ -49,21 +49,21 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
         case 'ArrowUp':
           if (selectedIndex > 0) {
             e.preventDefault();
-            onSelectWord(animations[selectedIndex - 1].id);
+            onSelectWord(animations[selectedIndex - 1].wordId);
           }
           break;
 
         case 'ArrowDown':
           if (selectedIndex < animations.length - 1) {
             e.preventDefault();
-            onSelectWord(animations[selectedIndex + 1].id);
+            onSelectWord(animations[selectedIndex + 1].wordId);
           }
           break;
 
         case 'Delete':
           if (e.altKey) {
             e.preventDefault();
-            onDeleteWord(selectedWord.id);
+            onDeleteWord(selectedWord.wordId);
           }
           break;
 
@@ -125,10 +125,10 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
       <div className="flex-1 overflow-y-auto space-y-1 p-3">
         {animations.map((word, idx) => (
           <button
-            key={word.id || idx}
-            onClick={() => onSelectWord(word.id)}
+            key={word.wordId || idx}
+            onClick={() => onSelectWord(word.wordId)}
             className={`w-full text-left p-3 rounded-lg transition-all ${
-              selectedWordId === word.id
+              selectedWordId === word.wordId
                 ? 'bg-blue-600/30 border border-blue-500'
                 : 'bg-gray-800 border border-gray-700 hover:bg-gray-750'
             }`}
@@ -137,7 +137,7 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
               {word.text}
             </div>
             <div className="text-xs text-gray-400 space-y-0.5">
-              <div>#{word.id ? word.id.slice(0, 8) : idx}</div>
+              <div>#{word.wordId ? word.wordId.slice(0, 8) : idx}</div>
               <div>{(word.startTime / 1000).toFixed(2)}s – {((word.startTime + word.duration) / 1000).toFixed(2)}s</div>
             </div>
           </button>
@@ -166,11 +166,11 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
             <textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              onBlur={() => onUpdateWord(selectedWord.id, editText)}
+              onBlur={() => onUpdateWord(selectedWord.wordId, editText)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  onUpdateWord(selectedWord.id, editText);
+                  onUpdateWord(selectedWord.wordId, editText);
                 }
               }}
               className="w-full px-3 py-2 text-sm bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500 resize-none"
@@ -219,7 +219,7 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
           <div className="flex gap-2 pt-2 border-t border-gray-700">
             {onDuplicateWord && (
               <button
-                onClick={() => onDuplicateWord(selectedWord.id)}
+                onClick={() => onDuplicateWord(selectedWord.wordId)}
                 className="flex-1 px-2 py-1.5 text-xs font-medium bg-blue-900/30 text-blue-400 rounded hover:bg-blue-900/50 transition-colors flex items-center justify-center gap-1"
               >
                 <Copy size={12} />
@@ -227,7 +227,7 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
               </button>
             )}
             <button
-              onClick={() => onDeleteWord(selectedWord.id)}
+              onClick={() => onDeleteWord(selectedWord.wordId)}
               className="flex-1 px-2 py-1.5 text-xs font-medium bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1"
             >
               <Trash2 size={12} />

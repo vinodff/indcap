@@ -48,12 +48,12 @@ export const WordTimeline: React.FC<WordTimelineProps> = ({
           {animations.map((word) => {
             const startPercent = (word.startTime / 1000 / totalDuration) * 100;
             const widthPercent = (word.duration / 1000 / totalDuration) * 100;
-            const isSelected = word.id === selectedWordId;
+            const isSelected = word.wordId === selectedWordId;
 
             return (
               <button
-                key={word.id}
-                onClick={() => onSelectWord(word.id)}
+                key={word.wordId}
+                onClick={() => onSelectWord(word.wordId)}
                 className={`absolute h-12 rounded transition-all overflow-hidden text-center flex items-center justify-center text-xs font-medium truncate ${
                   isSelected
                     ? 'bg-blue-500 border-2 border-blue-300 z-20 scale-105'
