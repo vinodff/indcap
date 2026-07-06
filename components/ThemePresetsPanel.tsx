@@ -229,21 +229,15 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
           {/* Category filter chips */}
           <div className="flex gap-1.5 px-3 py-2.5 overflow-x-auto custom-scrollbar shrink-0 bg-[#0e0e16]/80 border-b border-gray-800/40">
             {CATEGORIES.map(cat => {
-              const isHyper = cat.id === 'HYPER';
               const isActive = activeCategory === cat.id;
               return (
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all shrink-0 ${isActive
-                      ? isHyper
-                        ? 'text-violet-300 border border-violet-500/60 shadow-lg shadow-violet-500/20'
-                        : 'bg-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/10'
-                      : isHyper
-                        ? 'bg-violet-900/30 text-violet-400 border border-violet-700/50 hover:bg-violet-800/40 hover:text-violet-300'
-                        : 'bg-gray-800/40 text-gray-500 border border-gray-700/40 hover:bg-gray-700/50 hover:text-gray-300'
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-all shrink-0 ${isActive
+                      ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40'
+                      : 'bg-gray-800/40 text-gray-500 border border-gray-700/40 hover:bg-gray-700/50 hover:text-gray-300'
                     }`}
-                  style={isActive && isHyper ? { background: 'rgba(139,92,246,0.25)' } : undefined}
                 >
                   <span className="text-xs">{cat.icon}</span>
                   {cat.label}
@@ -270,14 +264,10 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
                     onMouseEnter={() => handleHover(preset)}
                     onClick={() => handleSelect(preset)}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 group relative overflow-hidden ${isSelected
-                        ? isHyperPreset
-                          ? 'bg-violet-600/15 border-violet-500/50 shadow-lg shadow-violet-500/10'
-                          : 'bg-blue-600/15 border-blue-500/50 shadow-lg shadow-blue-500/10'
+                        ? 'bg-blue-600/15 border-blue-500/50'
                         : isHovered
                           ? 'bg-gray-800/60 border-gray-600/60 shadow-md shadow-black/30 scale-[1.01]'
-                          : isHyperPreset
-                            ? 'bg-violet-950/30 border-violet-900/40 hover:bg-violet-900/30 hover:border-violet-700/50'
-                            : 'bg-[#111118]/80 border-gray-800/50 hover:bg-gray-800/50 hover:border-gray-600/50'
+                          : 'bg-[#111118]/80 border-gray-800/50 hover:bg-gray-800/50 hover:border-gray-600/50'
                       }`}
                     style={{
                       transform: isHovered && !isSelected ? 'scale(1.01)' : undefined,
@@ -300,15 +290,12 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
                     {/* Info */}
                     <div className="text-left flex-1 min-w-0 relative z-10">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-[12px] font-black leading-tight ${isSelected
-                            ? isHyperPreset ? 'text-violet-300' : 'text-blue-300'
-                            : 'text-gray-200'
-                          }`}>
+                        <span className={`text-[12px] font-bold leading-tight ${isSelected ? 'text-blue-300' : 'text-gray-200'}`}>
                           {preset.name}
                         </span>
                         {isHyperPreset && (
-                          <span className="text-[7px] px-1.5 py-0.5 rounded font-black uppercase tracking-wide bg-violet-500/20 text-violet-400 border border-violet-500/30 shrink-0">
-                            CSS+GSAP
+                          <span className="text-[7px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide bg-white/5 text-gray-500 border border-white/10 shrink-0">
+                            Pro
                           </span>
                         )}
                       </div>
@@ -358,8 +345,8 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
           {/* ─── Viral Typography (FIRST — most prominent) ─── */}
           <section className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-orange-800/40 pb-2">
-              <Zap size={13} className="text-orange-400" /> Viral Typography
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
+              <Zap size={13} className="text-[var(--cc-blue-light)]" /> Viral Typography
             </div>
             <p className="text-[10px] text-gray-500 leading-relaxed">
               Transforms captions into high-retention CapCut-style segments — emotion-based fonts, animations, highlights &amp; emojis.
@@ -368,20 +355,12 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
               id="viral-typography-btn"
               onClick={handleViralTypography}
               disabled={isViralTypoLoading || captions.length === 0}
-              className="w-full flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
-              style={{
-                background: isViralTypoLoading
-                  ? 'rgba(249,115,22,0.3)'
-                  : 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)',
-                color: '#fff',
-                boxShadow: isViralTypoLoading ? 'none' : '0 4px 24px rgba(249,115,22,0.35)',
-                border: '1px solid rgba(249,115,22,0.3)',
-              }}
+              className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-white ${isViralTypoLoading ? 'bg-blue-600/40' : 'bg-[var(--cc-blue)] hover:bg-blue-500'}`}
             >
               {isViralTypoLoading ? (
                 <><Loader2 size={16} className="animate-spin" /> Generating Viral Captions…</>
               ) : (
-                <><Zap size={16} /> ⚡ Generate Viral Captions</>
+                <><Zap size={16} /> Generate Viral Captions</>
               )}
             </button>
             {captions.length === 0 && (
@@ -395,24 +374,24 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
               </div>
             )}
             {viralTypoResult && viralTypoResult.length > 0 && (
-              <div className="bg-orange-900/15 border border-orange-500/30 rounded-xl p-3 space-y-2">
+              <div className="bg-[var(--cc-surface-2)] border border-[var(--cc-border)] rounded-xl p-3 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Zap size={12} className="text-orange-400" />
-                  <span className="text-[10px] font-black text-orange-300 uppercase">
-                    ✅ Applied — {viralTypoResult.length} segments styled
+                  <Check size={12} className="text-[var(--cc-blue-light)]" />
+                  <span className="text-[10px] font-semibold text-gray-300 uppercase">
+                    Applied — {viralTypoResult.length} segments styled
                   </span>
                 </div>
                 <div className="space-y-1">
                   {viralTypoResult.slice(0, 3).map((item, i) => (
                     <div key={i} className="flex items-start gap-2">
-                      <span className="text-orange-400 text-[10px] font-bold mt-0.5 shrink-0">{i + 1}.</span>
+                      <span className="text-gray-500 text-[10px] font-bold mt-0.5 shrink-0">{i + 1}.</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] text-gray-300 truncate">{item.text}</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
-                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-orange-800/40 text-orange-300 font-bold">
+                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 font-semibold">
                             {item.style.template}
                           </span>
-                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-orange-800/40 text-orange-300 font-bold">
+                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 font-semibold">
                             {item.style.animation.entry}
                           </span>
                           {item.style.emoji && (
@@ -435,13 +414,13 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
           {/* AI Auto-Style */}
           <section className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
-              <Wand2 size={13} className="text-purple-400" /> AI Auto-Style
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
+              <Wand2 size={13} className="text-[var(--cc-blue-light)]" /> AI Auto-Style
             </div>
             <button
               onClick={handleAIStyle}
               disabled={isAISuggesting || captions.length === 0}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 active:scale-95 shadow-lg shadow-purple-500/20"
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)] border border-blue-500/30 hover:bg-blue-600/25 active:scale-95"
             >
               {isAISuggesting ? (
                 <><Loader2 size={16} className="animate-spin" /> Analyzing...</>
@@ -455,22 +434,22 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
               </p>
             )}
             {aiSuggestion && (
-              <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-3 space-y-2">
+              <div className="bg-[var(--cc-surface-2)] border border-[var(--cc-border)] rounded-xl p-3 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={12} className="text-purple-400" />
-                  <span className="text-[10px] font-black text-purple-300 uppercase">
+                  <Sparkles size={12} className="text-[var(--cc-blue-light)]" />
+                  <span className="text-[10px] font-semibold text-gray-300 uppercase">
                     AI Recommendation
                   </span>
                 </div>
                 <p className="text-[11px] text-gray-300">{aiSuggestion.reasoning}</p>
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-white/5 text-gray-400 font-semibold">
                     {aiSuggestion.theme}
                   </span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-white/5 text-gray-400 font-semibold">
                     {aiSuggestion.entryAnimation}
                   </span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-purple-800/50 text-purple-300 font-bold">
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-white/5 text-gray-400 font-semibold">
                     {aiSuggestion.wordHighlight}
                   </span>
                 </div>
@@ -480,13 +459,13 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
           {/* Hook Suggestions */}
           <section className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
-              <Lightbulb size={13} className="text-yellow-400" /> Hook Suggestions
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
+              <Lightbulb size={13} className="text-[var(--cc-blue-light)]" /> Hook Suggestions
             </div>
             <button
               onClick={handleGenerateHooks}
               disabled={isLoadingHooks || captions.length === 0}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-yellow-500/10 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/20 active:scale-95"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 active:scale-95"
             >
               {isLoadingHooks ? (
                 <><Loader2 size={14} className="animate-spin" /> Generating...</>
@@ -499,9 +478,9 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
                 {hookTexts.map((hook, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 p-2.5 bg-gray-900 rounded-lg border border-gray-800 group hover:border-yellow-500/30 transition-colors"
+                    className="flex items-center gap-2 p-2.5 bg-gray-900 rounded-lg border border-gray-800 group hover:border-blue-500/30 transition-colors"
                   >
-                    <span className="text-yellow-400 text-xs font-bold flex-shrink-0">
+                    <span className="text-[var(--cc-blue-light)] text-xs font-bold flex-shrink-0">
                       {i + 1}.
                     </span>
                     <span className="text-xs text-gray-300 flex-1">{hook}</span>
@@ -521,8 +500,8 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
           {/* Save Current */}
           <section className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
-              <Save size={13} className="text-green-400" /> Save Current Style
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
+              <Save size={13} className="text-[var(--cc-blue-light)]" /> Save Current Style
             </div>
             {showSaveDialog ? (
               <div className="flex gap-2">
@@ -532,12 +511,12 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
                   onChange={e => setTemplateName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
                   placeholder="Template name..."
-                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500"
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
                   autoFocus
                 />
                 <button
                   onClick={handleSaveTemplate}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-500 transition-colors"
+                  className="px-3 py-2 bg-[var(--cc-blue)] text-white rounded-lg text-xs font-bold hover:bg-blue-500 transition-colors"
                 >
                   Save
                 </button>
@@ -551,7 +530,7 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
             ) : (
               <button
                 onClick={() => setShowSaveDialog(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black bg-green-500/10 text-green-300 border border-green-500/30 hover:bg-green-500/20 active:scale-95 transition-all"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
               >
                 <Save size={14} /> Save as Template
               </button>
@@ -560,8 +539,8 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
           {/* Saved Templates */}
           <section className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
-              <FolderOpen size={13} className="text-blue-400" /> Saved Templates (
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2">
+              <FolderOpen size={13} className="text-[var(--cc-blue-light)]" /> Saved Templates (
               {templates.length})
             </div>
             {templates.length === 0 ? (
