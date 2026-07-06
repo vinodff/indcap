@@ -1823,7 +1823,7 @@ const App: React.FC = () => {
                   <button
                     onClick={() => setStudioOpen(v => !v)}
                     title="AI Studio Mode — auto color, denoise, face & audio enhancement"
-                    className={`absolute top-3 left-3 z-40 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wider shadow-xl backdrop-blur-md transition-all ${studioActive ? 'bg-fuchsia-600 text-[var(--cc-text-1)]' : 'bg-gradient-to-r from-fuchsia-600/90 to-violet-600/90 text-[var(--cc-text-1)] hover:from-fuchsia-500 hover:to-violet-500'}`}
+                    className={`absolute top-3 left-3 z-40 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur-md transition-all border ${studioActive ? 'bg-[var(--cc-blue)] border-transparent text-white' : 'bg-black/60 border-[var(--cc-border)] text-[var(--cc-text-2)] hover:bg-black/80 hover:text-[var(--cc-text-1)]'}`}
                   >
                     <Sparkles size={14} /> {studioAnalyzing ? 'Analyzing…' : studioActive ? 'Studio On' : 'Studio Mode'}
                   </button>
@@ -1837,21 +1837,21 @@ const App: React.FC = () => {
                       <button
                         onClick={() => setAutoCameraEnabled(v => !v)}
                         title={autoCameraEnabled ? 'AI Camera ON — zoom/pan/punch-in. Click to disable' : 'AI Camera OFF — click to auto-generate cinematic camera moves'}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-l-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoCameraEnabled ? 'bg-cyan-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-l-lg text-[11px] font-medium transition-all ${autoCameraEnabled ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                       >
                         <Camera size={11} /> {cameraAnalyzing ? 'Scanning…' : 'Camera'}
                       </button>
                       <button
                         onClick={() => setCameraSettingsOpen(o => !o)}
                         title="Camera style & strength"
-                        className={`px-1 py-1 rounded-r-lg border-l border-black/20 transition-all ${cameraSettingsOpen ? 'bg-cyan-500 text-[var(--cc-text-1)]' : autoCameraEnabled ? 'bg-cyan-600/80 text-[var(--cc-text-2)]/80 hover:text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                        className={`px-1 py-1 rounded-r-lg border-l border-black/20 transition-all ${cameraSettingsOpen ? 'bg-[var(--cc-blue)] text-white' : autoCameraEnabled ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)] hover:text-[var(--cc-text-1)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                       >
                         <ChevronDown size={11} className={`transition-transform ${cameraSettingsOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {cameraSettingsOpen && (
                         <div className="absolute bottom-full left-0 mb-2 w-64 p-3 rounded-xl bg-zinc-900/95 backdrop-blur-md border border-[var(--cc-border)] shadow-2xl text-[var(--cc-text-1)] space-y-3" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
-                            <Camera size={12} /> Camera Director
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--cc-text-1)]">
+                            <Camera size={12} className="text-[var(--cc-blue-light)]" /> Camera Director
                           </div>
                           {/* Style preset */}
                           <div>
@@ -1863,7 +1863,7 @@ const App: React.FC = () => {
                               ] as [CameraStyle, string][]).map(([val, label]) => (
                                 <button key={val}
                                   onClick={() => { setCameraStyle(val); if (!autoCameraEnabled) setAutoCameraEnabled(true); }}
-                                  className={`px-1.5 py-1 rounded-md text-[10px] font-semibold transition-all ${cameraStyle === val ? 'bg-cyan-500 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/50 hover:bg-white/10'}`}
+                                  className={`px-1.5 py-1 rounded-md text-[10px] font-semibold transition-all ${cameraStyle === val ? 'bg-[var(--cc-blue)] text-white' : 'bg-white/5 text-[var(--cc-text-1)]/50 hover:bg-white/10'}`}
                                 >{label}</button>
                               ))}
                             </div>
@@ -1880,27 +1880,27 @@ const App: React.FC = () => {
                             <div className="flex justify-between text-[10px] text-[var(--cc-text-1)]/50 mb-0.5"><span>Intensity</span><span className="text-[var(--cc-text-2)]/70">{Math.round(cameraIntensity * 100)}%</span></div>
                             <input type="range" min={0.3} max={1.6} step={0.05} value={cameraIntensity}
                               onChange={e => setCameraIntensity(parseFloat(e.target.value))}
-                              className="w-full accent-cyan-500 h-1" />
+                              className="w-full accent-blue-500 h-1" />
                           </label>
                           {/* Shake */}
                           <label className="block">
                             <div className="flex justify-between text-[10px] text-[var(--cc-text-1)]/50 mb-0.5"><span>Shake</span><span className="text-[var(--cc-text-2)]/70">{Math.round(cameraShake * 100)}%</span></div>
                             <input type="range" min={0} max={2} step={0.1} value={cameraShake}
                               onChange={e => setCameraShake(parseFloat(e.target.value))}
-                              className="w-full accent-cyan-500 h-1" />
+                              className="w-full accent-blue-500 h-1" />
                           </label>
                           {/* Max zoom */}
                           <label className="block">
                             <div className="flex justify-between text-[10px] text-[var(--cc-text-1)]/50 mb-0.5"><span>Max Zoom</span><span className="text-[var(--cc-text-2)]/70">{cameraMaxZoom.toFixed(2)}×</span></div>
                             <input type="range" min={1.2} max={1.8} step={0.05} value={cameraMaxZoom}
                               onChange={e => setCameraMaxZoom(parseFloat(e.target.value))}
-                              className="w-full accent-cyan-500 h-1" />
+                              className="w-full accent-blue-500 h-1" />
                           </label>
                           {/* Track faces */}
                           <button onClick={() => setCameraTrackFaces(v => !v)}
                             className="flex items-center justify-between w-full text-[10px] text-[var(--cc-text-2)]/60 hover:text-[var(--cc-text-1)]">
                             <span>Track speaker's face</span>
-                            {cameraTrackFaces ? <ToggleRight size={18} className="text-[var(--cc-green)]" /> : <ToggleLeft size={18} className="text-[var(--cc-text-1)]/30" />}
+                            {cameraTrackFaces ? <ToggleRight size={18} className="text-[var(--cc-blue-light)]" /> : <ToggleLeft size={18} className="text-[var(--cc-text-1)]/30" />}
                           </button>
                         </div>
                       )}
@@ -1909,7 +1909,7 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setAutoMotionEnabled(v => !v)}
                       title={autoMotionEnabled ? 'B-Roll ON — click to disable' : 'B-Roll OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoMotionEnabled ? 'bg-violet-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${autoMotionEnabled ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                     >
                       <Video size={11} /> B-Roll
                     </button>
@@ -1917,7 +1917,7 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setAutoSfxEnabled(v => !v)}
                       title={autoSfxEnabled ? 'SFX ON — click to disable' : 'SFX OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoSfxEnabled ? 'bg-green-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${autoSfxEnabled ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                     >
                       <Music size={11} /> SFX
                     </button>
@@ -1925,7 +1925,7 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setWordHighlight(w => w === 'NONE' ? 'COLOR_POP' : 'NONE')}
                       title={wordHighlight !== 'NONE' ? `Word Highlight: ${wordHighlight} — click to disable` : 'Word Highlight OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${wordHighlight !== 'NONE' ? 'bg-pink-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${wordHighlight !== 'NONE' ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                     >
                       <Sparkles size={11} /> Highlight
                     </button>
@@ -1933,12 +1933,10 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setEntryAnimation(a => a === 'NONE' ? 'SLIDE_UP' : 'NONE')}
                       title={entryAnimation !== 'NONE' ? `Entry: ${entryAnimation} — click to disable` : 'Entry animation OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${entryAnimation !== 'NONE' ? 'bg-blue-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${entryAnimation !== 'NONE' ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                     >
                       <Zap size={11} /> Anim
                     </button>
-                    <div className="w-px h-3 bg-white/10 mx-0.5" />
-                    <span className="text-[9px] text-[var(--cc-text-1)]/20 uppercase tracking-widest">FX</span>
                   </div>
                 )}
 
@@ -1974,7 +1972,7 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setShowSafeZones(!showSafeZones)}
                       title="Toggle Social Media Safe Zones"
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition-colors ${showSafeZones ? 'bg-yellow-400 text-black' : 'bg-black/60 text-[var(--cc-text-1)] hover:bg-black/80'}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${showSafeZones ? 'bg-[var(--cc-blue)] text-white' : 'bg-black/60 text-[var(--cc-text-2)] hover:bg-black/80 hover:text-[var(--cc-text-1)]'}`}
                     >
                       <Smartphone size={13} /> {showSafeZones ? 'Safe Zones ON' : 'Safe Zones'}
                     </button>
@@ -1984,7 +1982,7 @@ const App: React.FC = () => {
                           <button
                             key={p}
                             onClick={() => setSafeZonePlatform(p)}
-                            className={`p-1.5 rounded transition-colors ${safeZonePlatform === p ? 'text-yellow-400 bg-white/10' : 'text-[var(--cc-text-3)] hover:text-[var(--cc-text-1)]'}`}
+                            className={`p-1.5 rounded transition-colors ${safeZonePlatform === p ? 'text-[var(--cc-blue-light)] bg-white/10' : 'text-[var(--cc-text-3)] hover:text-[var(--cc-text-1)]'}`}
                             title={p === 'SHORTS' ? 'YouTube Shorts' : p === 'TIKTOK' ? 'TikTok' : p === 'INSTAGRAM' ? 'Instagram Reels' : 'Facebook Reels'}
                           >
                             {p === 'SHORTS' ? <Youtube size={14} /> : p === 'TIKTOK' ? <Video size={14} /> : p === 'INSTAGRAM' ? <Instagram size={14} /> : <span className="text-[11px] font-black">FB</span>}
