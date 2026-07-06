@@ -76,7 +76,7 @@ const Slider: React.FC<{
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="mt-1 w-full accent-fuchsia-500"
+      className="mt-1 w-full accent-blue-500"
     />
   </div>
 );
@@ -98,7 +98,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
     return (
       <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4 text-sm text-slate-400">
         <div className="flex items-center gap-2 font-semibold text-slate-200">
-          <Sparkles size={16} className="text-fuchsia-400" /> Studio Mode
+          <Sparkles size={16} className="text-[var(--cc-blue-light)]" /> Studio Mode
         </div>
         <p className="mt-2">Upload a video and AI will auto-analyze it for one-tap enhancement.</p>
       </div>
@@ -114,10 +114,10 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
   const faceDisabled = mode === 'none';
 
   return (
-    <div className="rounded-xl border border-fuchsia-700/40 bg-gradient-to-b from-slate-800/70 to-slate-900/70 p-4">
+    <div className="rounded-xl border border-[var(--cc-border-mid)] bg-[var(--cc-surface-3)]/95 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 font-semibold text-slate-100">
-          <Sparkles size={16} className="text-fuchsia-400" /> Studio Mode
+          <Sparkles size={16} className="text-[var(--cc-blue-light)]" /> Studio Mode
         </div>
         <div className="flex items-center gap-1.5">
           {scene && !analyzing && (
@@ -126,7 +126,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
             </span>
           )}
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${mode === 'webgl' ? 'bg-emerald-700/50 text-emerald-300' : 'bg-amber-700/40 text-amber-300'}`}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${mode === 'webgl' ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'bg-white/10 text-slate-400'}`}
             title={mode === 'webgl' ? 'Full GPU pass incl. face-local enhancement' : 'Lite mode: global adjustments (no face-local pass) — your GPU/browser lacks WebGL2'}
           >
             {mode === 'webgl' ? 'PRO' : 'LITE'}
@@ -136,7 +136,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
 
       {analyzing ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
-          <Loader2 size={16} className="animate-spin text-fuchsia-400" />
+          <Loader2 size={16} className="animate-spin text-[var(--cc-blue-light)]" />
           Analyzing footage…
         </div>
       ) : (
@@ -162,7 +162,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
               <input
                 type="range" min={0} max={100} value={Math.round(comparePos * 100)}
                 onChange={(e) => onComparePos(Number(e.target.value) / 100)}
-                className="mt-1 w-full accent-fuchsia-500"
+                className="mt-1 w-full accent-blue-500"
               />
             </div>
           )}
@@ -171,7 +171,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
           <button
             onClick={() => onToggle(!active)}
             className={`mt-4 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-              active ? 'bg-fuchsia-600 text-white hover:bg-fuchsia-500' : 'bg-slate-700 text-slate-100 hover:bg-slate-600'
+              active ? 'bg-[var(--cc-blue)] text-white hover:bg-blue-500' : 'bg-slate-700 text-slate-100 hover:bg-slate-600'
             }`}
           >
             {active ? <Check size={16} /> : <Wand2 size={16} />}
@@ -183,7 +183,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
             <div className="mt-4 rounded-lg border border-slate-700/50 bg-slate-900/40 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-300">
-                  <SlidersHorizontal size={13} className="text-fuchsia-400" /> Adjustments
+                  <SlidersHorizontal size={13} className="text-[var(--cc-blue-light)]" /> Adjustments
                 </div>
                 <button
                   onClick={onResetParams}
@@ -230,7 +230,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
             <span>AI audio cleanup</span>
             <button
               onClick={() => onAudioToggle(!audioEnabled)}
-              className={`relative h-5 w-9 rounded-full transition ${audioEnabled ? 'bg-fuchsia-600' : 'bg-slate-600'}`}
+              className={`relative h-5 w-9 rounded-full transition ${audioEnabled ? 'bg-[var(--cc-blue)]' : 'bg-slate-600'}`}
               aria-pressed={audioEnabled}
             >
               <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${audioEnabled ? 'left-4' : 'left-0.5'}`} />
@@ -247,7 +247,7 @@ const StudioModePanel: React.FC<StudioModePanelProps> = ({
                   onClick={() => onPickPlatform(p.id)}
                   title={p.note}
                   className={`rounded-md px-2 py-1.5 text-[11px] font-medium transition ${
-                    activePlatform === p.id ? 'bg-fuchsia-600 text-white' : 'bg-slate-700/70 text-slate-200 hover:bg-slate-600'
+                    activePlatform === p.id ? 'bg-[var(--cc-blue)] text-white' : 'bg-slate-700/70 text-slate-200 hover:bg-slate-600'
                   }`}
                 >
                   {p.label}
