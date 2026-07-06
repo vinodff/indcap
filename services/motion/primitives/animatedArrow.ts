@@ -15,6 +15,7 @@
 
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, easeOutCubic, easeOutElastic, lerp, remap } from '../easing';
+import { hexA, roundRect } from '../decorations';
 
 const FONT_STACK = `'Space Grotesk', 'Inter', 'Segoe UI', Arial, sans-serif`;
 
@@ -217,23 +218,4 @@ function drawPartialCurve(
     void u;
     ctx.lineTo(pt.x + ox, pt.y + oy);
   }
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function hexA(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
 }

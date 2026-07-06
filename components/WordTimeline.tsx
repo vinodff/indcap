@@ -46,8 +46,9 @@ export const WordTimeline: React.FC<WordTimelineProps> = ({
         {/* Word blocks */}
         <div className="absolute inset-0 flex items-center">
           {animations.map((word) => {
-            const startPercent = (word.startTime / 1000 / totalDuration) * 100;
-            const widthPercent = (word.duration / 1000 / totalDuration) * 100;
+            // WordAnimation times are seconds; only the currentTime prop is ms
+            const startPercent = (word.startTime / totalDuration) * 100;
+            const widthPercent = (word.duration / totalDuration) * 100;
             const isSelected = word.wordId === selectedWordId;
 
             return (
@@ -64,7 +65,7 @@ export const WordTimeline: React.FC<WordTimelineProps> = ({
                   width: `${Math.max(widthPercent, 2)}%`, // Minimum 2% width for visibility
                   color: isSelected ? 'white' : 'rgba(255,255,255,0.8)',
                 }}
-                title={`${word.text} (${(word.startTime / 1000).toFixed(2)}s)`}
+                title={`${word.text} (${word.startTime.toFixed(2)}s)`}
               >
                 <span className="px-1 truncate">{word.text}</span>
               </button>
@@ -99,14 +100,14 @@ export const WordTimeline: React.FC<WordTimelineProps> = ({
         <div>
           <div className="text-gray-500 font-medium">Avg Duration</div>
           <div className="text-white">
-            {(animations.reduce((sum, w) => sum + w.duration, 0) / animations.length / 1000).toFixed(2)}s
+            {(animations.reduce((sum, w) => sum + w.duration, 0) / animations.length).toFixed(2)}s
           </div>
         </div>
         <div>
           <div className="text-gray-500 font-medium">Coverage</div>
           <div className="text-white">
             {(
-              (animations.reduce((sum, w) => sum + w.duration, 0) / 1000 / totalDuration) *
+              (animations.reduce((sum, w) => sum + w.duration, 0) / totalDuration) *
               100
             ).toFixed(0)}%
           </div>

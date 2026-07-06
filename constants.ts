@@ -615,17 +615,6 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     animation: 'SCALE_UP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'ACTIVE_ONLY',
   },
-  [CaptionStyle.GLITCH_CYBER]: {
-    name: 'Glitch Cyber', category: 'NEON',
-    fontFamily: "'Orbitron', sans-serif", fontSize: 58, fontWeight: 900,
-    textColor: '#FF00FF', activeTextColor: '#FFE600',
-    strokeColor: '#00FFFF', strokeWidth: 12,
-    shadowColor: '#FF00FF', shadowBlur: 45, shadowOffsetY: 0,
-    backgroundColor: 'rgba(10, 0, 40, 0.75)', backgroundPadding: 20, backgroundBorderRadius: 4,
-    gradientColors: ['#00FFFF', '#FF00FF', '#FFE600'],
-    animation: 'POP', uppercase: true, displayMode: 'WORD',
-    colorBehavior: 'FIXED',
-  },
   [CaptionStyle.GRADIENT_DREAM]: {
     name: 'Gradient Dream', category: 'GLOW',
     fontFamily: "'Poppins', sans-serif", fontSize: 58, fontWeight: 900,
@@ -1115,15 +1104,6 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     colorBehavior: 'WORD_POP',
     springStiffness: 250, springDamping: 15,
   },
-  [CaptionStyle.WORD_STAMP]: {
-    name: 'Rubber Stamp', category: 'BOLD',
-    fontFamily: "'Anton', sans-serif", fontSize: 80, fontWeight: 400,
-    textColor: '#FFFFFF', activeTextColor: '#FF2200',
-    strokeColor: '#000000', strokeWidth: 12,
-    shadowColor: '#880000', shadowBlur: 0, shadowOffsetX: 6, shadowOffsetY: 6,
-    animation: 'STAMP', uppercase: true, displayMode: 'WORD',
-    colorBehavior: 'WORD_POP',
-  },
 
   // ─── BADGE / PILL (SPRINT 1) ───
   [CaptionStyle.PILL_BADGE]: {
@@ -1259,14 +1239,6 @@ export const STYLES_CONFIG: Record<CaptionStyle, StyleConfig> = {
     shadowColor: '#FF4500', shadowBlur: 20, shadowOffsetY: 6,
     animation: 'STAMP', uppercase: true, displayMode: 'WORD',
     colorBehavior: 'WORD_POP',
-  },
-  [CaptionStyle.FLOAT_RISE]: {
-    name: 'Float Rise', category: 'KINETIC',
-    fontFamily: "'Poppins', sans-serif", fontSize: 52, fontWeight: 700,
-    textColor: 'rgba(255,255,255,0.2)', activeTextColor: '#87CEEB',
-    shadowColor: '#87CEEB', shadowBlur: 25,
-    animation: 'SCALE_UP', uppercase: false, displayMode: 'WORD',
-    colorBehavior: 'ACTIVE_ONLY',
   },
   [CaptionStyle.SLIDE_REVEAL]: {
     name: 'Slide Reveal', category: 'KINETIC',

@@ -11,6 +11,7 @@
 
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, lerp } from '../easing';
+import { hexA } from '../decorations';
 
 interface Meteor {
   startX: number;
@@ -106,14 +107,6 @@ export const meteors = (pc: PrimitiveContext, p: PrimitiveParams): void => {
   ctx.restore();
 };
 
-function hexA(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
 
 function mixHex(a: string, b: string, t: number): string {
   const h1 = a.replace('#', '');

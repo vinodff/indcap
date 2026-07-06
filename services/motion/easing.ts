@@ -3,8 +3,6 @@
  * (springs and back curves can overshoot — intentional).
  */
 
-export const linear = (t: number): number => t;
-
 export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 export const easeInCubic = (t: number): number => t * t * t;

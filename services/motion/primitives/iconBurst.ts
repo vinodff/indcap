@@ -10,6 +10,7 @@
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, easeOutCubic, easeOutElastic, lerp, remap } from '../easing';
 import { resolveIcon } from '../icons';
+import { hexA } from '../decorations';
 
 function rngFactory(seed: number): () => number {
   let a = seed >>> 0;
@@ -129,12 +130,3 @@ export const iconBurst = (pc: PrimitiveContext, p: PrimitiveParams): void => {
     ctx.restore();
   }
 };
-
-function hexA(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}

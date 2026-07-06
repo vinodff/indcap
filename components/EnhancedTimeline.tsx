@@ -2,6 +2,23 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { Caption, Keyframe, KeyframeMap } from '../types';
 import { upsertKeyframe, removeKeyframe } from '../services/caption/keyframeEngine';
 import { ZoomIn, ZoomOut, Scissors, Trash2, Copy, Diamond, Film, Zap, X } from 'lucide-react';
+import type { SfxCue, SfxSource } from '../services/audio/soundDesign';
+import { cueSoundName } from '../services/audio/soundDesign/cueEdits';
+import type { CameraKeyframe, CameraMoveKind } from '../services/camera';
+import type { TimelineSelection } from './timeline/trackModel';
+
+// Per-source colour for SFX cue markers on the timeline.
+const SFX_SOURCE_COLOR: Record<SfxSource, string> = {
+  motion: '#a78bfa', texture: '#22d3ee', hit: '#f87171',
+  riser: '#fbbf24', semantic: '#34d399', manual: '#e5e7eb',
+};
+
+// Per-move colour for camera keyframe markers.
+const CAM_KIND_COLOR: Record<CameraMoveKind, string> = {
+  'punch-in': '#f472b6', 'zoom-in': '#22d3ee', 'zoom-out': '#38bdf8',
+  establish: '#a3e635', pan: '#fbbf24', hold: '#94a3b8',
+  'crash-zoom': '#ef4444', 'whip-pan': '#f59e0b', dutch: '#c084fc', shake: '#fb7185',
+};
 
 type Sentiment = 'energetic' | 'joyful' | 'calm' | 'serious';
 
@@ -24,6 +41,19 @@ interface EnhancedTimelineProps {
     autoSfxEnabled?: boolean;
     entryAnimation?: string;
     wordHighlight?: string;
+    // Dynamic SFX cue track (auto-generated; markers open an edit popover).
+    sfxTrack?: SfxCue[];
+    onDeleteSfxCue?: (id: string) => void;
+    onSwapSfxCue?: (id: string, dir: 1 | -1) => void;
+    onAdjustSfxCueGain?: (id: string, gain: number) => void;
+    onToggleSfxCueMuted?: (id: string) => void;
+    onPreviewSfxCue?: (id: string) => void;
+    // AI Auto-Camera keyframe track (auto-generated; markers are click-to-delete).
+    cameraTrack?: CameraKeyframe[];
+    onDeleteCameraKeyframe?: (id: string) => void;
+    // CapCut-style unified selection — clicking any clip routes the inspector.
+    selection?: TimelineSelection | null;
+    onSelectObject?: (sel: TimelineSelection | null) => void;
 }
 
 const TRACK_HEIGHT = 36;
@@ -56,6 +86,16 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     autoSfxEnabled = true,
     entryAnimation,
     wordHighlight,
+    sfxTrack = [],
+    onDeleteSfxCue,
+    onSwapSfxCue,
+    onAdjustSfxCueGain,
+    onToggleSfxCueMuted,
+    onPreviewSfxCue,
+    cameraTrack = [],
+    onDeleteCameraKeyframe,
+    selection = null,
+    onSelectObject,
 }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -71,6 +111,8 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     const [duration, setDuration] = useState(10);
     // Resource popover — click a B-roll/SFX block to edit or delete it
     const [resourcePopover, setResourcePopover] = useState<{ captionId: string; type: 'broll' | 'sfx' | 'anim'; screenX: number; screenY: number } | null>(null);
+    // SFX cue edit popover — click a cue marker to swap sound / volume / mute / delete.
+    const [sfxCuePopover, setSfxCuePopover] = useState<{ id: string; screenX: number; screenY: number } | null>(null);
 
     // Compute virtual duration: max of video duration and latest caption endTime
     // This ensures the timeline covers all captions even when using a short/blank video
@@ -608,18 +650,16 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                         const width = ((cap.endTime - cap.startTime) / effectiveDuration) * 100;
                                         const disabled = !!cap.brollDisabled;
                                         const meta = SENTIMENT_META[cap.sentiment ?? 'calm'] ?? SENTIMENT_META.calm;
+                                        const isSel = selection?.kind === 'broll' && selection.id === cap.id;
                                         return (
                                             <div
                                                 key={cap.id}
-                                                title={disabled ? 'B-roll disabled — click to re-enable' : `B-roll: ${meta.label} — click to change`}
-                                                className={`absolute top-0.5 rounded border cursor-pointer group transition-all ${disabled ? 'bg-gray-800/60 border-gray-700/50 opacity-40' : `${meta.bg} ${meta.border}`}`}
+                                                title={disabled ? 'B-roll disabled — click to edit' : `B-roll: ${meta.label} — click to edit`}
+                                                className={`absolute top-0.5 rounded border cursor-pointer group transition-all ${disabled ? 'bg-gray-800/60 border-gray-700/50 opacity-40' : `${meta.bg} ${meta.border}`} ${isSel ? 'ring-2 ring-white z-10' : ''}`}
                                                 style={{ left: `${left}%`, width: `${Math.max(width, 0.5)}%`, height: 22 }}
                                                 onClick={e => {
                                                     e.stopPropagation();
-                                                    setResourcePopover(p =>
-                                                        p?.captionId === cap.id && p.type === 'broll' ? null
-                                                        : { captionId: cap.id, type: 'broll', screenX: e.clientX, screenY: e.clientY }
-                                                    );
+                                                    onSelectObject?.({ kind: 'broll', id: cap.id });
                                                 }}
                                             >
                                                 <span className={`absolute inset-0 flex items-center justify-center text-[8px] font-bold gap-0.5 pointer-events-none ${disabled ? 'text-gray-500' : meta.text}`}>
@@ -651,25 +691,66 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                 </div>
                             )}
 
-                            {/* SFX track */}
+                            {/* SFX cue track — real auto-generated cues, colour-coded by source.
+                                Click a marker to delete that cue. */}
                             {autoSfxEnabled && (
-                                <div className="relative flex items-center" style={{ height: 20 }}>
-                                    <span className="absolute -left-0 text-[7px] font-black text-green-700 uppercase tracking-widest z-10 pointer-events-none">SFX</span>
+                                <div className="relative flex items-center" style={{ height: 22 }}>
+                                    <span className="absolute -left-0 text-[7px] font-black text-green-700 uppercase tracking-widest z-10 pointer-events-none">
+                                        SFX{sfxTrack.length ? ` · ${sfxTrack.length}` : ''}
+                                    </span>
                                     <div className="absolute inset-0 rounded bg-gray-900/20" />
-                                    {captions.map(cap => {
-                                        const left = (cap.startTime / effectiveDuration) * 100;
-                                        const disabled = !!cap.sfxDisabled;
+                                    {sfxTrack.map(cue => {
+                                        const left = (cue.time / effectiveDuration) * 100;
+                                        const color = SFX_SOURCE_COLOR[cue.source] ?? '#9ca3af';
+                                        const isSel = selection?.kind === 'sfx' && selection.id === cue.id;
                                         return (
                                             <div
-                                                key={cap.id}
-                                                title={disabled ? 'SFX disabled — click to re-enable' : 'SFX trigger — click to disable'}
-                                                className={`absolute top-1 cursor-pointer transition-all group ${disabled ? 'opacity-20' : 'opacity-90 hover:opacity-100'}`}
-                                                style={{ left: `${left}%`, transform: 'translateX(-50%)', width: 10, height: 14 }}
-                                                onClick={e => { e.stopPropagation(); onUpdateCaption(cap.id, { sfxDisabled: !disabled }); }}
+                                                key={cue.id}
+                                                title={`${cue.label} · ${cue.source} (${cue.category}) — click to edit`}
+                                                className={`absolute top-1 cursor-pointer transition-all group ${isSel ? 'scale-150 z-10' : 'hover:scale-125'}`}
+                                                style={{ left: `${left}%`, transform: 'translateX(-50%)', width: 8, height: 16, opacity: cue.muted ? 0.35 : 1 }}
+                                                onClick={e => {
+                                                    e.stopPropagation();
+                                                    onPreviewSfxCue?.(cue.id);
+                                                    onSelectObject?.({ kind: 'sfx', id: cue.id });
+                                                }}
                                             >
-                                                <div className={`w-full h-full flex flex-col items-center justify-center gap-0.5`}>
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${disabled ? 'bg-gray-600' : 'bg-green-400 group-hover:bg-green-300'}`} />
-                                                    <div className={`w-px h-2 ${disabled ? 'bg-gray-700' : 'bg-green-600'}`} />
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-0.5">
+                                                    <div className="rounded-full" style={{ width: 6, height: 6, background: color, boxShadow: `0 0 4px ${color}` }} />
+                                                    {cue.locked && <div className="absolute -top-1 -right-1 rounded-full" style={{ width: 3, height: 3, background: '#fff' }} />}
+                                                    <div style={{ width: 1, height: 8, background: color, opacity: 0.6 }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sfxTrack.length === 0 && (
+                                        <span className="absolute left-8 text-[7px] text-gray-600 pointer-events-none">no cues — enable SFX or generate captions</span>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* AI Auto-Camera move track — colour-coded by move, click to delete */}
+                            {cameraTrack.length > 0 && (
+                                <div className="relative flex items-center" style={{ height: 22 }}>
+                                    <span className="absolute -left-0 text-[7px] font-black text-cyan-700 uppercase tracking-widest z-10 pointer-events-none">
+                                        CAM · {cameraTrack.length}
+                                    </span>
+                                    <div className="absolute inset-0 rounded bg-gray-900/20" />
+                                    {cameraTrack.map(k => {
+                                        const left = (k.time / effectiveDuration) * 100;
+                                        const color = CAM_KIND_COLOR[k.kind] ?? '#9ca3af';
+                                        const isSel = selection?.kind === 'camera' && selection.id === k.id;
+                                        return (
+                                            <div
+                                                key={k.id}
+                                                title={`${k.kind} · zoom ${k.zoom.toFixed(2)}× — click to edit`}
+                                                className={`absolute top-1 cursor-pointer transition-all group ${isSel ? 'scale-150 z-10' : 'hover:scale-125'}`}
+                                                style={{ left: `${left}%`, transform: 'translateX(-50%)', width: 8, height: 16 }}
+                                                onClick={e => { e.stopPropagation(); onSelectObject?.({ kind: 'camera', id: k.id }); }}
+                                            >
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-0.5">
+                                                    <div style={{ width: 6, height: 6, borderRadius: 2, background: color, boxShadow: `0 0 4px ${color}` }} />
+                                                    <div style={{ width: 1, height: 8, background: color, opacity: 0.6 }} />
                                                 </div>
                                             </div>
                                         );
@@ -742,6 +823,69 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                     <X size={9} /> Remove B-roll for this caption
                                 </button>
                             </div>
+                        );
+                    })()}
+
+                    {/* SFX cue edit popover — swap sound / volume / mute / delete one cue */}
+                    {sfxCuePopover && (() => {
+                        const cue = sfxTrack.find(c => c.id === sfxCuePopover.id);
+                        if (!cue) return null;
+                        const { screenX, screenY } = sfxCuePopover;
+                        return (
+                            <>
+                                <div className="fixed inset-0 z-[199]" onClick={() => setSfxCuePopover(null)} />
+                                <div
+                                    className="fixed z-[200] bg-[#0d1410] border border-green-500/30 rounded-xl shadow-2xl p-3 w-56"
+                                    style={{ left: Math.min(Math.max(8, screenX - 112), window.innerWidth - 232), top: Math.max(8, screenY - 200) }}
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <Zap size={10} className="text-green-400 shrink-0" />
+                                            <span className="text-[10px] font-semibold text-white truncate" title={cueSoundName(cue)}>{cueSoundName(cue)}</span>
+                                        </div>
+                                        <button onClick={() => setSfxCuePopover(null)} className="text-white/30 hover:text-white text-xs ml-1">✕</button>
+                                    </div>
+                                    <div className="text-[8px] uppercase tracking-wider text-green-600/70 mb-2">{cue.role ?? cue.source} · {cue.category} · {cue.time.toFixed(2)}s</div>
+
+                                    {/* Swap sound */}
+                                    <div className="flex items-center justify-between gap-1 mb-2">
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Sound</span>
+                                        <div className="flex gap-1">
+                                            <button onClick={() => { onSwapSfxCue?.(cue.id, -1); setTimeout(() => onPreviewSfxCue?.(cue.id), 30); }} className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/70 text-[10px] font-bold">‹ Prev</button>
+                                            <button onClick={() => { onPreviewSfxCue?.(cue.id); }} className="px-2 py-0.5 rounded bg-green-700/40 hover:bg-green-600/60 text-green-100 text-[10px] font-bold">▶</button>
+                                            <button onClick={() => { onSwapSfxCue?.(cue.id, 1); setTimeout(() => onPreviewSfxCue?.(cue.id), 30); }} className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/70 text-[10px] font-bold">Next ›</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Volume */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-white/40 w-12">Vol</span>
+                                        <input
+                                            type="range" min={0} max={1} step={0.05} value={cue.gain}
+                                            onChange={e => onAdjustSfxCueGain?.(cue.id, parseFloat(e.target.value))}
+                                            className="flex-1 accent-green-500 cursor-pointer"
+                                        />
+                                        <span className="text-[9px] text-green-300 w-7 text-right">{Math.round(cue.gain * 100)}</span>
+                                    </div>
+
+                                    {/* Mute + Delete */}
+                                    <div className="flex gap-1.5">
+                                        <button
+                                            onClick={() => onToggleSfxCueMuted?.(cue.id)}
+                                            className={`flex-1 text-[9px] font-bold rounded-lg py-1.5 transition-colors ${cue.muted ? 'bg-yellow-600/30 text-yellow-200' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'}`}
+                                        >
+                                            {cue.muted ? 'Unmute' : 'Mute'}
+                                        </button>
+                                        <button
+                                            onClick={() => { onDeleteSfxCue?.(cue.id); setSfxCuePopover(null); }}
+                                            className="flex-1 text-[9px] text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg py-1.5 transition-colors flex items-center justify-center gap-1"
+                                        >
+                                            <X size={9} /> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
                         );
                     })()}
 

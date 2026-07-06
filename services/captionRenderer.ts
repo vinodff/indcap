@@ -24,6 +24,7 @@ import { animatedEmojiService } from './typography/animatedEmojiService';
 import { getActiveWordEmphasis } from './caption/zoomEffect';
 import { drawEmotionBackground } from './caption/backgroundEffect';
 import { evaluateKeyframe, applyCaptionKeyframe } from './caption/keyframeEngine';
+import { evaluateCamera, cameraSourceRect } from './camera/cameraEngine';
 import { getBrollImage } from './caption/brollCache';
 import { getBrollVideo, syncBrollTime } from './caption/brollVideo';
 
@@ -361,12 +362,73 @@ export class CaptionRenderer implements RenderHelpers {
     // --- Draw video frame ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (video) {
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.scale(this.currentZoom, this.currentZoom);
-      ctx.translate(-canvas.width / 2, -canvas.height / 2);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctx.restore();
+      const srcW = video.videoWidth || canvas.width;
+      const srcH = video.videoHeight || canvas.height;
+
+      // Studio Mode: when an enhanced frame is supplied, draw that instead of
+      // the raw element. Identical dimensions, so the camera source-rect below
+      // still maps 1:1 and the enhancement bakes into export for free.
+      const enhanced = state.enhancedSource ?? null;
+
+      // Draws ONE source (raw video or enhanced canvas) with the active camera /
+      // zoom transform. Shared so the before/after compare wipe can call it twice.
+      const drawSource = (src: CanvasImageSource) => {
+        if (state.autoCameraEnabled && state.cameraTrack && state.cameraTrack.length > 0) {
+          // AI Auto-Camera: zoom + pan via an animated source sub-rectangle so the
+          // move is baked into preview AND export. See services/camera.
+          const cam = evaluateCamera(state.cameraTrack, renderTime);
+          const r = cameraSourceRect(cam, srcW, srcH);
+          const rot = (cam.rotation || 0) * Math.PI / 180;
+          if (rot !== 0) {
+            // Dutch-tilt / shake roll. Scale up just enough to cover the rotated
+            // frame so the corners never expose black edges.
+            const cw = canvas.width, ch = canvas.height;
+            const cos = Math.abs(Math.cos(rot)), sin = Math.abs(Math.sin(rot));
+            const cover = Math.max((cw * cos + ch * sin) / cw, (ch * cos + cw * sin) / ch);
+            ctx.save();
+            ctx.translate(cw / 2, ch / 2);
+            ctx.rotate(rot);
+            ctx.scale(cover, cover);
+            ctx.translate(-cw / 2, -ch / 2);
+            ctx.drawImage(src, r.sx, r.sy, r.sw, r.sh, 0, 0, cw, ch);
+            ctx.restore();
+          } else {
+            ctx.drawImage(src, r.sx, r.sy, r.sw, r.sh, 0, 0, canvas.width, canvas.height);
+          }
+        } else {
+          // Legacy reactive center-zoom (used when Auto-Camera is off).
+          ctx.save();
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.scale(this.currentZoom, this.currentZoom);
+          ctx.translate(-canvas.width / 2, -canvas.height / 2);
+          ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        }
+      };
+
+      const comparePos = state.enhanceComparePos ?? 1;
+      if (enhanced && comparePos < 1) {
+        // Before/after wipe: enhanced fills the frame, raw is clipped to the
+        // left portion, with a divider line at the split.
+        drawSource(enhanced);
+        const splitX = Math.round(canvas.width * comparePos);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, splitX, canvas.height);
+        ctx.clip();
+        drawSource(video);
+        ctx.restore();
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(splitX, 0);
+        ctx.lineTo(splitX, canvas.height);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        drawSource(enhanced ?? video);
+      }
     }
 
     // --- Draw captions (skipped when HyperCaption HTML overlay is active) ---

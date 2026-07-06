@@ -46,6 +46,7 @@ interface CapCutStyleEditorProps {
   onDeleteImage: (id: string) => void;
   onBack?: () => void;
   onExport?: () => void;
+  onOpenFindReplace?: () => void;
 }
 
 export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
@@ -69,6 +70,7 @@ export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
   onDeleteImage,
   onBack,
   onExport,
+  onOpenFindReplace,
 }) => {
   const [activeTool, setActiveTool] = useState<'text' | 'images'>('text');
 
@@ -78,8 +80,9 @@ export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
       id: anim.wordId,
       type: 'text' as const,
       text: anim.text,
-      startTime: anim.startTime / 1000,
-      duration: anim.duration / 1000,
+      // WordAnimation times are already in seconds — no /1000
+      startTime: anim.startTime,
+      duration: anim.duration,
     })),
     ...images.map((img) => ({
       id: img.assetId,
@@ -117,6 +120,7 @@ export const CapCutStyleEditor: React.FC<CapCutStyleEditorProps> = ({
           onUpdateWord={onUpdateWord}
           onDeleteWord={onDeleteWord}
           onDuplicateWord={onDuplicateWord}
+          onOpenFindReplace={onOpenFindReplace}
           totalDuration={totalDuration}
           currentTime={currentTime * 1000} // panel expects ms; prop is seconds
         />

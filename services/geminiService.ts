@@ -18,6 +18,7 @@ import {
   VIRAL_TYPOGRAPHY_INSTRUCTION
 } from "../constants";
 import { Caption, LanguageMode, ViralHookResponse, SeoResult, SocialPlatform, CaptionStyle, ViralTypographyCaption } from "../types";
+import { LANGUAGES, generateLanguageInstruction } from "./languageService";
 
 // Define local Type enum to bypass browser-bundle undefined errors
 // IMPORTANT: Must be defined AFTER all imports so it shadows any undefined
@@ -78,18 +79,6 @@ const COLOR_MAP: Record<string, string> = {
 const TRANSCRIBE_TIMEOUT_MS = 180_000; // 3 min — covers slow uploads of large audio
 const MAX_ATTEMPTS = 3;
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`TIMEOUT after ${Math.round(ms / 1000)}s`)),
-      ms
-    );
-    promise.then(
-      v => { clearTimeout(timer); resolve(v); },
-      e => { clearTimeout(timer); reject(e); }
-    );
-  });
-};
 
 /** Rewrite raw API/network errors into actionable user-facing messages. */
 const toFriendlyError = (error: unknown): Error => {
@@ -113,7 +102,8 @@ const isRetryable = (error: unknown): boolean => {
   const msg = String((error as Error)?.message || error || '');
   return msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')
     || msg.includes('500') || msg.includes('503') || msg.includes('UNAVAILABLE')
-    || msg.includes('Failed to fetch') || msg.includes('NetworkError');
+    || msg.includes('Failed to fetch') || msg.includes('NetworkError')
+    || msg.includes('TIMEOUT');
 };
 
 /**
@@ -122,12 +112,19 @@ const isRetryable = (error: unknown): boolean => {
  */
 const generateContentBounded = async (
   ai: GoogleGenAI,
-  request: Parameters<GoogleGenAI['models']['generateContent']>[0]
+  request: Parameters<GoogleGenAI['models']['generateContent']>[0],
+  timeoutMs: number = TRANSCRIBE_TIMEOUT_MS
 ): Promise<Awaited<ReturnType<GoogleGenAI['models']['generateContent']>>> => {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await withTimeout(ai.models.generateContent(request), TRANSCRIBE_TIMEOUT_MS);
+      return await ai.models.generateContent({
+        ...request,
+        config: {
+          ...request.config,
+          abortSignal: AbortSignal.timeout(timeoutMs)
+        }
+      });
     } catch (error) {
       lastError = error;
       const retryable = isRetryable(error);
@@ -148,10 +145,17 @@ export const generateCaptionsFromVideo = async (
   autoAdjust: boolean,
   smartCompression: boolean,
   languageMode: LanguageMode = 'AUTO',
-  captionStyle: CaptionStyle = CaptionStyle.CLEAN_WHITE
+  captionStyle: CaptionStyle = CaptionStyle.CLEAN_WHITE,
+  durationSec?: number
 ): Promise<{ captions: Caption[], language: string }> => {
   const apiKey = getApiKey();
   const ai = new GoogleGenAI({ apiKey });
+
+  const calculatedTimeout = durationSec && durationSec > 0
+    ? Math.min(120_000 + (durationSec * 3000), 600_000)
+    : TRANSCRIBE_TIMEOUT_MS;
+
+  console.log(`[GEMINI] Using transcription timeout: ${Math.round(calculatedTimeout / 1000)}s for video duration: ${durationSec ? Math.round(durationSec) : 'unknown'}s`);
 
   // The prompt reinforces verbatim transcription — no word skipping
   const prompt = "Transcribe the audio VERBATIM — include EVERY single word spoken, do NOT skip or summarize any words. Split into caption segments but keep ALL words. Adhere strictly to the JSON schema.";
@@ -196,7 +200,6 @@ export const generateCaptionsFromVideo = async (
       break;
     default: {
       // Handle dynamic language modes: NATIVE_XX, MIX_XX
-      const { LANGUAGES, generateLanguageInstruction } = await import('../components/InitialGenerationState');
       const nativeMatch = languageMode.match(/^NATIVE_(.+)$/);
       const mixMatch = languageMode.match(/^MIX_(.+)$/);
       if (nativeMatch) {
@@ -298,7 +301,7 @@ export const generateCaptionsFromVideo = async (
           }
         }
       }
-    });
+    }, calculatedTimeout);
 
     const jsonText = response.text || "[]";
     let rawData;

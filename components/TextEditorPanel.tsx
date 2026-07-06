@@ -145,7 +145,7 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
             </div>
             <div className="text-xs text-gray-400 space-y-0.5">
               <div>#{word.wordId ? word.wordId.slice(0, 8) : idx}</div>
-              <div>{(word.startTime / 1000).toFixed(2)}s – {((word.startTime + word.duration) / 1000).toFixed(2)}s</div>
+              <div>{word.startTime.toFixed(2)}s – {(word.startTime + word.duration).toFixed(2)}s</div>
             </div>
           </button>
         ))}
@@ -195,13 +195,13 @@ export const TextEditorPanel: React.FC<TextEditorPanelProps> = ({
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-1">Start Time</label>
                 <div className="px-2 py-1.5 text-xs bg-gray-600 text-gray-300 rounded">
-                  {(selectedWord.startTime / 1000).toFixed(3)}s
+                  {selectedWord.startTime.toFixed(3)}s
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-1">Duration</label>
                 <div className="px-2 py-1.5 text-xs bg-gray-600 text-gray-300 rounded">
-                  {(selectedWord.duration / 1000).toFixed(3)}s
+                  {selectedWord.duration.toFixed(3)}s
                 </div>
               </div>
             </div>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@400;700&family=Cinzel:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;900&family=Pacifico&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Poppins:wght@300;400;500;600;700;800;900&family=Satisfy&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
@@ -14,7 +14,7 @@
   }
 }
 
-/* ─── CapCut-grade Design Tokens ──────────────────────────────────── */
+/* ─── Geist Design Tokens — Stark White Theme ─────────────────────── */
 :root {
   /* Core palette */
   --cc-bg:          #0a0a0a;
@@ -26,10 +26,10 @@
   --cc-border-hi:   rgba(255,255,255,0.20);
 
   /* Text hierarchy */
-  --cc-text-1:  #f5f5f5;
-  --cc-text-2:  #a0a0a0;
-  --cc-text-3:  #5a5a5a;
-  --cc-text-4:  #333333;
+  --cc-text-1:      #f5f5f5;
+  --cc-text-2:      #a0a0a0;
+  --cc-text-3:      #5a5a5a;
+  --cc-text-4:      #333333;
 
   /* Brand accent */
   --cc-blue:         #3b82f6;
@@ -37,7 +37,7 @@
   --cc-blue-dim:     rgba(59,130,246,0.15);
   --cc-blue-glow:    rgba(59,130,246,0.3);
 
-  /* Pill / tag colors */
+  /* Secondary Accents */
   --cc-green:   #22c55e;
   --cc-amber:   #f59e0b;
   --cc-red:     #ef4444;
@@ -48,7 +48,7 @@
   --panel-width: 340px;
   --header-h:    52px;
 
-  /* Radius */
+  /* Radius (Contextual buttons & components) */
   --r-sm:  6px;
   --r-md:  10px;
   --r-lg:  14px;
@@ -68,37 +68,42 @@
   html, body, #root {
     height: 100%;
     overflow: hidden;
+    background-color: var(--cc-bg);
+    color: var(--cc-text-2);
   }
   body {
-    font-family: 'DM Sans', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Sans Telugu', system-ui, sans-serif;
-    background-color: var(--cc-bg);
-    color: var(--cc-text-1);
+    font-family: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
   * {
     box-sizing: border-box;
   }
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--cc-text-1);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
 }
 
 /* ─── Scrollbars ──────────────────────────────────────────────────── */
 @layer utilities {
-  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.12); border-radius: 100px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+  ::-webkit-scrollbar-thumb  { background: var(--cc-border); border-radius: 100px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--cc-border-hi); }
 
-  .custom-scrollbar::-webkit-scrollbar        { width: 3px; height: 3px; }
+  .custom-scrollbar::-webkit-scrollbar        { width: 4px; height: 4px; }
   .custom-scrollbar::-webkit-scrollbar-track  { background: transparent; }
-  .custom-scrollbar::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 100px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  .custom-scrollbar::-webkit-scrollbar-thumb  { background: var(--cc-border); border-radius: 100px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--cc-border-hi); }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { scrollbar-width: none; }
 }
 
 /* ─── Glass / Surface Components ─────────────────────────────────── */
 .cc-glass {
-  background: rgba(255,255,255,0.04);
+  background: rgba(10,10,10,0.7);
   border: 1px solid var(--cc-border);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -114,19 +119,21 @@
   border-left: 1px solid var(--cc-border);
 }
 
-/* ─── CapCut Button Primitives ───────────────────────────────────── */
+/* ─── Button Primitives ───────────────────────────────────── */
 .cc-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  border-radius: var(--r-md);
+  padding: 6px 12px;
+  border-radius: var(--r-sm); /* App buttons: 6px sharp corner */
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   transition: all var(--t-fast) var(--ease-snap);
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1px solid var(--cc-border);
+  background: var(--cc-surface);
+  color: var(--cc-text-1);
   white-space: nowrap;
   user-select: none;
 }
@@ -139,52 +146,56 @@
 }
 .cc-btn-ghost:hover {
   color: var(--cc-text-1);
-  background: rgba(255,255,255,0.05);
+  background: var(--cc-surface-3);
   border-color: var(--cc-border-mid);
 }
 
 .cc-btn-primary {
-  background: var(--cc-blue);
-  color: #fff;
+  background: var(--cc-text-1); /* Stark near-black */
+  color: var(--cc-surface); /* Contrast white */
+  border-color: var(--cc-text-1);
 }
 .cc-btn-primary:hover {
-  background: var(--cc-blue-light);
-  box-shadow: 0 0 0 4px var(--cc-blue-dim);
+  background: var(--cc-surface);
+  color: var(--cc-text-1);
+  border-color: var(--cc-text-1);
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .cc-btn-white {
-  background: #fff;
-  color: #000;
-  font-weight: 700;
+  background: var(--cc-text-1);
+  color: var(--cc-surface);
+  border-color: var(--cc-text-1);
 }
 .cc-btn-white:hover {
-  background: #e8e8e8;
-  box-shadow: 0 4px 20px rgba(255,255,255,0.15);
+  background: var(--cc-surface);
+  color: var(--cc-text-1);
+  border-color: var(--cc-text-1);
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.04);
 }
 
 /* ─── Category Pill Filter ───────────────────────────────────────── */
 .cc-pill {
   padding: 4px 12px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-pill); /* Marketing / category: full pill */
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0px;
   border: 1px solid var(--cc-border);
-  color: var(--cc-text-3);
-  background: transparent;
+  color: var(--cc-text-2);
+  background: var(--cc-surface);
   cursor: pointer;
   transition: all var(--t-fast) var(--ease-snap);
   white-space: nowrap;
 }
 .cc-pill:hover {
-  color: var(--cc-text-2);
-  border-color: var(--cc-border-mid);
-  background: rgba(255,255,255,0.04);
+  color: var(--cc-text-1);
+  border-color: var(--cc-border-hi);
+  background: var(--cc-surface-3);
 }
 .cc-pill.active {
   background: var(--cc-text-1);
-  color: #000;
+  color: var(--cc-surface);
   border-color: var(--cc-text-1);
 }
 
@@ -192,9 +203,8 @@
 .cc-tab {
   padding: 10px 16px;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   color: var(--cc-text-3);
   border-bottom: 2px solid transparent;
   cursor: pointer;
@@ -205,14 +215,14 @@
 .cc-tab:hover { color: var(--cc-text-2); }
 .cc-tab.active {
   color: var(--cc-text-1);
-  border-bottom-color: var(--cc-blue);
+  border-bottom-color: var(--cc-text-1); /* stark ink active indicator */
 }
 
 /* ─── Tool Sidebar Button ────────────────────────────────────────── */
 .cc-tool-btn {
   width: 48px;
   height: 48px;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm); /* App chrome: 6px corners */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -226,19 +236,19 @@
 }
 .cc-tool-btn .tool-label {
   font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 .cc-tool-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.05);
+  background: var(--cc-surface-3);
   color: var(--cc-text-2);
   border-color: var(--cc-border);
 }
 .cc-tool-btn.active {
   background: var(--cc-blue-dim);
-  border-color: rgba(59,130,246,0.4);
-  color: var(--cc-blue-light);
+  border-color: rgba(0, 112, 243, 0.3);
+  color: var(--cc-blue);
 }
 .cc-tool-btn:disabled {
   opacity: 0.25;
@@ -259,7 +269,7 @@
 
 /* ─── Template Card ──────────────────────────────────────────────── */
 .template-card {
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--cc-border);
   background: var(--cc-surface-2);
   overflow: hidden;
@@ -268,13 +278,13 @@
   position: relative;
 }
 .template-card:hover {
-  border-color: var(--cc-border-mid);
+  border-color: var(--cc-border-hi);
   transform: translateY(-1px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.04);
 }
 .template-card.selected {
   border-color: var(--cc-blue);
-  box-shadow: 0 0 0 1px var(--cc-blue), 0 8px 32px var(--cc-blue-dim);
+  box-shadow: 0 0 0 1px var(--cc-blue), 0px 4px 12px var(--cc-blue-glow);
 }
 
 /* NEW badge */
@@ -283,22 +293,21 @@
   top: 7px;
   right: 7px;
   z-index: 10;
-  background: linear-gradient(135deg, #f97316, #ef4444);
+  background: var(--cc-blue);
   color: #fff;
   font-size: 6.5px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   padding: 2px 5px;
   border-radius: var(--r-pill);
   text-transform: uppercase;
-  box-shadow: 0 2px 8px rgba(239,68,68,0.4);
 }
 
 /* ─── Section Divider ────────────────────────────────────────────── */
 .cc-section-label {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--cc-text-3);
   padding-bottom: 8px;
@@ -323,62 +332,11 @@
   border-radius: 50%;
   background: var(--cc-text-1);
   border: 2px solid var(--cc-surface);
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
+  box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
   cursor: grab;
   transition: all var(--t-fast);
 }
 .cc-range::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.2); }
-
-/* ─── Template preview animations ───────────────────────────────── */
-.template-preview-span {
-  display: inline-block;
-  transform-origin: center;
-}
-.template-card:hover .template-preview-span[data-animation="SCALE_UP"] {
-  animation: hoverScaleUp 1s ease-in-out infinite alternate;
-}
-@keyframes hoverScaleUp {
-  0%   { transform: scale(1); opacity: 0.7; }
-  100% { transform: scale(1.18); opacity: 1; }
-}
-.template-card:hover .template-preview-span[data-animation="POP"] {
-  animation: hoverPop 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
-}
-@keyframes hoverPop {
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.22); }
-}
-.template-card:hover .template-preview-span[data-animation="FADE_IN"] {
-  animation: hoverFadeIn 1.4s ease-in-out infinite alternate;
-}
-@keyframes hoverFadeIn {
-  0%   { opacity: 0.2; }
-  100% { opacity: 1; }
-}
-.template-card:hover .template-preview-span[data-animation="SLIDE_UP"] {
-  animation: hoverSlideUp 1s ease-in-out infinite alternate;
-}
-@keyframes hoverSlideUp {
-  0%   { transform: translateY(10px); opacity: 0.4; }
-  100% { transform: translateY(-4px); opacity: 1; }
-}
-.template-card:hover .template-preview-span[data-animation="TYPEWRITER"],
-.template-card:hover .template-preview-span[data-animation="WIPE_RIGHT"] {
-  animation: hoverTypewriter 1.6s steps(10) infinite;
-  white-space: nowrap;
-  overflow: hidden;
-}
-@keyframes hoverTypewriter {
-  0%       { max-width: 0; }
-  60%, 100% { max-width: 100%; }
-}
-.template-card:hover .template-preview-span[data-animation="NONE"] {
-  animation: hoverShimmer 2s linear infinite;
-}
-@keyframes hoverShimmer {
-  0%, 100% { opacity: 0.8; }
-  50%       { opacity: 1; text-shadow: 0 0 20px rgba(255,255,255,0.3); }
-}
 
 /* ─── Header action bar ──────────────────────────────────────────── */
 .cc-header {
@@ -401,10 +359,10 @@
   left: calc(100% + 10px);
   top: 50%;
   transform: translateY(-50%);
-  background: rgba(0,0,0,0.9);
-  color: #fff;
+  background: var(--cc-text-1);
+  color: var(--cc-surface);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 4px 8px;
   border-radius: var(--r-sm);
   white-space: nowrap;
@@ -412,7 +370,7 @@
   opacity: 0;
   transition: opacity var(--t-fast);
   z-index: 100;
-  border: 1px solid var(--cc-border-mid);
+  border: 1px solid var(--cc-border);
 }
 [data-tooltip]:hover::after { opacity: 1; }
 
@@ -440,4 +398,83 @@
 @keyframes toastIn {
   from { opacity: 0; transform: translateX(-50%) translateY(12px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ─── Mesh Gradient Animations ─── */
+@keyframes mesh-pulse {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.15); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
+@keyframes mesh-pulse-reverse {
+  0% { transform: translate(0px, 0px) scale(1.1); }
+  50% { transform: translate(-40px, 40px) scale(0.85); }
+  100% { transform: translate(0px, 0px) scale(1.1); }
+}
+
+.mesh-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  transition: opacity 0.5s ease;
+}
+
+.mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  mix-blend-mode: multiply;
+}
+
+.mesh-cyan {
+  background-color: var(--cc-green);
+  width: 400px;
+  height: 400px;
+  top: -100px;
+  left: 10%;
+  animation: mesh-pulse 12s infinite alternate ease-in-out;
+}
+
+.mesh-blue {
+  background-color: var(--cc-blue);
+  width: 500px;
+  height: 500px;
+  top: -150px;
+  right: 20%;
+  animation: mesh-pulse-reverse 15s infinite alternate ease-in-out;
+}
+
+.mesh-violet {
+  background-color: var(--cc-violet);
+  width: 450px;
+  height: 450px;
+  bottom: -100px;
+  left: 20%;
+  animation: mesh-pulse 18s infinite alternate ease-in-out;
+}
+
+.mesh-magenta {
+  background-color: var(--cc-pink);
+  width: 350px;
+  height: 350px;
+  bottom: -50px;
+  right: 30%;
+  animation: mesh-pulse-reverse 10s infinite alternate ease-in-out;
+}
+
+.mesh-amber {
+  background-color: var(--cc-amber);
+  width: 300px;
+  height: 300px;
+  top: 20%;
+  left: 45%;
+  animation: mesh-pulse 14s infinite alternate ease-in-out;
 }

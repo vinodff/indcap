@@ -204,14 +204,14 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
   }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a0a] text-white font-sans overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--cc-bg)] text-[var(--cc-text-1)] font-sans overflow-hidden">
       <header className="cc-header">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="cc-btn cc-btn-ghost !px-2 !py-2">
             <ChevronLeft size={16} />
           </button>
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-500 to-pink-500 flex items-center justify-center">
-            <ImageIcon size={16} className="text-white" />
+            <ImageIcon size={16} className="text-[var(--cc-text-1)]" />
           </div>
           <h1 className="font-black text-sm">AI Thumbnail Generator</h1>
           <div
@@ -232,7 +232,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
       </header>
 
       {/* Progress Steps */}
-      <div className="flex items-center justify-center gap-1 px-4 py-3 bg-[#0d0d0d] border-b border-white/5">
+      <div className="flex items-center justify-center gap-1 px-4 py-3 bg-[#0d0d0d] border-b border-[var(--cc-border)]/50">
         {(['upload', 'text', 'template', 'generate', 'result'] as Step[]).map((s, i) => {
           const stepIndex = ['upload', 'text', 'template', 'generate', 'result'];
           const currentIndex = stepIndex.indexOf(step);
@@ -274,14 +274,14 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
             <div className="w-full max-w-2xl space-y-6">
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-black tracking-tight">Upload Your Image</h2>
-                <p className="text-gray-500 text-sm">A face photo, product shot, or any image you want as the thumbnail subject</p>
+                <p className="text-[var(--cc-text-3)] text-sm">A face photo, product shot, or any image you want as the thumbnail subject</p>
               </div>
 
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="relative border-2 border-dashed border-gray-700 hover:border-fuchsia-500/50 rounded-3xl p-12 text-center cursor-pointer transition-all group bg-[#121212]"
+                className="relative border-2 border-dashed border-[var(--cc-border)] hover:border-fuchsia-500/50 rounded-3xl p-12 text-center cursor-pointer transition-all group bg-[var(--cc-surface)]"
               >
                 <input
                   ref={fileInputRef}
@@ -308,7 +308,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                         <X size={14} />
                       </button>
                     </div>
-                    <p className="text-sm text-gray-400 font-medium">{imageName}</p>
+                    <p className="text-sm text-[var(--cc-text-3)] font-medium">{imageName}</p>
                     <button
                       onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                       className="text-fuchsia-400 text-xs hover:underline font-semibold"
@@ -322,10 +322,10 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                       <Upload size={32} className="text-fuchsia-400" />
                     </div>
                     <div>
-                      <p className="text-white font-bold text-lg mb-1">
+                      <p className="text-[var(--cc-text-1)] font-bold text-lg mb-1">
                         Drop your image here
                       </p>
-                      <p className="text-gray-500 text-sm">or click to browse — PNG, JPG, WebP</p>
+                      <p className="text-[var(--cc-text-3)] text-sm">or click to browse — PNG, JPG, WebP</p>
                     </div>
                   </div>
                 )}
@@ -355,7 +355,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
             <div className="w-full max-w-2xl space-y-6">
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-black tracking-tight">Add Your Text</h2>
-                <p className="text-gray-500 text-sm">
+                <p className="text-[var(--cc-text-3)] text-sm">
                   {isHyper
                     ? 'Three punchy lines — white hook, gradient keyword, white benefit'
                     : 'The AI will optimize placement, font, and size automatically'}
@@ -365,7 +365,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
               {isHyper ? (
                 <div className="space-y-5">
                   {/* Live preview — exact gradient/stroke/shadow */}
-                  <div className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                  <div className="rounded-2xl overflow-hidden border border-[var(--cc-border)] shadow-2xl">
                     <div className="aspect-video">
                       <HyperImpactPreview
                         lines={hyperLines}
@@ -377,19 +377,19 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
 
                   <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
-                        Line 1 — Hook <span className="text-white/60">(white, italic)</span>
+                      <label className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider block mb-2">
+                        Line 1 — Hook <span className="text-[var(--cc-text-2)]/60">(white, italic)</span>
                       </label>
                       <input
                         value={hyperLines.hook}
                         onChange={(e) => setHyperLines((p) => ({ ...p, hook: e.target.value }))}
                         placeholder="e.g. UNLOCK"
-                        className="w-full px-4 py-3 rounded-xl bg-[#121212] border border-gray-800 text-white font-bold uppercase placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-[var(--cc-surface)] border border-[var(--cc-border)] text-[var(--cc-text-1)] font-bold uppercase placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
                         maxLength={24}
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                      <label className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider block mb-2">
                         Line 2 — Keyword{' '}
                         <span className="bg-gradient-to-r from-orange-500 to-yellow-400 bg-clip-text text-transparent font-black">
                           (gradient hero — keep it short)
@@ -399,19 +399,19 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                         value={hyperLines.keyword}
                         onChange={(e) => setHyperLines((p) => ({ ...p, keyword: e.target.value }))}
                         placeholder="e.g. CLAUDE"
-                        className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-amber-500/30 text-amber-300 text-lg font-black uppercase placeholder:text-gray-600 focus:outline-none focus:border-amber-400/60 transition-colors"
+                        className="w-full px-4 py-3.5 rounded-xl bg-[var(--cc-surface)] border border-amber-500/30 text-amber-300 text-lg font-black uppercase placeholder:text-gray-600 focus:outline-none focus:border-amber-400/60 transition-colors"
                         maxLength={18}
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
-                        Line 3 — Benefit <span className="text-white/60">(white, italic)</span>
+                      <label className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider block mb-2">
+                        Line 3 — Benefit <span className="text-[var(--cc-text-2)]/60">(white, italic)</span>
                       </label>
                       <input
                         value={hyperLines.benefit}
                         onChange={(e) => setHyperLines((p) => ({ ...p, benefit: e.target.value }))}
                         placeholder="e.g. $200 PLAN FREE"
-                        className="w-full px-4 py-3 rounded-xl bg-[#121212] border border-gray-800 text-white font-bold uppercase placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-[var(--cc-surface)] border border-[var(--cc-border)] text-[var(--cc-text-1)] font-bold uppercase placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
                         maxLength={28}
                       />
                     </div>
@@ -429,35 +429,35 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                    <label className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider block mb-2">
                       Hook Text <span className="text-fuchsia-400">(primary — will be largest)</span>
                     </label>
                     <input
                       value={hookText}
                       onChange={(e) => setHookText(e.target.value)}
                       placeholder="e.g. I Made ₹1,00,000 with AI"
-                      className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-gray-800 text-white text-lg font-bold placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                      className="w-full px-4 py-3.5 rounded-xl bg-[var(--cc-surface)] border border-[var(--cc-border)] text-[var(--cc-text-1)] text-lg font-bold placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
                       maxLength={80}
                     />
                     <p className="text-right text-[10px] text-gray-600 mt-1">{hookText.length}/80</p>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                    <label className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider block mb-2">
                       Title Text <span className="text-gray-600">(secondary)</span>
                     </label>
                     <input
                       value={titleText}
                       onChange={(e) => setTitleText(e.target.value)}
                       placeholder="e.g. This Trick Changed Everything"
-                      className="w-full px-4 py-3.5 rounded-xl bg-[#121212] border border-gray-800 text-white font-medium placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                      className="w-full px-4 py-3.5 rounded-xl bg-[var(--cc-surface)] border border-[var(--cc-border)] text-[var(--cc-text-1)] font-medium placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors"
                       maxLength={120}
                     />
                   </div>
 
                   {hooks.length > 0 && (
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                      <label className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider block">
                         AI-Suggested Hooks
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -500,12 +500,12 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-black tracking-tight">Choose a Template</h2>
-                <p className="text-gray-500 text-sm">Each template has unique AI styling, colors, and composition rules</p>
+                <p className="text-[var(--cc-text-3)] text-sm">Each template has unique AI styling, colors, and composition rules</p>
               </div>
 
               {TEMPLATE_CATEGORIES.map((cat) => (
                 <div key={cat.name} className="space-y-3">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">{cat.name}</h3>
+                  <h3 className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-widest">{cat.name}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {cat.ids.map((tid) => {
                       const t = THUMBNAIL_TEMPLATES[tid];
@@ -530,11 +530,11 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                                 className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black"
                                 style={{ background: `linear-gradient(135deg, ${t.colorPalette[0]}, ${t.colorPalette[1]})` }}
                               >
-                                <Layout size={16} className="text-white" />
+                                <Layout size={16} className="text-[var(--cc-text-1)]" />
                               </div>
                               <div className="text-left">
-                                <h4 className="font-bold text-sm text-white">{t.name}</h4>
-                                <p className="text-gray-500 text-[11px]">{t.niche}</p>
+                                <h4 className="font-bold text-sm text-[var(--cc-text-1)]">{t.name}</h4>
+                                <p className="text-[var(--cc-text-3)] text-[11px]">{t.niche}</p>
                               </div>
                               {isSelected && (
                                 <div className="ml-auto w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
@@ -542,7 +542,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                                 </div>
                               )}
                             </div>
-                            <p className="text-gray-400 text-xs leading-relaxed">{t.description}</p>
+                            <p className="text-[var(--cc-text-3)] text-xs leading-relaxed">{t.description}</p>
                           </div>
                         </button>
                       );
@@ -553,7 +553,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
 
               {/* Aspect Ratio */}
               <div className="pt-4">
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <div className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider mb-3 flex items-center gap-2">
                   <Layout size={12} /> Aspect Ratio
                 </div>
                 <div className="flex gap-2">
@@ -564,7 +564,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                       className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                         selectedAspectRatio === ratio
                           ? 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40'
-                          : 'bg-[#121212] text-gray-500 border border-gray-800 hover:border-gray-700'
+                          : 'bg-[var(--cc-surface)] text-[var(--cc-text-3)] border border-[var(--cc-border)] hover:border-[var(--cc-border)]'
                       }`}
                     >
                       {ratio === 'ORIGINAL' ? 'Original' : ratio}
@@ -577,7 +577,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
               <div className="pt-4">
                 <button
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 hover:text-gray-400 transition-colors"
+                  className="text-xs font-bold text-[var(--cc-text-3)] uppercase tracking-wider flex items-center gap-2 hover:text-[var(--cc-text-3)] transition-colors"
                 >
                   <Zap size={12} /> Advanced — Custom Prompt
                 </button>
@@ -587,7 +587,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                       value={customPrompt}
                       onChange={(e) => setCustomPrompt(e.target.value)}
                       placeholder="Add specific instructions for the AI... e.g. 'Make the background deep purple with gold sparkles'"
-                      className="w-full px-4 py-3 rounded-xl bg-[#121212] border border-gray-800 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors resize-none h-24"
+                      className="w-full px-4 py-3 rounded-xl bg-[var(--cc-surface)] border border-[var(--cc-border)] text-[var(--cc-text-1)] text-sm placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/50 transition-colors resize-none h-24"
                     />
                   </div>
                 )}
@@ -613,7 +613,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
             <div className="w-full max-w-md text-center space-y-8">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-fuchsia-500 to-pink-500 flex items-center justify-center mx-auto animate-pulse">
-                  <Sparkles size={40} className="text-white" />
+                  <Sparkles size={40} className="text-[var(--cc-text-1)]" />
                 </div>
               </div>
 
@@ -621,7 +621,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                 <h2 className="text-xl font-black">{status.message || 'Processing...'}</h2>
 
                 {status.stage !== 'error' && (
-                  <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-[var(--cc-surface-3)] rounded-full h-2 overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-fuchsia-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${status.progress}%` }}
@@ -629,7 +629,7 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
                   </div>
                 )}
 
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center justify-center gap-2 text-sm text-[var(--cc-text-3)]">
                   {status.stage === 'analyzing' && <>Analyzing composition & lighting</>}
                   {status.stage === 'generating' && <><Loader2 size={14} className="animate-spin" /> AI is generating</>}
                   {status.stage === 'enhancing' && <>Applying quality enhancements</>}
@@ -660,14 +660,14 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-black tracking-tight">Your Thumbnail</h2>
-                <p className="text-gray-500 text-sm">AI generated using {THUMBNAIL_TEMPLATES[result.templateId]?.name || result.templateId} style</p>
+                <p className="text-[var(--cc-text-3)] text-sm">AI generated using {THUMBNAIL_TEMPLATES[result.templateId]?.name || result.templateId} style</p>
               </div>
 
               {/* Main Result */}
-              <div className="rounded-2xl overflow-hidden border border-gray-800 bg-[#121212] shadow-2xl">
+              <div className="rounded-2xl overflow-hidden border border-[var(--cc-border)] bg-[var(--cc-surface)] shadow-2xl">
                 <div className="relative aspect-video bg-black">
                   <img src={result.imageDataUrl} alt="Generated thumbnail" className="w-full h-full object-contain" />
-                  <div className="absolute bottom-3 right-3 px-2 py-1 rounded-lg bg-black/70 text-[10px] text-gray-400 font-mono border border-white/10">
+                  <div className="absolute bottom-3 right-3 px-2 py-1 rounded-lg bg-black/70 text-[10px] text-[var(--cc-text-3)] font-mono border border-[var(--cc-border)]">
                     {result.templateId}
                   </div>
                 </div>
@@ -698,20 +698,20 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
               {result && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Desktop Feed</p>
-                    <div className="rounded-lg overflow-hidden border border-gray-800" style={{ width: 320, height: 180 }}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--cc-text-3)]">Desktop Feed</p>
+                    <div className="rounded-lg overflow-hidden border border-[var(--cc-border)]" style={{ width: 320, height: 180 }}>
                       <img src={result.imageDataUrl} alt="Desktop preview" className="w-full h-full object-cover" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Mobile Feed</p>
-                    <div className="rounded-lg overflow-hidden border border-gray-800" style={{ width: 150, height: 84 }}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--cc-text-3)]">Mobile Feed</p>
+                    <div className="rounded-lg overflow-hidden border border-[var(--cc-border)]" style={{ width: 150, height: 84 }}>
                       <img src={result.imageDataUrl} alt="Mobile preview" className="w-full h-full object-cover" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Search Result</p>
-                    <div className="rounded-lg overflow-hidden border border-gray-800" style={{ width: 246, height: 138 }}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--cc-text-3)]">Search Result</p>
+                    <div className="rounded-lg overflow-hidden border border-[var(--cc-border)]" style={{ width: 246, height: 138 }}>
                       <img src={result.imageDataUrl} alt="Search preview" className="w-full h-full object-cover" />
                     </div>
                   </div>
@@ -721,15 +721,15 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
               {/* Variations */}
               {variations.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-bold text-gray-400">Variations</h3>
+                  <h3 className="text-sm font-bold text-[var(--cc-text-3)]">Variations</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {variations.map((v, i) => (
-                      <div key={i} className="rounded-xl overflow-hidden border border-gray-800 bg-[#121212]">
+                      <div key={i} className="rounded-xl overflow-hidden border border-[var(--cc-border)] bg-[var(--cc-surface)]">
                         <div className="aspect-video bg-black">
                           <img src={v.imageDataUrl} alt={`Variation ${i + 1}`} className="w-full h-full object-contain" />
                         </div>
                         <div className="p-3 flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Variation {i + 1}</span>
+                          <span className="text-xs text-[var(--cc-text-3)]">Variation {i + 1}</span>
                           <button
                             onClick={() => downloadThumbnail(v.imageDataUrl, `thumbnail-v${i + 1}-${Date.now()}.png`)}
                             className="cc-btn cc-btn-ghost !px-2 !py-1 text-[10px]"
@@ -745,8 +745,8 @@ export const AiThumbnailGenerator: React.FC<AiThumbnailGeneratorProps> = ({ onBa
 
               {/* Prompt used */}
               <details className="text-xs text-gray-600">
-                <summary className="cursor-pointer hover:text-gray-400 font-medium">Show prompt used</summary>
-                <pre className="mt-2 p-4 rounded-xl bg-[#121212] border border-gray-800 text-gray-500 text-[10px] leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                <summary className="cursor-pointer hover:text-[var(--cc-text-3)] font-medium">Show prompt used</summary>
+                <pre className="mt-2 p-4 rounded-xl bg-[var(--cc-surface)] border border-[var(--cc-border)] text-[var(--cc-text-3)] text-[10px] leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
                   {result.promptUsed}
                 </pre>
               </details>

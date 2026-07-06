@@ -20,16 +20,9 @@ import {
   type Vec3, type ScreenPoint,
 } from '../math3d';
 import { clamp01, easeInOutCubic, lerp, remap } from '../easing';
+import { hexA } from '../decorations';
 
 // Local hexA — avoids import from decorations to keep this file self-contained.
-const hexA = (hex: string, a: number): string => {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-};
 
 // Seeded PRNG for stable star positions across frames.
 const mulberry32 = (seed: number) => {

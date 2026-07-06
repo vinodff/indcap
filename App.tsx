@@ -43,6 +43,12 @@ import { CaptionRenderer } from './services/captionRenderer';
 import { nextPlayheadTime } from './services/playbackClock';
 import { SoundEngine } from './services/soundEngine';
 import { SoundEffectsLibrary } from './services/audio/soundEffectsLibrary';
+import { SfxPlayer } from './services/audio/sfxPlayer';
+import { runSoundDesign, type SfxTrack, type SfxVibe } from './services/audio/soundDesign';
+import { swapCueSound, setCueGain, toggleCueMuted, createManualCue } from './services/audio/soundDesign/cueEdits';
+import { runAutoCamera, sampleFaceTrack, type CameraTrack, type FaceSample, type CameraStyle } from './services/camera';
+import InspectorPanel from './components/InspectorPanel';
+import { type TimelineSelection } from './components/timeline/trackModel';
 import ProjectSpecs from './components/ProjectSpecs';
 import ProcessingChart from './components/ProcessingChart';
 import ApiKeySelector from './components/ApiKeySelector';
@@ -51,9 +57,16 @@ import FeatureSelector from './components/FeatureSelector';
 import VideoPreviewArea from './components/VideoPreviewArea';
 import InitialGenerationState from './components/InitialGenerationState';
 import EnhancedTimeline from './components/EnhancedTimeline';
+import SfxControlPanel from './components/SfxControlPanel';
+import StudioModePanel from './components/StudioModePanel';
+import { StudioController } from './services/enhance/studioController';
+import type { EnhanceParams, QualityResult, SceneType } from './services/enhance/types';
+import { PLATFORM_PRESETS, type SocialTarget } from './services/enhance/exportPresets';
+import { insertAudioEnhancer } from './services/enhance/audioEnhancer';
 
 const SeoGenerator = lazy(() => import('./components/SeoGenerator'));
 const SocialPublisher = lazy(() => import('./components/SocialPublisher'));
+const StudioModeStudio = lazy(() => import('./components/StudioModeStudio'));
 const StyleCustomizer = lazy(() => import('./components/StyleCustomizer'));
 const AnimationPanel = lazy(() => import('./components/AnimationPanel'));
 const ExportPanel = lazy(() => import('./components/ExportPanel'));
@@ -212,6 +225,119 @@ const App: React.FC = () => {
   const [keyframeMap, setKeyframeMap] = useState<KeyframeMap>(new Map());
   const [beatGrid, setBeatGrid] = useState<BeatGrid | null>(null);
 
+  // Dynamic Sound Effects — the auto-generated SFX track for the current captions.
+  const [sfxTrack, setSfxTrack] = useState<SfxTrack>([]);
+  // Sound-design personality + density. Adjustable from the SFX control panel.
+  const [sfxVibe, setSfxVibe] = useState<SfxVibe>('CLEAN');
+  const [sfxIntensity, setSfxIntensity] = useState(1); // 0.4..1.6 (1 = balanced)
+  // Mirror of the track so the regen effect can preserve user-locked/manual cues
+  // without taking sfxTrack as a dependency (which would loop).
+  const sfxTrackRef = useRef<SfxTrack>([]);
+  useEffect(() => { sfxTrackRef.current = sfxTrack; }, [sfxTrack]);
+
+  // AI Auto-Camera — virtual zoom/pan track + cached face trajectory.
+  const [autoCameraEnabled, setAutoCameraEnabled] = useState(false);
+  const [cameraTrack, setCameraTrack] = useState<CameraTrack>([]);
+  const faceTrackRef = useRef<FaceSample[]>([]);
+  const [cameraAnalyzing, setCameraAnalyzing] = useState(false);
+  // Adjustable camera direction (style preset + strength controls).
+  const [cameraStyle, setCameraStyle] = useState<CameraStyle>('dynamic');
+  const [cameraIntensity, setCameraIntensity] = useState(1);   // 0.3..1.6
+  const [cameraShake, setCameraShake] = useState(1);           // 0..2 multiplier
+  const [cameraMaxZoom, setCameraMaxZoom] = useState(1.45);    // 1.2..1.8
+  const [cameraTrackFaces, setCameraTrackFaces] = useState(true);
+  const [cameraSettingsOpen, setCameraSettingsOpen] = useState(false);
+
+  // AI Auto Video Enhancement (Studio Mode). The controller owns the WebGL
+  // engine + scene classifier; React state mirrors it for the panel UI.
+  const studioRef = useRef<StudioController | null>(null);
+  if (!studioRef.current && typeof window !== 'undefined') studioRef.current = new StudioController();
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioActive, setStudioActive] = useState(false);
+  const [studioAnalyzing, setStudioAnalyzing] = useState(false);
+  const [studioScene, setStudioScene] = useState<SceneType | null>(null);
+  const [studioBefore, setStudioBefore] = useState<QualityResult | null>(null);
+  const [studioAfter, setStudioAfter] = useState<QualityResult | null>(null);
+  const [studioComparePos, setStudioComparePos] = useState(1); // 1 = fully enhanced
+  const [studioParams, setStudioParams] = useState<EnhanceParams | null>(null);
+  const [studioAudioEnabled, setStudioAudioEnabled] = useState(true);
+  const [studioPlatform, setStudioPlatform] = useState<SocialTarget | null>(null);
+  const studioAudioEnabledRef = useRef(true);
+  useEffect(() => { studioAudioEnabledRef.current = studioActive && studioAudioEnabled; }, [studioActive, studioAudioEnabled]);
+  const studioActiveRef = useRef(false);
+  useEffect(() => { studioActiveRef.current = studioActive; }, [studioActive]);
+  // Set during export when the capture track supports manual frame pushing.
+  const exportVideoTrackRef = useRef<CanvasCaptureMediaStreamTrack | null>(null);
+
+  // Auto-analyze each newly loaded clip: scene classify + auto-levels + before
+  // score. Resets Studio Mode state so a new upload starts clean. Fault tolerant
+  // (analyze() never rejects) so a failed Gemini call still yields a usable look.
+  const runStudioAnalysis = useCallback(async (video: HTMLVideoElement) => {
+    const ctrl = studioRef.current;
+    if (!ctrl) return;
+    setStudioActive(false);
+    setStudioComparePos(1);
+    setStudioPlatform(null);
+    setStudioAfter(null);
+    setStudioAnalyzing(true);
+    const res = await ctrl.analyze(video);
+    setStudioScene(res.scene);
+    setStudioBefore(res.before);
+    setStudioParams(res.params);
+    setStudioAnalyzing(false);
+  }, []);
+
+  const handleStudioParamsChange = useCallback((p: EnhanceParams) => {
+    studioRef.current?.setParams(p);
+    setStudioParams(p);
+    studioActiveRef.current = true; // sync now so the next renderFrame enhances
+    setStudioActive(true);
+  }, []);
+
+  const handleStudioResetParams = useCallback(() => {
+    const p = studioRef.current?.resetToAuto();
+    if (p) setStudioParams({ ...p });
+  }, []);
+
+  const handleStudioToggle = useCallback((next: boolean) => {
+    studioActiveRef.current = next; // sync now so the synchronous afterScore/render path is correct
+    setStudioActive(next);
+    setStudioComparePos(next ? 0.5 : 1);
+    if (next) {
+      const video = videoRef.current;
+      const ctrl = studioRef.current;
+      if (video && ctrl) {
+        const after = ctrl.afterScore(video, currentTimeRef.current);
+        if (after) setStudioAfter(after);
+      }
+    }
+  }, []);
+
+  const handleStudioPlatform = useCallback((target: SocialTarget) => {
+    setStudioPlatform(target);
+    setAspectRatio(PLATFORM_PRESETS[target].aspectRatio);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoSrc) {
+      setStudioScene(null); setStudioBefore(null); setStudioAfter(null);
+      setStudioActive(false);
+      return;
+    }
+    let cancelled = false;
+    const onReady = () => {
+      if (cancelled || !video.videoWidth) return;
+      runStudioAnalysis(video);
+    };
+    if (video.readyState >= 2 && video.videoWidth) {
+      onReady();
+    } else {
+      video.addEventListener('loadeddata', onReady, { once: true });
+    }
+    return () => { cancelled = true; video.removeEventListener('loadeddata', onReady); };
+  }, [videoSrc, runStudioAnalysis]);
+
   // Stickers State & Handlers
   const [stickers, setStickers] = useState<StickerItem[]>([]);
 
@@ -232,6 +358,18 @@ const App: React.FC = () => {
   const [isClipPickerOpen, setIsClipPickerOpen] = useState(false);
   const [isKeyframeEditorOpen, setIsKeyframeEditorOpen] = useState(false);
   const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
+  // CapCut-style unified selection: clicking any timeline clip routes the right
+  // panel to that object's inspector. Captions also open the Customize tab.
+  const [selection, setSelection] = useState<TimelineSelection | null>(null);
+  const selectTimelineObject = useCallback((sel: TimelineSelection | null) => {
+    setSelection(sel);
+    if (sel?.kind === 'caption') {
+      setSelectedCaptionId(sel.id);
+      setActiveTab('DESIGN');
+    } else if (sel) {
+      setSelectedCaptionId(null);
+    }
+  }, []);
   const [isShortcutPanelOpen, setIsShortcutPanelOpen] = useState(false);
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<Record<string, string>>({});
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('ORIGINAL');
@@ -304,6 +442,14 @@ const App: React.FC = () => {
     soundLibraryRef.current = new SoundEffectsLibrary(soundEngineRef.current);
   }
   const captionRendererRef = useRef(new CaptionRenderer());
+  // Real-sample SFX engine (replaces the synthetic SoundEngine for the actual
+  // dynamic sound-effects feature; SoundEngine is left only as a legacy no-op).
+  const sfxPlayerRef = useRef<SfxPlayer | null>(null);
+  if (!sfxPlayerRef.current) sfxPlayerRef.current = new SfxPlayer();
+  // Persistent AudioContext for export. Reused across exports because
+  // createMediaElementSource(video) may be called at most once per element, and
+  // the resulting node is bound to the context that created it.
+  const exportAudioCtxRef = useRef<AudioContext | null>(null);
   const videoObjectUrlRef = useRef<string | null>(null);
   // Increments on every generation start AND on cancel; a finishing run only
   // applies its results if its id is still current (prevents a stale in-flight
@@ -341,7 +487,142 @@ const App: React.FC = () => {
   useEffect(() => {
     const volumeMap = { 'LOW': 0.1, 'MED': 0.3, 'HIGH': 0.6 };
     soundEngineRef.current.setVolume(volumeMap[sfxVolume] || 0.3);
+    // Real-sample player uses a slightly hotter base so SFX read clearly over speech.
+    const sfxMap = { 'LOW': 0.4, 'MED': 0.65, 'HIGH': 0.9 };
+    sfxPlayerRef.current?.setVolume(sfxMap[sfxVolume] || 0.65);
   }, [sfxVolume]);
+
+  // Generate the dynamic SFX track whenever the captions, beats, animation
+  // settings, or the SFX toggle change. Cheap: the design pass is synchronous and
+  // decoded samples are cached by asset id, so re-runs after the first are fast.
+  useEffect(() => {
+    const player = sfxPlayerRef.current;
+    if (!player) return;
+    if (status !== 'READY' || !autoSfxEnabled || processedCaptions.length === 0) {
+      player.stopAll();
+      setSfxTrack([]);
+      return;
+    }
+    let cancelled = false;
+    const duration = Math.max(0, ...processedCaptions.map(c => c.endTime));
+    // Carry the user's hand-tuned cues (locked or manually placed) across regen.
+    const preserve = sfxTrackRef.current.filter(c => c.locked || c.source === 'manual');
+    const track = runSoundDesign({
+      captions: processedCaptions,
+      duration,
+      beats: beatGrid?.beats,
+      energy: beatGrid?.energy,
+      energyHz: beatGrid?.energyHz,
+      entryAnimation,
+      exitAnimation,
+      hasIcons: iconCaptionsEnabled,
+      stickers,
+    }, { vibe: sfxVibe, intensity: sfxIntensity, preserve });
+    player.setDuckEnabled(true);
+    player.setDuckEnvelope(beatGrid?.energy, beatGrid?.energyHz ?? 100);
+    setSfxTrack(track);
+    return () => { cancelled = true; };
+  }, [processedCaptions, beatGrid, autoSfxEnabled, entryAnimation, exitAnimation, iconCaptionsEnabled, stickers, status, sfxVibe, sfxIntensity]);
+
+  // Load the active SFX track into the player whenever it changes — from a fresh
+  // generation OR a manual timeline edit (delete cue). Decoded samples are cached.
+  useEffect(() => {
+    const player = sfxPlayerRef.current;
+    if (!player) return;
+    let cancelled = false;
+    player.loadTrack(sfxTrack).then(() => {
+      if (!cancelled) player.resetSchedule(currentTimeRef.current);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sfxTrack]);
+
+  const deleteSfxCue = useCallback((id: string) => {
+    setSfxTrack(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  // Per-cue adjustments — each marks the cue `locked` so it survives regeneration.
+  const swapSfxCue = useCallback((id: string, dir: 1 | -1) => {
+    setSfxTrack(prev => prev.map(c => c.id === id ? swapCueSound(c, dir) : c));
+  }, []);
+  const adjustSfxCueGain = useCallback((id: string, gain: number) => {
+    setSfxTrack(prev => prev.map(c => c.id === id ? setCueGain(c, gain) : c));
+  }, []);
+  const toggleSfxCueMuted = useCallback((id: string) => {
+    setSfxTrack(prev => prev.map(c => c.id === id ? toggleCueMuted(c) : c));
+  }, []);
+  const addManualSfxCue = useCallback((time: number, category: Parameters<typeof createManualCue>[1]) => {
+    const cue = createManualCue(time, category);
+    if (cue) setSfxTrack(prev => [...prev, cue].sort((a, b) => a.time - b.time));
+  }, []);
+  // Preview a single cue's sound immediately (used by the edit popover).
+  const previewSfxCue = useCallback((id: string) => {
+    const cue = sfxTrackRef.current.find(c => c.id === id);
+    const player = sfxPlayerRef.current;
+    if (cue && player) { player.resume(); player.previewCue?.(cue); }
+  }, []);
+
+  // ── AI Auto-Camera ──
+  const regenCamera = useCallback(() => {
+    if (status !== 'READY' || !autoCameraEnabled || processedCaptions.length === 0) {
+      setCameraTrack([]);
+      return;
+    }
+    const duration = Math.max(0, ...processedCaptions.map(c => c.endTime), videoRef.current?.duration || 0);
+    const track = runAutoCamera({
+      captions: processedCaptions,
+      duration,
+      beats: beatGrid?.beats,
+      faces: faceTrackRef.current,
+    }, {
+      intensity: cameraIntensity,
+      maxZoom: cameraMaxZoom,
+      trackFaces: cameraTrackFaces,
+      style: cameraStyle,
+      shake: cameraShake,
+    });
+    setCameraTrack(track);
+  }, [status, autoCameraEnabled, processedCaptions, beatGrid, cameraIntensity, cameraMaxZoom, cameraTrackFaces, cameraStyle, cameraShake]);
+
+  // Deterministic regen whenever captions/beats/toggle change (uses cached faces).
+  useEffect(() => { regenCamera(); }, [regenCamera]);
+
+  // Face-tracking pre-pass — runs once when Auto-Camera is enabled or the video
+  // changes. It briefly scrubs the video to sample face positions, then restores.
+  useEffect(() => {
+    if (!autoCameraEnabled || status !== 'READY') return;
+    const video = videoRef.current;
+    if (!video || !videoSrc) return;
+    let cancelled = false;
+    setCameraAnalyzing(true);
+    (async () => {
+      try {
+        const duration = video.duration || Math.max(0, ...processedCaptions.map(c => c.endTime));
+        const faces = await sampleFaceTrack(video, duration, { intervalSec: 0.6, maxSamples: 100 });
+        if (cancelled) return;
+        faceTrackRef.current = faces;
+        regenCamera();
+      } finally {
+        if (!cancelled) setCameraAnalyzing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Only re-scan on toggle / new video — not on every caption edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCameraEnabled, videoSrc, status]);
+
+  const deleteCameraKeyframe = useCallback((id: string) => {
+    setCameraTrack(prev => prev.filter(k => k.id !== id));
+  }, []);
+
+  // Esc deselects the active timeline object (returns the panel to the tabs).
+  useEffect(() => {
+    if (!selection) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') selectTimelineObject(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selection, selectTimelineObject]);
 
   const startPreviewMode = async () => {
     // 1. Load sample video if none exists
@@ -547,13 +828,15 @@ const App: React.FC = () => {
       if (generationRunRef.current !== runId) return; // cancelled while extracting
 
       setStatus('TRANSCRIBING');
+      const videoDuration = videoRef.current?.duration || 0;
       const { captions: genCaps, language } = await generateCaptionsFromVideo(
         audioBase64,
         audioMimeType,
         autoAdjustEnabled,
         smartCompressionEnabled,
         languageMode,
-        currentStyle
+        currentStyle,
+        videoDuration
       );
       if (generationRunRef.current !== runId) return; // cancelled while transcribing
 
@@ -680,6 +963,12 @@ const App: React.FC = () => {
     // Resume the AudioContext if the browser suspended it (autoplay policy)
     if (!isPlaying) {
       soundEngineRef.current.resume();
+      // Resume the real SFX engine on the same user gesture and align its
+      // scheduler to the current playhead so we don't dump a backlog of cues.
+      sfxPlayerRef.current?.resume();
+      sfxPlayerRef.current?.resetSchedule(currentTimeRef.current);
+    } else {
+      sfxPlayerRef.current?.stopAll();
     }
     setIsPlaying(!isPlaying);
   };
@@ -701,7 +990,16 @@ const App: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return; // Video is optional now for black screen mode
 
+    // Studio Mode: enhance the current frame via the WebGL pass. Returns null
+    // (draw raw video) when inactive, unsupported, or a frame fails — never throws.
+    let enhancedSource: CanvasImageSource | null = null;
+    if (studioActiveRef.current && video) {
+      enhancedSource = studioRef.current?.processFrame(video, currentTimeRef.current) ?? null;
+    }
+
     captionRendererRef.current.render(video, canvas, {
+      enhancedSource,
+      enhanceComparePos: studioComparePos,
       currentTime: currentTimeRef.current,
       captions: processedCaptions,
       activeConfig,
@@ -725,18 +1023,16 @@ const App: React.FC = () => {
       autoFrameSafeY: autoFrameSafeY ?? undefined,
       keyframeMap,
       stickers,
+      cameraTrack: autoCameraEnabled ? cameraTrack : undefined,
+      autoCameraEnabled,
     }, {
-      onNewCaption: (caption) => {
-        soundLibraryRef.current?.onCaptionChange(
-          currentTimeRef.current,
-          (caption.customScale ?? 0) > 1.2
-        );
-      },
-      onEmphasizedWord: () => {
-        soundLibraryRef.current?.onEmphasizedWord(85, currentTimeRef.current);
-      },
+      // Legacy synthetic-SFX callbacks are intentionally no-ops now. Real,
+      // transcription-driven SFX are scheduled by SfxPlayer.tick() from the
+      // animation loop, sourced from the runSoundDesign() track.
+      onNewCaption: () => {},
+      onEmphasizedWord: () => {},
     });
-  }, [processedCaptions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio, iconCaptionsEnabled, autoFrameSafeY, stickers, keyframeMap]);
+  }, [processedCaptions, activeConfig, fontScale, verticalPos, horizontalPos, autoAdjustEnabled, autoMotionEnabled, autoSfxEnabled, kineticMode, currentStyle, isPlaying, entryAnimation, exitAnimation, wordHighlight, animationSpeed, aspectRatio, iconCaptionsEnabled, autoFrameSafeY, stickers, keyframeMap, cameraTrack, autoCameraEnabled, studioComparePos]);
 
   // --- ANIMATION LOOP: only run when playing or exporting ---
   useEffect(() => {
@@ -771,7 +1067,18 @@ const App: React.FC = () => {
         maxTime,
       });
 
+      // Schedule dynamic SFX against the playhead (preview only; export uses an
+      // offline render). No-ops when not playing or during export.
+      if (status !== 'EXPORTING') {
+        sfxPlayerRef.current?.tick(currentTimeRef.current, isPlaying);
+      }
+
       renderFrame();
+      // During export, push exactly this fully-rendered frame to the recorder so
+      // no duplicated/stale frame is captured (the cause of export judder).
+      if (status === 'EXPORTING' && exportVideoTrackRef.current) {
+        try { (exportVideoTrackRef.current as any).requestFrame?.(); } catch { /* noop */ }
+      }
       rafId = requestAnimationFrame(loop);
     };
 
@@ -797,12 +1104,24 @@ const App: React.FC = () => {
     };
   }, [renderFrame, isPlaying, status]);
 
+  // Studio Mode: repaint the (paused) canvas immediately when enhancement is
+  // toggled or analysis finishes, so the user sees before/after without pressing
+  // play. While playing, the animation loop already repaints every frame.
+  useEffect(() => {
+    if (!isPlaying && status !== 'EXPORTING' && videoSrc) {
+      renderFrame();
+    }
+  }, [studioActive, studioScene, studioAfter, studioParams, isPlaying, status, videoSrc, renderFrame]);
+
   // --- SEEK HANDLER (for TimelineScrubber) ---
   const handleSeek = useCallback((time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
     }
     currentTimeRef.current = time;
+    // Re-anchor the SFX scheduler to the new playhead (and kill in-flight sounds).
+    sfxPlayerRef.current?.stopAll();
+    sfxPlayerRef.current?.resetSchedule(time);
   }, []);
 
   // --- KEYBOARD SHORTCUTS ---
@@ -973,6 +1292,13 @@ const App: React.FC = () => {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
+    // Studio Mode: if a platform target is selected, its resolution/fps/bitrate/
+    // format preset overrides the generic export options so the file ships
+    // tuned for that platform's encoder.
+    if (studioPlatform) {
+      options = { ...options, ...PLATFORM_PRESETS[studioPlatform].export };
+    }
+
     setStatus('EXPORTING');
     setIsPlaying(false);
     setExportProgress(0);
@@ -1002,34 +1328,64 @@ const App: React.FC = () => {
       canvas.height = targetHeight;
     }
 
-    const canvasStream = canvas.captureStream(options.fps);
+    // Manual frame source when supported: one rendered frame == one captured frame
+    // (smooth, no judder). The render loop calls track.requestFrame() per frame.
+    const probeTrack = canvas.captureStream(0).getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+    const canReqFrame = !!(probeTrack && typeof (probeTrack as any).requestFrame === 'function');
+    const canvasStream = canReqFrame ? canvas.captureStream(0) : canvas.captureStream(options.fps);
+    exportVideoTrackRef.current = canReqFrame
+      ? (canvasStream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack)
+      : null;
+
+    // ── Audio: mix the video's own audio + the dynamic SFX track into ONE stream
+    // so SFX actually bake into the exported file. We deliberately do NOT use
+    // video.captureStream() for audio — that path carries only the element's own
+    // audio and would drop our WebAudio SFX (the old bug). A persistent
+    // AudioContext is reused so the once-per-element MediaElementSource stays valid.
     let audioStream: MediaStream | null = null;
+    let sfxExportSource: AudioBufferSourceNode | null = null;
     try {
       const vidAny = video as any;
-      if (vidAny.captureStream) audioStream = vidAny.captureStream();
-      else if (vidAny.mozCaptureStream) audioStream = vidAny.mozCaptureStream();
-
-      if (!audioStream || audioStream.getAudioTracks().length === 0) {
-        // Must create or reuse a shared AudioContext established during user interaction if possible, 
-        // but creating here is usually okay if we immediately resume it.
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-        // Ensure the context is running (fixes silent audio if context starts suspended)
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume().catch(console.error);
-        }
-
-        const destNode = audioCtx.createMediaStreamDestination();
-        if (!vidAny.__audioSourceNode) {
-          vidAny.__audioSourceNode = audioCtx.createMediaElementSource(video);
-          // Connect to destination so the user can hear it while exporting (optional, but good)
-          vidAny.__audioSourceNode.connect(audioCtx.destination);
-        }
-        vidAny.__audioSourceNode.connect(destNode);
-        audioStream = destNode.stream;
+      if (!exportAudioCtxRef.current) {
+        const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+        exportAudioCtxRef.current = new Ctor();
       }
+      const exCtx = exportAudioCtxRef.current!;
+      if (exCtx.state === 'suspended') await exCtx.resume().catch(() => {});
+
+      const destNode = exCtx.createMediaStreamDestination();
+
+      // Video element audio → graph. createMediaElementSource is once-per-element,
+      // ever; cache the node and keep it on this same persistent context.
+      if (!vidAny.__audioSourceNode) {
+        vidAny.__audioSourceNode = exCtx.createMediaElementSource(video);
+        vidAny.__audioSourceNode.connect(exCtx.destination); // monitor while exporting
+      }
+      // Studio Mode AI audio cleanup: route the video audio through the
+      // noise-reduction chain into the export destination. Falls back to a
+      // direct connection if disabled or if the graph throws.
+      if (studioActive && studioAudioEnabled) {
+        insertAudioEnhancer(exCtx, vidAny.__audioSourceNode, destNode, { enabled: true, strength: 0.7 });
+      } else {
+        try { vidAny.__audioSourceNode.connect(destNode); } catch { /* already connected */ }
+      }
+
+      // Pre-render the whole SFX track to one buffer at the export sample rate
+      // (deterministic mix incl. ducking), scheduled into the same destination.
+      // Started precisely at playback start below for A/V alignment.
+      if (autoSfxEnabled && sfxTrack.length > 0 && video.duration > 0) {
+        const sfxBuffer = await sfxPlayerRef.current?.renderOffline(sfxTrack, video.duration, exCtx.sampleRate);
+        if (sfxBuffer) {
+          sfxExportSource = exCtx.createBufferSource();
+          sfxExportSource.buffer = sfxBuffer;
+          sfxExportSource.connect(destNode);
+        }
+      }
+
+      audioStream = destNode.stream;
     } catch (e) {
-      console.warn("Audio capture fallback failed, exporting video-only:", e);
+      console.warn("Audio mix setup failed, exporting video-only:", e);
+      sfxExportSource = null;
     }
 
     const finalStream = new MediaStream();
@@ -1078,6 +1434,7 @@ const App: React.FC = () => {
 
     const stopExport = () => {
       if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      if (sfxExportSource) { try { sfxExportSource.stop(); } catch { /* already stopped */ } sfxExportSource = null; }
       video.onended = null;
       video.removeEventListener('timeupdate', onTimeUpdateSafety);
       // Restore loop state now that export is done
@@ -1085,6 +1442,7 @@ const App: React.FC = () => {
     };
 
     mediaRecorder.onstop = () => {
+      exportVideoTrackRef.current = null;
       // Restore canvas to display resolution
       canvas.width = origCanvasWidth;
       canvas.height = origCanvasHeight;
@@ -1128,11 +1486,18 @@ const App: React.FC = () => {
       setStatus('READY');
       return;
     }
-    try { await video.play(); } catch (e) { stopExport(); setStatus('READY'); }
+    try {
+      await video.play();
+      // Start the pre-rendered SFX exactly as playback begins so cues align with
+      // the recorded frames.
+      if (sfxExportSource && exportAudioCtxRef.current) {
+        try { sfxExportSource.start(exportAudioCtxRef.current.currentTime); } catch { /* range */ }
+      }
+    } catch (e) { stopExport(); setStatus('READY'); }
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a0a] text-white font-sans overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--cc-bg)] text-[var(--cc-text-2)] font-sans overflow-hidden">
 
       {/* Bug 14 Fix: In-app Toast Notification (replaces alert()) */}
       {toast && (
@@ -1232,14 +1597,13 @@ const App: React.FC = () => {
             className="h-7 w-auto rounded object-contain bg-white"
             onError={(e) => { e.currentTarget.style.display = 'none'; const f = document.getElementById('logo-fallback'); if (f) f.classList.remove('hidden'); }}
           />
-          <h1 id="logo-fallback" className="hidden text-lg font-black" style={{ color: '#009ca6' }}>createrin</h1>
+          <h1 id="logo-fallback" className="hidden text-lg font-semibold tracking-tight text-[var(--cc-text-1)]">createrin</h1>
 
           {/* Status pill */}
           <div
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
-            style={{ background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.25)', border: '1px solid rgba(59,130,246,0.25)', color: '#60a5fa' }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-[var(--cc-blue-dim)] border border-[rgba(0,112,243,0.15)] text-[var(--cc-blue)]"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--cc-blue)] animate-pulse" />
             Caption Studio
           </div>
         </div>
@@ -1363,37 +1727,42 @@ const App: React.FC = () => {
 
       {/* Bug 1 Fix: Route each feature to its dedicated fullscreen component */}
       {activeFeature === 'THUMBNAIL' && (
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
           <AiThumbnailGenerator onBack={() => setActiveFeature(null)} />
         </Suspense>
       )}
       {activeFeature === 'MOTION' && (
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
           <MotionGraphicsPanel onBack={() => setActiveFeature(null)} />
         </Suspense>
       )}
+      {activeFeature === 'STUDIO' && (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-fuchsia-500 w-8 h-8" /></div>}>
+          <StudioModeStudio onBack={() => setActiveFeature(null)} />
+        </Suspense>
+      )}
       {activeFeature === 'TYPOGRAPHY_REEL' && (
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-violet-500 w-8 h-8" /></div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-violet-500 w-8 h-8" /></div>}>
           <TypographyReelStudio onBack={() => setActiveFeature(null)} />
         </Suspense>
       )}
       {activeFeature === 'SEO' && (
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
           <SeoGenerator captions={captions} onClose={() => setActiveFeature(null)} />
         </Suspense>
       )}
       {activeFeature === 'PUBLISH' && (
         videoSrc
-          ? <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}><SocialPublisher videoSrc={videoSrc} captions={captions} onClose={() => setActiveFeature(null)} /></Suspense>
-          : <div className="flex-1 flex items-center justify-center flex-col gap-4 bg-[#0a0a0a]">
+          ? <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}><SocialPublisher videoSrc={videoSrc} captions={captions} onClose={() => setActiveFeature(null)} /></Suspense>
+          : <div className="flex-1 flex items-center justify-center flex-col gap-4 bg-[var(--cc-bg)]">
             <div className="text-4xl">🎬</div>
-            <h2 className="text-xl font-black text-white">Upload a video first</h2>
-            <p className="text-gray-500 text-sm">You need to generate captions before publishing.</p>
-            <button onClick={() => setActiveFeature(null)} className="mt-4 px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold text-sm transition-colors">← Back</button>
+            <h2 className="text-xl font-semibold text-[var(--cc-text-1)] tracking-tight">Upload a video first</h2>
+            <p className="text-[var(--cc-text-2)] text-sm">You need to generate captions before publishing.</p>
+            <button onClick={() => setActiveFeature(null)} className="cc-btn cc-btn-ghost mt-4">← Back</button>
           </div>
       )}
       {activeFeature === 'AUTOMATION' && (
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[var(--cc-bg)]"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>}>
           <AutomationDashboard onClose={() => setActiveFeature(null)} />
         </Suspense>
       )}
@@ -1448,14 +1817,99 @@ const App: React.FC = () => {
                   isStickersTabActive={activeTab === 'STICKERS'}
                 />
 
+                {/* AI Studio Mode launcher — appears as soon as a video is
+                    uploaded (before captioning), since enhancement is upstream. */}
+                {videoSrc && (
+                  <button
+                    onClick={() => setStudioOpen(v => !v)}
+                    title="AI Studio Mode — auto color, denoise, face & audio enhancement"
+                    className={`absolute top-3 left-3 z-40 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wider shadow-xl backdrop-blur-md transition-all ${studioActive ? 'bg-fuchsia-600 text-[var(--cc-text-1)]' : 'bg-gradient-to-r from-fuchsia-600/90 to-violet-600/90 text-[var(--cc-text-1)] hover:from-fuchsia-500 hover:to-violet-500'}`}
+                  >
+                    <Sparkles size={14} /> {studioAnalyzing ? 'Analyzing…' : studioActive ? 'Studio On' : 'Studio Mode'}
+                  </button>
+                )}
+
                 {/* FX Quick-Toggle Bar — always visible after generation */}
                 {videoSrc && status === 'READY' && (
-                  <div className="absolute bottom-3 left-3 z-40 flex items-center gap-1 backdrop-blur-md bg-black/70 border border-white/10 rounded-xl px-2 py-1.5 shadow-xl">
+                  <div className="absolute bottom-3 left-3 z-40 flex items-center gap-1 backdrop-blur-md bg-black/70 border border-[var(--cc-border)] rounded-xl px-2 py-1.5 shadow-xl">
+                    {/* AI Auto-Camera + settings */}
+                    <div className="relative flex items-center">
+                      <button
+                        onClick={() => setAutoCameraEnabled(v => !v)}
+                        title={autoCameraEnabled ? 'AI Camera ON — zoom/pan/punch-in. Click to disable' : 'AI Camera OFF — click to auto-generate cinematic camera moves'}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-l-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoCameraEnabled ? 'bg-cyan-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                      >
+                        <Camera size={11} /> {cameraAnalyzing ? 'Scanning…' : 'Camera'}
+                      </button>
+                      <button
+                        onClick={() => setCameraSettingsOpen(o => !o)}
+                        title="Camera style & strength"
+                        className={`px-1 py-1 rounded-r-lg border-l border-black/20 transition-all ${cameraSettingsOpen ? 'bg-cyan-500 text-[var(--cc-text-1)]' : autoCameraEnabled ? 'bg-cyan-600/80 text-[var(--cc-text-2)]/80 hover:text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
+                      >
+                        <ChevronDown size={11} className={`transition-transform ${cameraSettingsOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {cameraSettingsOpen && (
+                        <div className="absolute bottom-full left-0 mb-2 w-64 p-3 rounded-xl bg-zinc-900/95 backdrop-blur-md border border-[var(--cc-border)] shadow-2xl text-[var(--cc-text-1)] space-y-3" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                            <Camera size={12} /> Camera Director
+                          </div>
+                          {/* Style preset */}
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-[var(--cc-text-1)]/40 mb-1">Style</div>
+                            <div className="grid grid-cols-3 gap-1">
+                              {([
+                                ['subtle', 'Subtle'], ['dynamic', 'Dynamic'], ['punchy', 'Punchy'],
+                                ['cinematic', 'Cinematic'], ['handheld', 'Handheld'],
+                              ] as [CameraStyle, string][]).map(([val, label]) => (
+                                <button key={val}
+                                  onClick={() => { setCameraStyle(val); if (!autoCameraEnabled) setAutoCameraEnabled(true); }}
+                                  className={`px-1.5 py-1 rounded-md text-[10px] font-semibold transition-all ${cameraStyle === val ? 'bg-cyan-500 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/50 hover:bg-white/10'}`}
+                                >{label}</button>
+                              ))}
+                            </div>
+                            <div className="text-[9px] text-[var(--cc-text-1)]/35 mt-1 leading-tight">
+                              {cameraStyle === 'subtle' && 'Gentle drift — talking-head safe.'}
+                              {cameraStyle === 'dynamic' && 'Balanced modern edit with crash zooms.'}
+                              {cameraStyle === 'punchy' && 'MrBeast retention: crash zooms, shake, big contrast.'}
+                              {cameraStyle === 'cinematic' && 'Slow film push-ins + gentle dutch tilt.'}
+                              {cameraStyle === 'handheld' && 'Vloggy GoPro energy — constant organic shake.'}
+                            </div>
+                          </div>
+                          {/* Intensity */}
+                          <label className="block">
+                            <div className="flex justify-between text-[10px] text-[var(--cc-text-1)]/50 mb-0.5"><span>Intensity</span><span className="text-[var(--cc-text-2)]/70">{Math.round(cameraIntensity * 100)}%</span></div>
+                            <input type="range" min={0.3} max={1.6} step={0.05} value={cameraIntensity}
+                              onChange={e => setCameraIntensity(parseFloat(e.target.value))}
+                              className="w-full accent-cyan-500 h-1" />
+                          </label>
+                          {/* Shake */}
+                          <label className="block">
+                            <div className="flex justify-between text-[10px] text-[var(--cc-text-1)]/50 mb-0.5"><span>Shake</span><span className="text-[var(--cc-text-2)]/70">{Math.round(cameraShake * 100)}%</span></div>
+                            <input type="range" min={0} max={2} step={0.1} value={cameraShake}
+                              onChange={e => setCameraShake(parseFloat(e.target.value))}
+                              className="w-full accent-cyan-500 h-1" />
+                          </label>
+                          {/* Max zoom */}
+                          <label className="block">
+                            <div className="flex justify-between text-[10px] text-[var(--cc-text-1)]/50 mb-0.5"><span>Max Zoom</span><span className="text-[var(--cc-text-2)]/70">{cameraMaxZoom.toFixed(2)}×</span></div>
+                            <input type="range" min={1.2} max={1.8} step={0.05} value={cameraMaxZoom}
+                              onChange={e => setCameraMaxZoom(parseFloat(e.target.value))}
+                              className="w-full accent-cyan-500 h-1" />
+                          </label>
+                          {/* Track faces */}
+                          <button onClick={() => setCameraTrackFaces(v => !v)}
+                            className="flex items-center justify-between w-full text-[10px] text-[var(--cc-text-2)]/60 hover:text-[var(--cc-text-1)]">
+                            <span>Track speaker's face</span>
+                            {cameraTrackFaces ? <ToggleRight size={18} className="text-[var(--cc-green)]" /> : <ToggleLeft size={18} className="text-[var(--cc-text-1)]/30" />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     {/* B-Roll */}
                     <button
                       onClick={() => setAutoMotionEnabled(v => !v)}
                       title={autoMotionEnabled ? 'B-Roll ON — click to disable' : 'B-Roll OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoMotionEnabled ? 'bg-violet-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoMotionEnabled ? 'bg-violet-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
                     >
                       <Video size={11} /> B-Roll
                     </button>
@@ -1463,7 +1917,7 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setAutoSfxEnabled(v => !v)}
                       title={autoSfxEnabled ? 'SFX ON — click to disable' : 'SFX OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoSfxEnabled ? 'bg-green-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${autoSfxEnabled ? 'bg-green-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
                     >
                       <Music size={11} /> SFX
                     </button>
@@ -1471,7 +1925,7 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setWordHighlight(w => w === 'NONE' ? 'COLOR_POP' : 'NONE')}
                       title={wordHighlight !== 'NONE' ? `Word Highlight: ${wordHighlight} — click to disable` : 'Word Highlight OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${wordHighlight !== 'NONE' ? 'bg-pink-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${wordHighlight !== 'NONE' ? 'bg-pink-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
                     >
                       <Sparkles size={11} /> Highlight
                     </button>
@@ -1479,32 +1933,58 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setEntryAnimation(a => a === 'NONE' ? 'SLIDE_UP' : 'NONE')}
                       title={entryAnimation !== 'NONE' ? `Entry: ${entryAnimation} — click to disable` : 'Entry animation OFF — click to enable'}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${entryAnimation !== 'NONE' ? 'bg-blue-600/80 text-white' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${entryAnimation !== 'NONE' ? 'bg-blue-600/80 text-[var(--cc-text-1)]' : 'bg-white/5 text-[var(--cc-text-1)]/30 hover:bg-white/10 hover:text-[var(--cc-text-2)]/60'}`}
                     >
                       <Zap size={11} /> Anim
                     </button>
                     <div className="w-px h-3 bg-white/10 mx-0.5" />
-                    <span className="text-[9px] text-white/20 uppercase tracking-widest">FX</span>
+                    <span className="text-[9px] text-[var(--cc-text-1)]/20 uppercase tracking-widest">FX</span>
+                  </div>
+                )}
+
+                {/* AI Studio Mode panel — floating overlay */}
+                {videoSrc && studioOpen && (
+                  <div className="absolute top-16 left-3 z-50 w-72 max-w-[calc(100%-1.5rem)]">
+                    <StudioModePanel
+                      hasVideo={!!videoSrc}
+                      analyzing={studioAnalyzing}
+                      supported={studioRef.current?.isSupported() ?? false}
+                      mode={studioRef.current?.getMode() ?? 'none'}
+                      scene={studioScene}
+                      before={studioBefore}
+                      after={studioAfter}
+                      active={studioActive}
+                      onToggle={handleStudioToggle}
+                      comparePos={studioComparePos}
+                      onComparePos={setStudioComparePos}
+                      params={studioParams}
+                      onParamsChange={handleStudioParamsChange}
+                      onResetParams={handleStudioResetParams}
+                      audioEnabled={studioAudioEnabled}
+                      onAudioToggle={setStudioAudioEnabled}
+                      onPickPlatform={handleStudioPlatform}
+                      activePlatform={studioPlatform}
+                    />
                   </div>
                 )}
 
                 {/* Safe Zones Toggle */}
                 {videoSrc && status === 'READY' && (
-                  <div className="absolute top-3 right-3 z-40 flex items-center shadow-lg rounded-lg border border-white/10 overflow-hidden backdrop-blur-md">
+                  <div className="absolute top-3 right-3 z-40 flex items-center shadow-lg rounded-lg border border-[var(--cc-border)] overflow-hidden backdrop-blur-md">
                     <button
                       onClick={() => setShowSafeZones(!showSafeZones)}
                       title="Toggle Social Media Safe Zones"
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition-colors ${showSafeZones ? 'bg-yellow-400 text-black' : 'bg-black/60 text-white hover:bg-black/80'}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition-colors ${showSafeZones ? 'bg-yellow-400 text-black' : 'bg-black/60 text-[var(--cc-text-1)] hover:bg-black/80'}`}
                     >
                       <Smartphone size={13} /> {showSafeZones ? 'Safe Zones ON' : 'Safe Zones'}
                     </button>
                     {showSafeZones && (
-                      <div className="flex bg-black/80 items-center px-1 border-l border-white/10">
+                      <div className="flex bg-black/80 items-center px-1 border-l border-[var(--cc-border)]">
                         {(['SHORTS', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK'] as const).map(p => (
                           <button
                             key={p}
                             onClick={() => setSafeZonePlatform(p)}
-                            className={`p-1.5 rounded transition-colors ${safeZonePlatform === p ? 'text-yellow-400 bg-white/10' : 'text-gray-400 hover:text-white'}`}
+                            className={`p-1.5 rounded transition-colors ${safeZonePlatform === p ? 'text-yellow-400 bg-white/10' : 'text-[var(--cc-text-3)] hover:text-[var(--cc-text-1)]'}`}
                             title={p === 'SHORTS' ? 'YouTube Shorts' : p === 'TIKTOK' ? 'TikTok' : p === 'INSTAGRAM' ? 'Instagram Reels' : 'Facebook Reels'}
                           >
                             {p === 'SHORTS' ? <Youtube size={14} /> : p === 'TIKTOK' ? <Video size={14} /> : p === 'INSTAGRAM' ? <Instagram size={14} /> : <span className="text-[11px] font-black">FB</span>}
@@ -1516,6 +1996,20 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Sound-design controls — adjustable vibe / intensity / volume.
+                Hidden while an SFX cue is selected (the inspector shows it then). */}
+            {videoSrc && status === 'READY' && autoSfxEnabled && selection?.kind !== 'sfx' && (
+              <SfxControlPanel
+                vibe={sfxVibe}
+                onVibeChange={setSfxVibe}
+                intensity={sfxIntensity}
+                onIntensityChange={setSfxIntensity}
+                volume={sfxVolume}
+                onVolumeChange={setSfxVolume}
+                cueCount={sfxTrack.length}
+              />
+            )}
 
             {/* Enhanced Timeline (Phase 2) */}
             {videoSrc && status === 'READY' && (
@@ -1529,7 +2023,9 @@ const App: React.FC = () => {
                 onSplitCaption={splitCaption}
                 onDuplicateCaption={duplicateCaption}
                 selectedCaptionId={selectedCaptionId}
-                onSelectCaption={setSelectedCaptionId}
+                onSelectCaption={(id) => selectTimelineObject(id ? { kind: 'caption', id } : null)}
+                selection={selection}
+                onSelectObject={selectTimelineObject}
                 keyframeMap={keyframeMap}
                 onKeyframeMapChange={setKeyframeMap}
                 beatGrid={beatGrid ?? undefined}
@@ -1537,6 +2033,14 @@ const App: React.FC = () => {
                 autoSfxEnabled={autoSfxEnabled}
                 entryAnimation={entryAnimation}
                 wordHighlight={wordHighlight}
+                sfxTrack={sfxTrack}
+                onDeleteSfxCue={deleteSfxCue}
+                onSwapSfxCue={swapSfxCue}
+                onAdjustSfxCueGain={adjustSfxCueGain}
+                onToggleSfxCueMuted={toggleSfxCueMuted}
+                onPreviewSfxCue={previewSfxCue}
+                cameraTrack={cameraTrack}
+                onDeleteCameraKeyframe={deleteCameraKeyframe}
               />
             )}
           </div>
@@ -1547,32 +2051,32 @@ const App: React.FC = () => {
             {/* Bug 2 Fix: Upload prompt when no video is loaded */}
             {!videoSrc && !isSandboxMode && (status === 'IDLE') && (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                  <Upload size={28} className="text-blue-400" />
+                <div className="w-16 h-16 rounded-2xl bg-[var(--cc-blue-dim)] border border-[rgba(0,112,243,0.15)] flex items-center justify-center">
+                  <Upload size={28} className="text-[var(--cc-blue)]" />
                 </div>
                 <div>
-                  <h3 className="text-white font-black text-base">Upload a Video</h3>
-                  <p className="text-gray-500 text-xs mt-1 leading-relaxed">Drop a vertical video on the left to start generating viral captions.</p>
+                  <h3 className="text-[var(--cc-text-1)] font-black text-base">Upload a Video</h3>
+                  <p className="text-[var(--cc-text-3)] text-xs mt-1 leading-relaxed">Drop a vertical video on the left to start generating viral captions.</p>
                 </div>
                 <div className="flex flex-col gap-2 w-full">
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-left">
                     <span className="text-lg">🎬</span>
                     <div>
-                      <p className="text-xs font-bold text-gray-300">9:16 Vertical</p>
+                      <p className="text-xs font-bold text-[var(--cc-text-2)]">9:16 Vertical</p>
                       <p className="text-[10px] text-gray-600">TikTok, Reels, Shorts</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-purple-500/5 border border-purple-500/10 text-left">
                     <span className="text-lg">✨</span>
                     <div>
-                      <p className="text-xs font-bold text-gray-300">100+ Languages</p>
+                      <p className="text-xs font-bold text-[var(--cc-text-2)]">100+ Languages</p>
                       <p className="text-[10px] text-gray-600">Auto-detect or pick manually</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/5 border border-green-500/10 text-left">
                     <span className="text-lg">🚀</span>
                     <div>
-                      <p className="text-xs font-bold text-gray-300">Viral Templates</p>
+                      <p className="text-xs font-bold text-[var(--cc-text-2)]">Viral Templates</p>
                       <p className="text-[10px] text-gray-600">12 trending caption styles</p>
                     </div>
                   </div>
@@ -1602,17 +2106,17 @@ const App: React.FC = () => {
             {(status === 'UPLOADING' || status === 'TRANSCRIBING') && (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
                 <div className="relative w-16 h-16">
-                  <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
+                  <div className="absolute inset-0 rounded-full border-2 border-[rgba(0,112,243,0.15)]" />
                   <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-500 animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Wand2 size={24} className="text-blue-400" />
+                    <Wand2 size={24} className="text-[var(--cc-blue)]" />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-white font-black text-base">
+                  <h3 className="text-[var(--cc-text-1)] font-black text-base">
                     {status === 'UPLOADING' ? 'Uploading Video…' : status === 'TRANSCRIBING' ? 'Transcribing Audio…' : 'Processing…'}
                   </h3>
-                  <p className="text-gray-500 text-xs mt-1">
+                  <p className="text-[var(--cc-text-3)] text-xs mt-1">
                     {status === 'UPLOADING' ? 'Sending to Gemini AI' : status === 'TRANSCRIBING' ? 'Reading every word with AI' : 'Almost done'}
                   </p>
                 </div>
@@ -1624,7 +2128,45 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {status === 'READY' && (
+            {/* CapCut-style contextual inspector — shown when a non-caption clip
+                is selected on the timeline. Captions route to the Customize tab. */}
+            {status === 'READY' && selection && selection.kind !== 'caption' && (
+              <InspectorPanel
+                selection={selection}
+                onClose={() => selectTimelineObject(null)}
+                cameraTrack={cameraTrack}
+                onDeleteCameraKeyframe={deleteCameraKeyframe}
+                cameraStyle={cameraStyle}
+                setCameraStyle={setCameraStyle}
+                cameraIntensity={cameraIntensity}
+                setCameraIntensity={setCameraIntensity}
+                cameraShake={cameraShake}
+                setCameraShake={setCameraShake}
+                cameraMaxZoom={cameraMaxZoom}
+                setCameraMaxZoom={setCameraMaxZoom}
+                cameraTrackFaces={cameraTrackFaces}
+                setCameraTrackFaces={setCameraTrackFaces}
+                sfxTrack={sfxTrack}
+                sfxVibe={sfxVibe}
+                setSfxVibe={setSfxVibe}
+                sfxIntensity={sfxIntensity}
+                setSfxIntensity={setSfxIntensity}
+                sfxVolume={sfxVolume}
+                setSfxVolume={setSfxVolume}
+                onAdjustSfxCueGain={adjustSfxCueGain}
+                onToggleSfxCueMuted={toggleSfxCueMuted}
+                onSwapSfxCue={swapSfxCue}
+                onDeleteSfxCue={deleteSfxCue}
+                onPreviewSfxCue={previewSfxCue}
+                captions={captions}
+                onUpdateCaption={updateCaption}
+                stickers={stickers}
+                onUpdateSticker={handleUpdateSticker}
+                onRemoveSticker={handleRemoveSticker}
+              />
+            )}
+
+            {status === 'READY' && !(selection && selection.kind !== 'caption') && (
               <>
                 {/* Tab bar for right panel */}
                 <div style={{

@@ -98,7 +98,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   // ── Pipeline state ─────────────────────────────────────────────────────────
-  const [stage, setStage] = useState<PipelineStage>('idle');
+  const [stage, setStage] = useState<PipelineStage | 'image-processing'>('idle');
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -200,7 +200,14 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     if (!canvas || !animationSequence) return;
 
     try {
+      const prev = rendererRef.current;
       const renderer = new TypographyRenderer(canvas, animationSequence);
+      // Every word edit produces a new sequence object, which recreates the
+      // renderer. Carry image state (and already-decoded bitmaps) over —
+      // otherwise images silently vanish after the first text edit.
+      renderer.imageAssets = imageAssets;
+      renderer.selectedImageId = selectedImageId;
+      if (prev) renderer.imageBitmaps = prev.imageBitmaps;
       rendererRef.current = renderer;
     } catch (err) {
       console.error('[reel] renderer init failed', err);
@@ -370,11 +377,19 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         layout: { width, height },
       });
 
+      // New sequence = new world: drop selections and images from the old run,
+      // otherwise stale assets linger in the panel/timeline after a regenerate.
+      setImageAssets([]);
+      setSelectedImageId(null);
+      setSelectedWordId(null);
+      setDraggedImageId(null);
+      setEditMode(null);
+
       setAnimationSequence(sequence);
 
       // Stage 4: Process images via backend API (if enabled)
       if (import.meta.env.VITE_IMAGE_ASSET_ENABLED === 'true') {
-        setStage('image-processing' as any);
+        setStage('image-processing');
         setProgress(0.85);
 
         try {
@@ -491,6 +506,12 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     }
   };
 
+  // Clamp bounds must match the generated layout — 1080×1920 is only correct
+  // for 9:16. For 16:9/1:1/4:5 the hardcoded limits let images escape the
+  // canvas (or blocked them from reaching the right edge).
+  const stageW = animationSequence?.layout.width ?? REEL_LIMITS.width;
+  const stageH = animationSequence?.layout.height ?? REEL_LIMITS.height;
+
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!draggedImageId || !canvasRef.current) return;
     const { x, y } = toCanvasCoords(e);
@@ -500,8 +521,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         img.assetId === draggedImageId
           ? {
               ...img,
-              x: Math.max(0, Math.min(x - dragOffset.x, REEL_LIMITS.width - (img.width || 100))),
-              y: Math.max(0, Math.min(y - dragOffset.y, REEL_LIMITS.height - (img.height || 100))),
+              x: Math.max(0, Math.min(x - dragOffset.x, stageW - (img.width || 100))),
+              y: Math.max(0, Math.min(y - dragOffset.y, stageH - (img.height || 100))),
             }
           : img
       )
@@ -559,7 +580,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
           setImageAssets((prev) =>
             prev.map((img) =>
               img.assetId === selectedImageId
-                ? { ...img, y: Math.min(REEL_LIMITS.height - (img.height || 100), img.y + NUDGE_AMOUNT) }
+                ? { ...img, y: Math.min(stageH - (img.height || 100), img.y + NUDGE_AMOUNT) }
                 : img
             )
           );
@@ -581,7 +602,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
           setImageAssets((prev) =>
             prev.map((img) =>
               img.assetId === selectedImageId
-                ? { ...img, x: Math.min(REEL_LIMITS.width - (img.width || 100), img.x + NUDGE_AMOUNT) }
+                ? { ...img, x: Math.min(stageW - (img.width || 100), img.x + NUDGE_AMOUNT) }
                 : img
             )
           );
@@ -595,7 +616,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedImageId, imageAssets]);
+  }, [selectedImageId, imageAssets, stageW, stageH]);
 
   const handleUpdateImage = (id: string, updates: Partial<any>) => {
     setImageAssets((prev) =>
@@ -660,7 +681,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     const newWord = {
       ...wordToDuplicate,
       wordId: `${wordToDuplicate.wordId}-copy-${Date.now()}`,
-      startTime: wordToDuplicate.startTime + wordToDuplicate.duration + 100, // Add 100ms gap
+      startTime: wordToDuplicate.startTime + wordToDuplicate.duration + 0.1, // times are seconds — 0.1 = 100ms gap
     };
 
     setAnimationSequence((prev) => {
@@ -835,7 +856,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const canGenerate = audioFile !== null && stage !== 'analyzing' && stage !== 'beats' && stage !== 'choreographing' && stage !== 'exporting';
+  const isGenerating = stage === 'analyzing' || stage === 'beats' || stage === 'choreographing' || stage === 'image-processing';
+  const canGenerate = audioFile !== null && !isGenerating && stage !== 'exporting';
   const canExport = animationSequence !== null && stage !== 'exporting';
   const canPlay = animationSequence !== null;
 
@@ -844,6 +866,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   // If animation sequence is ready, show the CapCut-style editor
   if (animationSequence) {
     return (
+      <div className="relative w-full h-screen">
       <CapCutStyleEditor
         canvas={
           <div className="flex-1 flex items-center justify-center overflow-hidden">
@@ -889,7 +912,35 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         onDeleteImage={handleDeleteImage}
         onBack={onBack}
         onExport={handleExport}
+        onOpenFindReplace={() => setShowFindReplace(true)}
       />
+      {/* Ctrl+H / search button — previously only rendered in the pre-generation
+          branch, which made Find & Replace unreachable once the editor opened. */}
+      {showFindReplace && (
+        <FindReplacePanel
+          totalMatches={findMatches}
+          onFind={handleFind}
+          onReplace={handleReplace}
+          onClose={() => setShowFindReplace(false)}
+        />
+      )}
+      {/* Export/image errors were invisible in editor mode (errorMsg only
+          rendered in the setup screen). */}
+      {errorMsg && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex items-start gap-2 p-3 rounded-xl bg-red-900/90 border border-red-700/40 text-red-200 text-xs max-w-md shadow-lg">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" />
+          <p>{errorMsg}</p>
+          <button
+            type="button"
+            aria-label="Dismiss error"
+            onClick={() => setErrorMsg('')}
+            className="shrink-0 ml-1 text-red-300 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      </div>
     );
   }
 
@@ -899,26 +950,26 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
   // alias to satisfy the type checker without changing runtime behavior.
   const seq = animationSequence as AnimationSequence | null;
   return (
-    <div className="flex-1 flex flex-col bg-[#0a0a0a] overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[var(--cc-bg)] overflow-hidden">
 
       {/* Header */}
-      <header className="flex items-center gap-3 px-5 py-3 border-b border-gray-800 shrink-0">
+      <header className="flex items-center gap-3 px-5 py-3 border-b border-[var(--cc-border)] shrink-0">
         <button
           type="button"
           onClick={onBack}
           aria-label="Back to feature selection"
-          className="p-2 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+          className="p-2 rounded-lg hover:bg-[var(--cc-surface-3)] transition-colors text-[var(--cc-text-3)] hover:text-[var(--cc-text-1)]"
         >
           <ArrowLeft size={16} />
         </button>
         <div className="flex items-center gap-2">
           <Film size={18} className="text-violet-400" />
-          <h2 className="text-white font-black text-lg tracking-tight">Typography Reel Studio</h2>
+          <h2 className="text-[var(--cc-text-1)] font-black text-lg tracking-tight">Typography Reel Studio</h2>
           <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30">
             AI Cinematic
           </span>
         </div>
-        <p className="hidden md:block text-gray-500 text-xs ml-2 truncate">
+        <p className="hidden md:block text-[var(--cc-text-3)] text-xs ml-2 truncate">
           Audio → emotion-aware scenes → beat-synced typography → MP4
         </p>
       </header>
@@ -927,12 +978,12 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
 
         {/* ── LEFT: controls ──────────────────────────────────────────────── */}
-        <aside className="w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-gray-800 overflow-y-auto custom-scrollbar shrink-0">
+        <aside className="w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-[var(--cc-border)] overflow-y-auto custom-scrollbar shrink-0">
           <div className="p-5 space-y-6">
 
             {/* Step 1: audio upload */}
             <section>
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[var(--cc-text-3)] mb-3">
                 1 — Audio (≤ 60 s)
               </h3>
 
@@ -946,7 +997,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                     ? 'border-violet-500 bg-violet-500/10'
                     : audioFile
                       ? 'border-green-600/50 bg-green-900/10'
-                      : 'border-gray-700 hover:border-violet-600 hover:bg-violet-900/10'}
+                      : 'border-[var(--cc-border)] hover:border-violet-600 hover:bg-violet-900/10'}
                 `}
               >
                 <input
@@ -960,8 +1011,8 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   <>
                     <CheckCircle2 size={26} className="text-green-400" />
                     <div className="text-center">
-                      <p className="text-white text-sm font-semibold truncate max-w-[200px]">{audioFile.name}</p>
-                      <p className="text-gray-500 text-xs mt-0.5">
+                      <p className="text-[var(--cc-text-1)] text-sm font-semibold truncate max-w-[200px]">{audioFile.name}</p>
+                      <p className="text-[var(--cc-text-3)] text-xs mt-0.5">
                         {fmtTime(audioDuration)} · {(audioFile.size / 1024 / 1024).toFixed(1)} MB
                       </p>
                     </div>
@@ -969,10 +1020,10 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   </>
                 ) : (
                   <>
-                    <div className="p-3 rounded-xl bg-gray-800"><Music size={22} className="text-violet-400" /></div>
+                    <div className="p-3 rounded-xl bg-[var(--cc-surface-3)]"><Music size={22} className="text-violet-400" /></div>
                     <div className="text-center">
-                      <p className="text-white text-sm font-semibold">Drop audio here</p>
-                      <p className="text-gray-500 text-xs mt-0.5">MP3 · WAV · AAC · M4A · OGG</p>
+                      <p className="text-[var(--cc-text-1)] text-sm font-semibold">Drop audio here</p>
+                      <p className="text-[var(--cc-text-3)] text-xs mt-0.5">MP3 · WAV · AAC · M4A · OGG</p>
                     </div>
                     <p className="text-violet-400 text-xs font-bold flex items-center gap-1"><Upload size={11} /> Browse file</p>
                   </>
@@ -982,7 +1033,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
             {/* Step 2: theme profile */}
             <section>
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[var(--cc-text-3)] mb-3">
                 2 — Theme Profile
               </h3>
               <div className="space-y-2">
@@ -995,13 +1046,13 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                       w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all
                       ${themeId === p.id
                         ? 'border-violet-500 bg-violet-500/10'
-                        : 'border-gray-800 hover:border-gray-600 bg-gray-900/50'}
+                        : 'border-[var(--cc-border)] hover:border-gray-600 bg-[var(--cc-surface)]/50'}
                     `}
                   >
                     <div className={`shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br ${p.previewGradient} shadow-sm`} />
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-bold truncate ${themeId === p.id ? 'text-white' : 'text-gray-300'}`}>{p.name}</p>
-                      <p className="text-gray-500 text-[11px] truncate">{p.description}</p>
+                      <p className={`text-sm font-bold truncate ${themeId === p.id ? 'text-[var(--cc-text-1)]' : 'text-[var(--cc-text-2)]'}`}>{p.name}</p>
+                      <p className="text-[var(--cc-text-3)] text-[11px] truncate">{p.description}</p>
                     </div>
                     {themeId === p.id && <CheckCircle2 size={14} className="shrink-0 text-violet-400" />}
                   </button>
@@ -1011,7 +1062,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
             {/* Step 3: Aspect Ratio */}
             <section>
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[var(--cc-text-3)] mb-3">
                 3 — Aspect Ratio
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -1028,12 +1079,12 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                     className={`
                       flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all
                       ${aspectRatio === r.value
-                        ? 'border-violet-500 bg-violet-500/10 text-white font-bold'
-                        : 'border-gray-800 hover:border-gray-600 bg-gray-900/50 text-gray-400'}
+                        ? 'border-violet-500 bg-violet-500/10 text-[var(--cc-text-1)] font-bold'
+                        : 'border-[var(--cc-border)] hover:border-gray-600 bg-[var(--cc-surface)]/50 text-[var(--cc-text-3)]'}
                     `}
                   >
                     <span className="text-xs">{r.label}</span>
-                    <span className="text-[9px] text-gray-500 mt-0.5">{r.desc}</span>
+                    <span className="text-[9px] text-[var(--cc-text-3)] mt-0.5">{r.desc}</span>
                   </button>
                 ))}
               </div>
@@ -1046,11 +1097,11 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 onClick={handleGenerate}
                 disabled={!canGenerate}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm transition-all
-                  bg-gradient-to-r from-violet-600 to-indigo-600 text-white
+                  bg-gradient-to-r from-violet-600 to-indigo-600 text-[var(--cc-text-1)]
                   hover:from-violet-500 hover:to-indigo-500
                   disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {stage === 'analyzing' || stage === 'beats' || stage === 'choreographing' ? (
+                {isGenerating ? (
                   <><Loader2 size={15} className="animate-spin" /> {STAGE_LABEL[stage]}</>
                 ) : animationSequence ? (
                   <><Wand2 size={15} /> Regenerate Reel</>
@@ -1060,9 +1111,9 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
               </button>
 
               {/* Progress bar while running */}
-              {(stage === 'analyzing' || stage === 'beats' || stage === 'choreographing') && (
+              {isGenerating && (
                 <div className="mt-3">
-                  <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-[var(--cc-surface-3)] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 transition-all"
                       style={{ width: `${Math.round(progress * 100)}%` }}
@@ -1092,11 +1143,11 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
             )}
 
             {/* Pipeline explainer */}
-            <section className="border-t border-gray-800 pt-5">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">
+            <section className="border-t border-[var(--cc-border)] pt-5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[var(--cc-text-3)] mb-3">
                 Pipeline
               </h3>
-              <ol className="space-y-2 text-xs text-gray-500">
+              <ol className="space-y-2 text-xs text-[var(--cc-text-3)]">
                 {[
                   ['🤖', 'Gemini reads emotion, emphasis, scene boundaries per word'],
                   ['🎵', 'FFT detects audio onsets — words snap to beats'],
@@ -1114,7 +1165,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
         </aside>
 
         {/* ── CENTER: preview ─────────────────────────────────────────────── */}
-        <main className="flex-1 flex flex-col items-center justify-center gap-4 p-6 bg-[#080808] overflow-hidden min-h-0">
+        <main className="flex-1 flex flex-col items-center justify-center gap-4 p-6 bg-[var(--cc-bg)] overflow-hidden min-h-0">
 
           {/* Canvas container */}
           <div className="w-full max-w-[360px] flex-1 min-h-0 flex items-center justify-center relative">
@@ -1137,13 +1188,13 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 />
                 {/* Selected indicator */}
                 {selectedImageId && (
-                  <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-violet-600/90 text-white text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
+                  <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-violet-600/90 text-[var(--cc-text-1)] text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
                     <div className="w-2 h-2 rounded-full bg-violet-200 animate-pulse" />
                     Image selected • Drag to move
                   </div>
                 )}
                 {selectedWordId && (
-                  <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-blue-600/90 text-white text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
+                  <div className="absolute top-4 left-4 px-3 py-2 rounded-lg bg-blue-600/90 text-[var(--cc-text-1)] text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
                     <div className="w-2 h-2 rounded-full bg-blue-200 animate-pulse" />
                     Text selected • Edit in panel
                   </div>
@@ -1153,7 +1204,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   <div className="absolute top-3 right-3 flex flex-col gap-2">
                     {/* FPS display */}
                     <div className={`px-2.5 py-1.5 text-xs font-bold rounded-lg backdrop-blur-sm ${
-                      fpsMetrics.fps >= 28 ? 'bg-green-500/80 text-white' : 'bg-red-500/80 text-white'
+                      fpsMetrics.fps >= 28 ? 'bg-green-500/80 text-[var(--cc-text-1)]' : 'bg-red-500/80 text-[var(--cc-text-1)]'
                     }`}>
                       {fpsMetrics.fps} FPS
                     </div>
@@ -1170,7 +1221,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
             ) : (
               <div className="text-center">
                 <div className="text-6xl mb-3">🎬</div>
-                <p className="text-gray-500">{audioFile ? 'Click Generate to start' : 'Upload audio to begin'}</p>
+                <p className="text-[var(--cc-text-3)]">{audioFile ? 'Click Generate to start' : 'Upload audio to begin'}</p>
               </div>
             )}
           </div>
@@ -1178,7 +1229,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
           {/* Timeline scrubber */}
           {canPlay && (
             <div className="w-full max-w-md space-y-2">
-              <div className="relative h-1.5 bg-gray-800 rounded-full">
+              <div className="relative h-1.5 bg-[var(--cc-surface-3)] rounded-full">
                 {/* Progress */}
                 <div
                   className="absolute top-0 left-0 h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full pointer-events-none"
@@ -1195,7 +1246,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 onChange={handleSeek}
                 className="w-full accent-violet-500"
               />
-              <div className="flex justify-between text-xs text-gray-500 tabular-nums">
+              <div className="flex justify-between text-xs text-[var(--cc-text-3)] tabular-nums">
                 <span>{fmtTime(currentTime)}</span>
                 <span>{fmtTime(timelineDuration)}</span>
               </div>
@@ -1209,14 +1260,14 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                 type="button"
                 onClick={handleRestart}
                 aria-label="Restart playback"
-                className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+                className="p-2.5 rounded-xl bg-[var(--cc-surface-3)] hover:bg-[var(--cc-surface-3)]/80 text-[var(--cc-text-2)] transition-colors"
               >
                 <RotateCcw size={15} />
               </button>
               <button
                 type="button"
                 onClick={() => setPlaying(p => !p)}
-                className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm flex items-center gap-2 transition-colors"
+                className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-[var(--cc-text-1)] font-bold text-sm flex items-center gap-2 transition-colors"
               >
                 {playing ? <Pause size={15} /> : <Play size={15} />}
                 {playing ? 'Pause' : 'Play'}
@@ -1246,9 +1297,9 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
           {/* Empty state */}
           {!canPlay && stage === 'idle' && (
-            <div className="text-center text-gray-500 text-sm space-y-2">
+            <div className="text-center text-[var(--cc-text-3)] text-sm space-y-2">
               <div className="text-4xl">🎬</div>
-              <p>Upload audio and click <span className="text-white font-bold">Generate Reel</span></p>
+              <p>Upload audio and click <span className="text-[var(--cc-text-1)] font-bold">Generate Reel</span></p>
             </div>
           )}
 
@@ -1266,16 +1317,16 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
         {/* ── RIGHT: editor panel (images or text) ──────────────────────────── */}
         {(imageAssets.length > 0 || animationSequence) && (
-          <aside className="w-80 bg-gray-900 border-l border-gray-800 overflow-hidden flex flex-col">
+          <aside className="w-80 bg-[var(--cc-surface)] border-l border-[var(--cc-border)] overflow-hidden flex flex-col">
             {/* Tab selector */}
             {imageAssets.length > 0 && animationSequence && (
-              <div className="flex border-b border-gray-800 bg-gray-800/50">
+              <div className="flex border-b border-[var(--cc-border)] bg-[var(--cc-surface-3)]/50">
                 <button
                   onClick={() => setEditMode('text')}
                   className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
                     editMode === 'text'
-                      ? 'text-blue-400 border-blue-500 bg-blue-500/10'
-                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                      ? 'text-[var(--cc-blue)] border-blue-500 bg-[var(--cc-blue-dim)]'
+                      : 'text-[var(--cc-text-3)] border-transparent hover:text-[var(--cc-text-2)]'
                   }`}
                 >
                   ✏️ Text
@@ -1285,7 +1336,7 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
                   className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
                     editMode === 'images'
                       ? 'text-violet-400 border-violet-500 bg-violet-500/10'
-                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                      : 'text-[var(--cc-text-3)] border-transparent hover:text-[var(--cc-text-2)]'
                   }`}
                 >
                   🖼️ Images

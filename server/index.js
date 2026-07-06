@@ -117,7 +117,7 @@ db.exec(`
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:4173'] }));
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3010', 'http://localhost:4173'] }));
 app.use(express.json({ limit: '50mb' }));
 
 // Multer — store uploads in memory (max 50MB), audio/video only

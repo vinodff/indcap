@@ -63,7 +63,6 @@ export enum CaptionStyle {
 
   // ─── NEON / GLOW ───
   NEON_GLOW = 'NEON_GLOW',
-  GLITCH_CYBER = 'GLITCH_CYBER',
   GRADIENT_DREAM = 'GRADIENT_DREAM',
 
   // ─── HIGHLIGHT ───
@@ -108,7 +107,6 @@ export enum CaptionStyle {
 
   // ─── SPRING PHYSICS (SPRINT 1) ───
   WORD_SPRING = 'WORD_SPRING',
-  WORD_STAMP = 'WORD_STAMP',
 
   // ─── BADGE / PILL (SPRINT 1) ───
   PILL_BADGE = 'PILL_BADGE',
@@ -131,7 +129,6 @@ export enum CaptionStyle {
   // ─── MOTION EFFECTS (SPRINT 4) ───
   APPLE_MINIMAL = 'APPLE_MINIMAL',
   BOUNCE_STAMP = 'BOUNCE_STAMP',
-  FLOAT_RISE = 'FLOAT_RISE',
   SLIDE_REVEAL = 'SLIDE_REVEAL',
   BLUR_FADE = 'BLUR_FADE',
   POP_OUT = 'POP_OUT',
@@ -727,6 +724,17 @@ export interface RendererState {
   autoFrameSafeY?: { min: number; max: number };
   // Keyframe overrides
   keyframeMap?: KeyframeMap;
+  // AI Auto-Camera: a virtual zoom/pan track over the video (type-only import to
+  // avoid a runtime cycle).
+  cameraTrack?: import('./services/camera/types').CameraTrack;
+  autoCameraEnabled?: boolean;
+  // AI Auto Video Enhancement (Studio Mode): when set, the renderer composites
+  // this enhanced frame instead of the raw <video>. Same dimensions as the
+  // video, so camera source-rects still map 1:1. See services/enhance.
+  enhancedSource?: CanvasImageSource | null;
+  /** Before/after wipe split 0..1 (fraction shown ENHANCED from the right).
+   *  1 = fully enhanced, 0 = fully raw. Only used when enhancedSource is set. */
+  enhanceComparePos?: number;
 }
 
 export interface RendererCallbacks {

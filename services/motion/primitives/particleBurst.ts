@@ -11,6 +11,7 @@
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, easeOutCubic, lerp, remap } from '../easing';
 import { resolveIcon } from '../icons';
+import { hexA } from '../decorations';
 
 // Simple seeded RNG (Mulberry32).
 function rngFactory(seed: number): () => number {
@@ -125,12 +126,3 @@ export const particleBurst = (pc: PrimitiveContext, p: PrimitiveParams): void =>
     }
   }
 };
-
-function hexA(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}

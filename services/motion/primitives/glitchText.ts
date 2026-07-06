@@ -9,6 +9,7 @@
 
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, easeOutCubic, lerp, remap } from '../easing';
+import { hexA } from '../decorations';
 
 const FONT_STACK = `'Space Grotesk', 'Inter', 'Segoe UI', Arial, sans-serif`;
 
@@ -83,13 +84,4 @@ function pseudo(n: number): number {
   // Cheap deterministic noise; output in [0,1).
   const v = Math.sin(n * 12.9898) * 43758.5453;
   return v - Math.floor(v);
-}
-
-function hexA(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
 }

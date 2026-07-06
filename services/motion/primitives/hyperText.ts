@@ -9,7 +9,7 @@
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, easeOutCubic, remap } from '../easing';
 import { getSafeArea, fitSingleLine } from '../safeArea';
-import { setLetterSpacing } from '../decorations';
+import { setLetterSpacing , roundRect} from '../decorations';
 
 const FONT_STACK = `'Space Grotesk', 'Inter', 'Segoe UI', monospace`;
 const fontTemplate = (px: number) => `900 ${px}px ${FONT_STACK}`;
@@ -107,14 +107,4 @@ export const hyperText = (pc: PrimitiveContext, p: PrimitiveParams): void => {
 
 function pseudoInt(n: number): number {
   return Math.abs(Math.imul(n | 0, 2654435761)) & 0x7fffffff;
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
 }

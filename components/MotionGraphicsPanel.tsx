@@ -189,12 +189,12 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
   }, [currentTime, duration, playing]);
 
   return (
-    <div className="flex-1 flex flex-col bg-[#050505] overflow-y-auto custom-scrollbar text-white">
+    <div className="flex-1 flex flex-col bg-[#050505] overflow-y-auto custom-scrollbar text-[var(--cc-text-1)]">
       {/* Header */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 px-6 py-3 bg-[#0a0a0a]/95 backdrop-blur border-b border-gray-800">
+      <header className="sticky top-0 z-20 flex items-center gap-3 px-6 py-3 bg-[var(--cc-bg)]/95 backdrop-blur border-b border-[var(--cc-border)]">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 transition-colors text-sm font-bold"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--cc-surface)] hover:bg-[var(--cc-surface-3)] transition-colors text-sm font-bold"
         >
           <ArrowLeft size={16} /> Back
         </button>
@@ -204,7 +204,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight">Auto Motion Graphics</h1>
-            <p className="text-xs text-gray-500">Editor · {beats.length} beats · {topicSlug}</p>
+            <p className="text-xs text-[var(--cc-text-3)]">Editor · {beats.length} beats · {topicSlug}</p>
           </div>
         </div>
         <div className="ml-auto text-[10px] font-black uppercase tracking-widest text-fuchsia-400">Phase 3 · editor live</div>
@@ -227,10 +227,10 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
           />
 
           {/* Transport */}
-          <div className="flex items-center gap-2 bg-[#0a0a0a] border border-gray-800 rounded-2xl px-3 py-2">
+          <div className="flex items-center gap-2 bg-[var(--cc-bg)] border border-[var(--cc-border)] rounded-2xl px-3 py-2">
             <button
               onClick={() => setPlaying((p) => !p)}
-              className="w-10 h-10 rounded-xl bg-fuchsia-500 hover:bg-fuchsia-400 text-white flex items-center justify-center transition-colors"
+              className="w-10 h-10 rounded-xl bg-fuchsia-500 hover:bg-fuchsia-400 text-[var(--cc-text-1)] flex items-center justify-center transition-colors"
               title={playing ? 'Pause' : 'Play'}
             >
               {playing ? <Pause size={18} /> : <Play size={18} />}
@@ -240,7 +240,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
                 setPlaying(false);
                 setCurrentTime(0);
               }}
-              className="w-10 h-10 rounded-xl bg-gray-900 hover:bg-gray-800 text-gray-300 flex items-center justify-center transition-colors"
+              className="w-10 h-10 rounded-xl bg-[var(--cc-surface)] hover:bg-[var(--cc-surface-3)] text-[var(--cc-text-2)] flex items-center justify-center transition-colors"
               title="Restart"
             >
               <RotateCcw size={16} />
@@ -257,12 +257,12 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
               }}
               className="flex-1 accent-fuchsia-500"
             />
-            <span className="font-mono text-xs text-gray-400 min-w-[100px] text-right">
+            <span className="font-mono text-xs text-[var(--cc-text-3)] min-w-[100px] text-right">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
             <button
               onClick={addBeatAtPlayhead}
-              className="ml-2 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs font-bold transition-colors"
+              className="ml-2 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--cc-surface)] hover:bg-[var(--cc-surface-3)] text-[var(--cc-text-2)] text-xs font-bold transition-colors"
               title="Add beat at playhead"
             >
               <Plus size={14} /> Add beat
@@ -270,7 +270,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
             <button
               onClick={() => setExportOpen(true)}
               disabled={beats.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black transition-opacity"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--cc-text-1)] text-xs font-black transition-opacity"
               title={beats.length === 0 ? 'Generate a plan first' : 'Export video'}
             >
               <Download size={14} /> Export
@@ -278,14 +278,14 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
             {!videoSrc ? (
               <button
                 onClick={() => videoFileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs font-bold transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--cc-surface)] hover:bg-[var(--cc-surface-3)] text-[var(--cc-text-2)] text-xs font-bold transition-colors"
               >
                 <Upload size={14} /> Video
               </button>
             ) : (
               <button
                 onClick={clearVideo}
-                className="px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs font-bold transition-colors"
+                className="px-3 py-2 rounded-xl bg-[var(--cc-surface)] hover:bg-[var(--cc-surface-3)] text-[var(--cc-text-2)] text-xs font-bold transition-colors"
               >
                 Remove video
               </button>
@@ -317,7 +317,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
         {/* ── Right: script generator + beat editor ─────────────────────── */}
         <aside className="space-y-4 min-w-0">
           {/* Script generator */}
-          <section className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-5 space-y-3">
+          <section className="bg-[var(--cc-bg)] border border-[var(--cc-border)] rounded-2xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black tracking-tight">Script → Plan</h2>
               <span className="text-[10px] text-gray-600">{wordCount} words</span>
@@ -326,12 +326,12 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
               value={script}
               onChange={(e) => setScript(e.target.value)}
               rows={6}
-              className="w-full bg-black border border-gray-800 rounded-xl p-3 text-xs font-medium text-gray-200 placeholder-gray-600 focus:outline-none focus:border-fuchsia-500 resize-y"
+              className="w-full bg-black border border-[var(--cc-border)] rounded-xl p-3 text-xs font-medium text-gray-200 placeholder-gray-600 focus:outline-none focus:border-fuchsia-500 resize-y"
               placeholder="Paste your script here. One sentence per line works best."
             />
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--cc-text-3)] block mb-1.5">
                 Aspect ratio
               </label>
               <div className="grid grid-cols-4 gap-1.5">
@@ -346,7 +346,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
                       className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${
                         selected
                           ? 'bg-fuchsia-500/15 border-fuchsia-500 text-fuchsia-300'
-                          : 'bg-black border-gray-800 text-gray-400 hover:bg-gray-900'
+                          : 'bg-black border-[var(--cc-border)] text-[var(--cc-text-3)] hover:bg-[var(--cc-surface)]'
                       }`}
                     >
                       {/* Mini glyph showing the ratio */}
@@ -369,7 +369,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Duration (s)</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--cc-text-3)] block mb-1">Duration (s)</label>
                 <input
                   type="number"
                   min={5}
@@ -377,17 +377,17 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
                   step={1}
                   value={duration}
                   onChange={(e) => setDuration(Math.max(5, Math.min(300, Number(e.target.value) || 30)))}
-                  className="w-full bg-black border border-gray-800 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-fuchsia-500"
+                  className="w-full bg-black border border-[var(--cc-border)] rounded-lg p-2 text-xs font-bold text-[var(--cc-text-1)] focus:outline-none focus:border-fuchsia-500"
                   disabled={!!videoSrc}
                   title={videoSrc ? 'Duration locked to uploaded video' : undefined}
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Palette</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--cc-text-3)] block mb-1">Palette</label>
                 <select
                   value={palette}
                   onChange={(e) => setPalette(e.target.value as Palette)}
-                  className="w-full bg-black border border-gray-800 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-fuchsia-500"
+                  className="w-full bg-black border border-[var(--cc-border)] rounded-lg p-2 text-xs font-bold text-[var(--cc-text-1)] focus:outline-none focus:border-fuchsia-500"
                 >
                   <option value="energetic">Energetic</option>
                   <option value="corporate">Corporate</option>
@@ -401,7 +401,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
             </div>
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Intensity</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--cc-text-3)] block mb-1">Intensity</label>
               <div className="flex gap-1">
                 {[1, 2, 3].map((n) => (
                   <button
@@ -409,8 +409,8 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
                     onClick={() => setIntensity(n as 1 | 2 | 3)}
                     className={`flex-1 py-1.5 rounded-lg font-black text-[11px] transition-colors ${
                       intensity === n
-                        ? 'bg-fuchsia-500 text-white'
-                        : 'bg-black border border-gray-800 text-gray-400 hover:bg-gray-900'
+                        ? 'bg-fuchsia-500 text-[var(--cc-text-1)]'
+                        : 'bg-black border border-[var(--cc-border)] text-[var(--cc-text-3)] hover:bg-[var(--cc-surface)]'
                     }`}
                   >
                     {n === 1 ? 'Subtle' : n === 2 ? 'Balanced' : 'Loud'}
@@ -422,7 +422,7 @@ export const MotionGraphicsPanel: React.FC<Props> = ({ onBack }) => {
             <button
               onClick={generatePlan}
               disabled={generating || !script.trim()}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm tracking-wide shadow-lg shadow-fuchsia-500/20 transition-opacity"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--cc-text-1)] font-black text-sm tracking-wide shadow-lg shadow-fuchsia-500/20 transition-opacity"
             >
               {generating ? (
                 <>

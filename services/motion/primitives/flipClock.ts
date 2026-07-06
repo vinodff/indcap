@@ -1,5 +1,6 @@
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { clamp01, remap, lerp, easeOutCubic, easeInCubic, easeInOutCubic } from '../easing';
+import { hexA } from '../decorations';
 
 // ── Digit flip helper ────────────────────────────────────────────────────────
 // Draws one flip-clock digit panel (dark card, white number, fold crease).
@@ -292,11 +293,3 @@ export const flipClock = (
   ctx.fillText(labelText.toUpperCase(), W / 2, labelY);
   ctx.restore();
 };
-
-function hexA(hex: string, alpha: number): string {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}

@@ -4,6 +4,7 @@ import { THEME_PRESETS, ThemePreset, generateAIStyleSuggestion, generateHookSugg
 import { generateViralTypographyCaptions } from '../services/geminiService';
 import { TemplateManager, CaptionTemplate } from '../services/TemplateManager';
 import { Caption, CaptionStyle, EntryAnimation, ViralTypographyCaption } from '../types';
+import { STYLE_LABELS, LABEL_META, getPresetLabels, type StyleLabel } from '../services/captionStyleLabels';
 
 
 interface ThemePresetsPanelProps {
@@ -18,15 +19,11 @@ interface ThemePresetsPanelProps {
 
 
 // ─── Category filter data ───
-const CATEGORIES = [
+// The 13 user-facing labels (source of truth: services/captionStyleLabels.ts),
+// with 'All' prepended. Each preset is tagged via getPresetLabels().
+const CATEGORIES: { id: string; label: string; icon: string }[] = [
   { id: 'ALL', label: 'All', icon: '✦' },
-  { id: 'HYPER', label: 'HyperCSS', icon: '🔮' },
-  { id: 'Trending', label: 'Trending', icon: '🔥' },
-  { id: 'Professional', label: 'Minimal', icon: '✨' },
-  { id: 'Dynamic', label: 'Viral', icon: '⚡' },
-  { id: 'Fun', label: 'Fun', icon: '🎨' },
-  { id: 'Unique', label: 'Unique', icon: '💎' },
-  { id: 'Typography', label: 'Typography', icon: '🔤' },
+  ...STYLE_LABELS.map(l => ({ id: l, label: l, icon: LABEL_META[l].icon })),
 ];
 
 
@@ -128,10 +125,12 @@ const ThemePresetsPanel: React.FC<ThemePresetsPanelProps> = ({
 
 
 
-  // Filter presets
+  // Filter presets by the 13-label system (derived from each preset's style).
   const filteredPresets = useMemo(() => {
     if (activeCategory === 'ALL') return THEME_PRESETS;
-    return THEME_PRESETS.filter(p => p.category === activeCategory);
+    return THEME_PRESETS.filter(p =>
+      getPresetLabels(p.captionStyle, p.bgEnabled).includes(activeCategory as StyleLabel)
+    );
   }, [activeCategory]);
 
   const handleHover = useCallback((preset: ThemePreset) => {

@@ -33,6 +33,33 @@ export async function initFaceDetector(): Promise<FaceDetector | null> {
 }
 
 /**
+ * Returns the bounding box of the largest (main) detected face in a video frame,
+ * or null if none. Shared by caption safe-zone logic and the EnhancementEngine
+ * face-local pass so both reuse the same single detector instance.
+ */
+export function detectMainFaceBox(
+  video: HTMLVideoElement,
+  timestamp: number
+): { originX: number; originY: number; width: number; height: number } | null {
+  if (!faceDetector) return null;
+  try {
+    const result = faceDetector.detectForVideo(video, timestamp);
+    if (!result.detections || result.detections.length === 0) return null;
+    const mainFace = result.detections.reduce((best, d) => {
+      const area = (d.boundingBox?.width || 0) * (d.boundingBox?.height || 0);
+      const bestArea = (best.boundingBox?.width || 0) * (best.boundingBox?.height || 0);
+      return area > bestArea ? d : best;
+    });
+    const bbox = mainFace.boundingBox;
+    if (!bbox) return null;
+    return { originX: bbox.originX, originY: bbox.originY, width: bbox.width, height: bbox.height };
+  } catch (e) {
+    console.warn('Face box detection error:', e);
+    return null;
+  }
+}
+
+/**
  * Detects face in a video frame and returns the safe Y bounds (0-100) where captions won't cover a face.
  * Returns null if no face is detected.
  */
@@ -56,9 +83,9 @@ export function detectSafeZone(
     const bbox = mainFace.boundingBox;
     if (!bbox) return null;
 
-    // Convert face top and bottom to percentage (0 to 100)
-    const faceTop = (bbox.originY / video.videoHeight) * 100;
-    const faceBottom = ((bbox.originY + bbox.height) / video.videoHeight) * 100;
+    const vh = video.videoHeight || 1; // ponytail: || 1 guards division-by-zero before video loads
+    const faceTop = (bbox.originY / vh) * 100;
+    const faceBottom = ((bbox.originY + bbox.height) / vh) * 100;
 
     // If face is in lower half (e.g. bottom half), safe Y is in the top zone
     if (faceTop > 50) {

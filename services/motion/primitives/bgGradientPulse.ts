@@ -5,6 +5,7 @@
 
 import type { PrimitiveContext, PrimitiveParams } from '../types';
 import { lerp, pulse } from '../easing';
+import { hexA } from '../decorations';
 
 export const bgGradientPulse = (pc: PrimitiveContext, p: PrimitiveParams): void => {
   const { ctx, width, height, t01, palette } = pc;
@@ -54,12 +55,3 @@ export const bgGradientPulse = (pc: PrimitiveContext, p: PrimitiveParams): void 
   // pulse() ref keeps tree-shaker honest; not yet used.
   void pulse;
 };
-
-function hexA(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return `rgba(255,255,255,${a})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}

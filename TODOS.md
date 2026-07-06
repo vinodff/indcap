@@ -86,3 +86,34 @@ Tracked items deferred from /plan-eng-review (2026-04-19).
 **Cons:** Large refactor. Risk of regressions if done carelessly.
 **Context:** Do this after Phase 7 ships. The effect helper extraction (decided in review) is a stepping stone toward this.
 **Depends on:** Phase 7 complete (so helpers are already extracted)
+
+---
+
+## AI AUTO VIDEO ENHANCEMENT ENGINE — deferred phases (/plan-ceo-review 2026-06-14)
+
+Full plan: `docs/designs/AI_AUTO_VIDEO_ENHANCEMENT_ENGINE.md`. v1 ships color/denoise/face + scene LUT + Studio Mode + quality score + RNNoise audio + platform export presets. These were explicitly deferred:
+
+### E1. AI Super-Resolution upscale
+**What:** Opt-in "Enhance Resolution" toggle using websr / web-realesrgan (WebGPU/WebGL) at the same EnhancementEngine insertion point.
+**Why:** Most dramatic blurry→sharp before/after, but heaviest compute; risks the "instant" promise on long clips.
+**Pros:** Headline transformation. **Cons:** Perf budget blowout; needs WebGPU fallback + tiling.
+**Context:** Un-defer once v1's per-frame perf budget is measured and stable. Architecture already supports it (drop-in shader stage).
+**Effort:** L → M (CC). **Priority:** P2. **Depends on:** v1 enhancement pass shipped + perf guard in place.
+
+### E2. AI Video Director / auto-highlights & clip generation
+**What:** Detect important moments, auto-generate highlights and short social clips.
+**Why:** Big "next-level" feature, but a separable subsystem.
+**Pros:** Turns one upload into many posts. **Cons:** XL scope.
+**Context:** Reuse the existing camera "moment/scene" detection (services/camera) rather than building moment detection from scratch.
+**Effort:** XL → L (CC). **Priority:** P3. **Depends on:** nothing in v1; standalone project.
+
+### E3. Premium cloud voice isolation (ElevenLabs Audio Isolation)
+**What:** Studio-grade speaker isolation + de-reverb behind a premium flag; free tier keeps RNNoise.
+**Why:** Monetization hook, but no billing/premium tier exists yet.
+**Pros:** Studio audio + revenue. **Cons:** Per-video cost; needs entitlement/flag plumbing.
+**Effort:** M → S (CC). **Priority:** P2. **Depends on:** a premium tier / billing system.
+
+### E4. Excessive-filter detection & removal
+**What:** Detect over-applied beauty/color filters and restore a natural look.
+**Why:** Niche; needs bespoke skin-tone / over-saturation heuristics + a "restore" inverse.
+**Effort:** M → S (CC). **Priority:** P3. **Depends on:** v1 color pipeline.

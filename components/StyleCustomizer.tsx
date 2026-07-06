@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Type, Palette, Square, MousePointer2, AlignLeft, AlignCenter, AlignRight,
   ToggleLeft, ToggleRight, Play, ChevronRight
@@ -7,6 +7,7 @@ import TranscriptEditor from './TranscriptEditor';
 import { STYLES_CONFIG } from '../constants';
 import { CaptionStyle, Caption, Platform } from '../types';
 import { GRADIENT_PRESETS } from '../services/GradientTextPresets';
+import { STYLE_LABELS, LABEL_META, getStylesForLabel, type StyleLabel } from '../services/captionStyleLabels';
 
 interface StyleCustomizerProps {
   activeTab: 'PRESETS' | 'DESIGN' | 'TRANSCRIPT';
@@ -55,28 +56,10 @@ interface StyleCustomizerProps {
   setIconCaptionsEnabled?: (val: boolean) => void;
 }
 
-/* ─── category accent colors ─── */
-const CAT_COLORS: Record<string, string> = {
-  VIRAL: '#f97316',
-  TRENDING: '#3b82f6',
-  BOLD: '#ef4444',
-  NEON: '#22d3ee',
-  MINIMAL: '#71717a',
-  ART: '#a855f7',
-  GLOW: '#eab308',
-  KINETIC: '#f97316',
-  HIGHLIGHT: '#22c55e',
-  EMOJI: '#ec4899',
-  TYPOGRAPHIC: '#e2b97e',
-  TYPOGRAPHY: '#d4a843',
-  CUSTOM: '#6b7280',
-};
-
-const CATEGORIES = [
-  'ALL', 'TRENDING', 'BOLD', 'VIRAL', 'NEON',
-  'MINIMAL', 'ART', 'GLOW', 'HIGHLIGHT', 'KINETIC',
-  'EMOJI', 'TYPOGRAPHIC', 'TYPOGRAPHY', 'CUSTOM'
-];
+/* ─── category filter labels ─── */
+// The 13 user-facing labels live in services/captionStyleLabels.ts (single
+// source of truth). 'ALL' is prepended here for the filter rail.
+const LABEL_FILTERS: (StyleLabel | 'ALL')[] = ['ALL', ...STYLE_LABELS];
 
 const PLATFORMS: { key: Platform | 'ALL'; label: string; icon: string }[] = [
   { key: 'ALL',       label: 'All',       icon: '◉' },
@@ -142,7 +125,22 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
 }) => {
   const [filterPlatform, setFilterPlatform] = useState<Platform | 'ALL'>('ALL');
 
+  // Local view state — decoupled from the App-level tab. Previously the internal
+  // TabBar called setActiveTab('PRESETS'), which made App route to ThemePresetsPanel
+  // instead, so this component's own Templates grid was unreachable. Now the
+  // internal TabBar drives this local state, and we re-sync only when the
+  // App-level tab actually changes (e.g. user clicks the App "Transcript" tab).
+  const [view, setView] = useState<'PRESETS' | 'DESIGN' | 'TRANSCRIPT'>(
+    activeTab === 'TRANSCRIPT' ? 'TRANSCRIPT' : 'PRESETS'
+  );
+  useEffect(() => {
+    setView(activeTab === 'TRANSCRIPT' ? 'TRANSCRIPT' : 'PRESETS');
+  }, [activeTab]);
+
   /* ─── TAB BAR ─── */
+  // Internal Styles/Customize toggle. "Styles" opens the 75-style label browser;
+  // "Customize" opens the manual font/colour/position controls. Transcript is
+  // owned by the App-level tab, so it isn't duplicated here.
   const TabBar = () => (
     <div style={{
       display: 'flex',
@@ -150,20 +148,20 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
       background: 'var(--cc-surface)',
       flexShrink: 0,
     }}>
-      {(['PRESETS', 'DESIGN', 'TRANSCRIPT'] as const).map(t => (
+      {([['PRESETS', 'Styles'], ['DESIGN', 'Customize']] as const).map(([t, label]) => (
         <button
           key={t}
-          onClick={() => setActiveTab(t)}
-          className={`cc-tab ${activeTab === t ? 'active' : ''}`}
+          onClick={() => setView(t)}
+          className={`cc-tab ${view === t ? 'active' : ''}`}
         >
-          {t === 'PRESETS' ? 'Templates' : t === 'DESIGN' ? 'Customize' : 'Transcript'}
+          {label}
         </button>
       ))}
     </div>
   );
 
   /* ─── PRESETS TAB ─── */
-  if (activeTab === 'TRANSCRIPT') {
+  if (view === 'TRANSCRIPT') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <TabBar />
@@ -177,9 +175,10 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
     );
   }
 
-  if (activeTab === 'PRESETS') {
-    const displayCats = CATEGORIES.filter(c =>
-      c !== 'ALL' && (filterCategory === 'ALL' || filterCategory === c)
+  if (view === 'PRESETS') {
+    // Which label sections to show: all 13, or just the one the user filtered to.
+    const displayLabels = STYLE_LABELS.filter(l =>
+      filterCategory === 'ALL' || filterCategory === l
     );
 
     const platformMatch = (config: typeof STYLES_CONFIG[keyof typeof STYLES_CONFIG]) => {
@@ -212,15 +211,20 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
             overflowX: 'auto', flexShrink: 0,
           }}
         >
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setFilterCategory(cat)}
-              className={`cc-pill ${filterCategory === cat ? 'active' : ''}`}
-            >
-              {cat}
-            </button>
-          ))}
+          {LABEL_FILTERS.map(label => {
+            const meta = label === 'ALL' ? null : LABEL_META[label];
+            return (
+              <button
+                key={label}
+                onClick={() => setFilterCategory(label)}
+                className={`cc-pill ${filterCategory === label ? 'active' : ''}`}
+                style={{ gap: 4 }}
+              >
+                {meta && <span>{meta.icon}</span>}
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Platform filter pills */}
@@ -247,10 +251,12 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
 
         {/* Template grid */}
         <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '0 14px 20px' }}>
-          {displayCats.map(cat => {
-            const items = Object.entries(STYLES_CONFIG).filter(([, c]) => c.category === cat && platformMatch(c));
+          {displayLabels.map(cat => {
+            const items = getStylesForLabel(cat)
+              .map(key => [key, STYLES_CONFIG[key]] as [CaptionStyle, typeof STYLES_CONFIG[CaptionStyle]])
+              .filter(([, c]) => platformMatch(c));
             if (!items.length) return null;
-            const accent = CAT_COLORS[cat] || '#888';
+            const accent = LABEL_META[cat].accent;
             return (
               <div key={cat} style={{ marginBottom: 24 }}>
                 {/* Section header */}

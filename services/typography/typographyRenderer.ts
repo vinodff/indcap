@@ -173,9 +173,11 @@ export class TypographyRenderer {
     this.canvas.width = this.layout.width;
     this.canvas.height = this.layout.height;
 
-    // Set CSS size to match
-    this.canvas.style.width = `${this.layout.width}px`;
-    this.canvas.style.height = `${this.layout.height}px`;
+    // Display size belongs to the component's CSS (max-w/max-h preserve the
+    // intrinsic ratio). Forcing inline px here overrode those classes and
+    // distorted the preview — clear any previously-set inline size instead.
+    this.canvas.style.width = '';
+    this.canvas.style.height = '';
 
     // Generate texture noise pattern if configured
     if (this.layout.backgroundType === 'textured_solid') {
@@ -265,16 +267,11 @@ export class TypographyRenderer {
       this.droppedFrames++;
       this.consecutiveDroppedFrames++;
 
-      // Line 105: Log warning to console for frame drops
-      console.warn(
-        `Frame drop: ${deltaTime.toFixed(1)}ms (${this.fps} FPS) - consider lowering quality`
-      );
-
-      // Line 109: Throttle warnings to avoid log spam (max 1 warning per 500ms)
-      const now = performance.now();
+      // Throttled warning only (max 1 per 500ms) — an unthrottled per-frame
+      // warn here spammed the console on every slow frame.
       if (now - this.lastDropWarningTime > 500) {
         console.warn(
-          `[Render Performance] Consistent frame drops detected. Device may struggle with current settings.`
+          `[typography] Frame drop: ${deltaTime.toFixed(1)}ms (${this.fps} FPS)`
         );
         this.lastDropWarningTime = now;
       }
@@ -302,11 +299,6 @@ export class TypographyRenderer {
         console.warn(`[typography] Memory spike: +${memoryIncrease.toFixed(1)} MB`);
       }
       this.prevMemoryMB = this.metrics.memoryUsageMB;
-    }
-
-    // Log memory stats periodically (every second at 30 FPS = every 30 frames)
-    if (this.frameCount % 30 === 0) {
-      console.log(`[typography] Memory: ${this.metrics.memoryUsageMB.toFixed(1)} MB, FPS: ${this.fps}`);
     }
 
     // Line 130: Check frame health every 30 frames
