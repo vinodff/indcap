@@ -8,16 +8,18 @@ import type { CameraKeyframe, CameraMoveKind } from '../services/camera';
 import type { TimelineSelection } from './timeline/trackModel';
 
 // Per-source colour for SFX cue markers on the timeline.
+// Muted marker palettes — hue still distinguishes source/move type, but
+// desaturated so tiny markers don't turn the timeline into confetti.
 const SFX_SOURCE_COLOR: Record<SfxSource, string> = {
-  motion: '#a78bfa', texture: '#22d3ee', hit: '#f87171',
-  riser: '#fbbf24', semantic: '#34d399', manual: '#e5e7eb',
+  motion: '#8b7ec8', texture: '#4fa3a5', hit: '#c98383',
+  riser: '#c2a35f', semantic: '#5fa97f', manual: '#d1d5db',
 };
 
 // Per-move colour for camera keyframe markers.
 const CAM_KIND_COLOR: Record<CameraMoveKind, string> = {
-  'punch-in': '#f472b6', 'zoom-in': '#22d3ee', 'zoom-out': '#38bdf8',
-  establish: '#a3e635', pan: '#fbbf24', hold: '#94a3b8',
-  'crash-zoom': '#ef4444', 'whip-pan': '#f59e0b', dutch: '#c084fc', shake: '#fb7185',
+  'punch-in': '#b57d9d', 'zoom-in': '#4fa3a5', 'zoom-out': '#6aa1c8',
+  establish: '#8fae6a', pan: '#c2a35f', hold: '#94a3b8',
+  'crash-zoom': '#c98383', 'whip-pan': '#c99a5f', dutch: '#a68cc2', shake: '#c08a94',
 };
 
 type Sentiment = 'energetic' | 'joyful' | 'calm' | 'serious';
@@ -61,10 +63,10 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 8;
 
 const SENTIMENT_META: Record<string, { emoji: string; label: string; bg: string; border: string; text: string }> = {
-    energetic: { emoji: '⚡', label: 'Energetic', bg: 'bg-orange-600/50', border: 'border-orange-500/70', text: 'text-orange-200' },
-    joyful:    { emoji: '😊', label: 'Joyful',    bg: 'bg-yellow-500/40', border: 'border-yellow-400/70', text: 'text-yellow-200' },
-    calm:      { emoji: '🌊', label: 'Calm',       bg: 'bg-blue-600/40',   border: 'border-blue-400/60',   text: 'text-blue-200'   },
-    serious:   { emoji: '🎯', label: 'Serious',    bg: 'bg-red-700/50',    border: 'border-red-500/60',    text: 'text-red-200'    },
+    energetic: { emoji: '⚡', label: 'Energetic', bg: 'bg-orange-500/20', border: 'border-orange-500/30', text: 'text-gray-200' },
+    joyful:    { emoji: '😊', label: 'Joyful',    bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-gray-200' },
+    calm:      { emoji: '🌊', label: 'Calm',       bg: 'bg-blue-500/20',   border: 'border-blue-500/30',   text: 'text-gray-200' },
+    serious:   { emoji: '🎯', label: 'Serious',    bg: 'bg-red-500/15',    border: 'border-red-500/30',    text: 'text-gray-200' },
 };
 const ALL_SENTIMENTS: Sentiment[] = ['energetic', 'joyful', 'calm', 'serious'];
 
@@ -428,8 +430,8 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
             ctx.fillRect(x, midY - barH, barW, barH * 2);
         }
 
-        // Beat tick marks — thin vertical orange lines
-        ctx.strokeStyle = 'rgba(251,146,60,0.70)'; // orange-400
+        // Beat tick marks — thin, quiet vertical lines
+        ctx.strokeStyle = 'rgba(148,163,184,0.30)'; // slate-400, subdued
         ctx.lineWidth = 1;
         for (const beat of beatGrid.beats) {
             const x = Math.round((beat / beatGrid.duration) * W);
@@ -465,11 +467,11 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     // Caption color by sentiment
     const getCaptionColor = (caption: Caption) => {
         switch (caption.sentiment) {
-            case 'energetic': return { bg: 'bg-orange-500/40', border: 'border-orange-500/60', text: 'text-orange-200' };
-            case 'joyful': return { bg: 'bg-yellow-500/40', border: 'border-yellow-500/60', text: 'text-yellow-200' };
-            case 'calm': return { bg: 'bg-blue-500/40', border: 'border-blue-500/60', text: 'text-blue-200' };
-            case 'serious': return { bg: 'bg-red-500/40', border: 'border-red-500/60', text: 'text-red-200' };
-            default: return { bg: 'bg-blue-500/30', border: 'border-blue-500/50', text: 'text-blue-100' };
+            case 'energetic': return { bg: 'bg-orange-500/20', border: 'border-orange-500/30', text: 'text-gray-200' };
+            case 'joyful': return { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-gray-200' };
+            case 'calm': return { bg: 'bg-blue-500/20', border: 'border-blue-500/30', text: 'text-gray-200' };
+            case 'serious': return { bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-gray-200' };
+            default: return { bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-gray-200' };
         }
     };
 
@@ -643,7 +645,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                             {/* B-roll track */}
                             {autoMotionEnabled && (
                                 <div className="relative flex items-center" style={{ height: 26 }}>
-                                    <span className="absolute -left-0 text-[7px] font-black text-violet-600 uppercase tracking-widest z-10 pointer-events-none">B-Roll</span>
+                                    <span className="absolute -left-0 text-[7px] font-semibold text-gray-500 uppercase tracking-widest z-10 pointer-events-none">B-Roll</span>
                                     <div className="absolute inset-0 rounded bg-gray-900/30" />
                                     {captions.map(cap => {
                                         const left = (cap.startTime / effectiveDuration) * 100;
@@ -695,7 +697,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                 Click a marker to delete that cue. */}
                             {autoSfxEnabled && (
                                 <div className="relative flex items-center" style={{ height: 22 }}>
-                                    <span className="absolute -left-0 text-[7px] font-black text-green-700 uppercase tracking-widest z-10 pointer-events-none">
+                                    <span className="absolute -left-0 text-[7px] font-semibold text-gray-500 uppercase tracking-widest z-10 pointer-events-none">
                                         SFX{sfxTrack.length ? ` · ${sfxTrack.length}` : ''}
                                     </span>
                                     <div className="absolute inset-0 rounded bg-gray-900/20" />
@@ -732,7 +734,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                             {/* AI Auto-Camera move track — colour-coded by move, click to delete */}
                             {cameraTrack.length > 0 && (
                                 <div className="relative flex items-center" style={{ height: 22 }}>
-                                    <span className="absolute -left-0 text-[7px] font-black text-cyan-700 uppercase tracking-widest z-10 pointer-events-none">
+                                    <span className="absolute -left-0 text-[7px] font-semibold text-gray-500 uppercase tracking-widest z-10 pointer-events-none">
                                         CAM · {cameraTrack.length}
                                     </span>
                                     <div className="absolute inset-0 rounded bg-gray-900/20" />
@@ -761,7 +763,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                             {/* Animation / Word-highlight track */}
                             {(entryAnimation && entryAnimation !== 'NONE') || (wordHighlight && wordHighlight !== 'NONE') ? (
                                 <div className="relative flex items-center" style={{ height: 20 }}>
-                                    <span className="absolute -left-0 text-[7px] font-black text-blue-700 uppercase tracking-widest z-10 pointer-events-none">Anim</span>
+                                    <span className="absolute -left-0 text-[7px] font-semibold text-gray-500 uppercase tracking-widest z-10 pointer-events-none">Anim</span>
                                     <div className="absolute inset-0 rounded bg-gray-900/20" />
                                     {captions.map(cap => {
                                         const left = (cap.startTime / effectiveDuration) * 100;
@@ -770,11 +772,11 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                             <div
                                                 key={cap.id}
                                                 title={`Entry: ${entryAnimation ?? 'none'} · Highlight: ${wordHighlight ?? 'none'}`}
-                                                className="absolute top-0.5 rounded border bg-blue-600/25 border-blue-500/40 flex items-center justify-center gap-0.5 overflow-hidden"
+                                                className="absolute top-0.5 rounded border bg-blue-500/15 border-blue-500/25 flex items-center justify-center gap-0.5 overflow-hidden"
                                                 style={{ left: `${left}%`, width: `${Math.max(width, 0.4)}%`, height: 16 }}
                                             >
-                                                {entryAnimation && entryAnimation !== 'NONE' && <Zap size={7} className="text-blue-300 flex-shrink-0" />}
-                                                {wordHighlight && wordHighlight !== 'NONE' && <span className="text-[7px] text-blue-200 font-bold truncate hidden sm:inline">{wordHighlight}</span>}
+                                                {entryAnimation && entryAnimation !== 'NONE' && <Zap size={7} className="text-gray-400 flex-shrink-0" />}
+                                                {wordHighlight && wordHighlight !== 'NONE' && <span className="text-[7px] text-gray-400 font-semibold truncate hidden sm:inline">{wordHighlight}</span>}
                                             </div>
                                         );
                                     })}
@@ -790,13 +792,13 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                         const { screenX, screenY } = resourcePopover;
                         return (
                             <div
-                                className="fixed z-[200] bg-[#13111a] border border-violet-500/30 rounded-xl shadow-2xl p-3 w-48"
+                                className="fixed z-[200] bg-[var(--cc-surface-3)] border border-[var(--cc-border-mid)] rounded-xl shadow-2xl p-3 w-48"
                                 style={{ left: Math.min(screenX, window.innerWidth - 200), top: Math.max(8, screenY - 160) }}
                                 onClick={e => e.stopPropagation()}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-1.5">
-                                        <Film size={10} className="text-violet-400" />
+                                        <Film size={10} className="text-[var(--cc-blue-light)]" />
                                         <span className="text-[10px] font-semibold text-white">B-Roll Style</span>
                                     </div>
                                     <button onClick={() => setResourcePopover(null)} className="text-white/30 hover:text-white text-xs">✕</button>
@@ -835,25 +837,25 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                             <>
                                 <div className="fixed inset-0 z-[199]" onClick={() => setSfxCuePopover(null)} />
                                 <div
-                                    className="fixed z-[200] bg-[#0d1410] border border-green-500/30 rounded-xl shadow-2xl p-3 w-56"
+                                    className="fixed z-[200] bg-[var(--cc-surface-3)] border border-[var(--cc-border-mid)] rounded-xl shadow-2xl p-3 w-56"
                                     style={{ left: Math.min(Math.max(8, screenX - 112), window.innerWidth - 232), top: Math.max(8, screenY - 200) }}
                                     onClick={e => e.stopPropagation()}
                                 >
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <Zap size={10} className="text-green-400 shrink-0" />
+                                            <Zap size={10} className="text-[var(--cc-blue-light)] shrink-0" />
                                             <span className="text-[10px] font-semibold text-white truncate" title={cueSoundName(cue)}>{cueSoundName(cue)}</span>
                                         </div>
                                         <button onClick={() => setSfxCuePopover(null)} className="text-white/30 hover:text-white text-xs ml-1">✕</button>
                                     </div>
-                                    <div className="text-[8px] uppercase tracking-wider text-green-600/70 mb-2">{cue.role ?? cue.source} · {cue.category} · {cue.time.toFixed(2)}s</div>
+                                    <div className="text-[8px] uppercase tracking-wider text-gray-500 mb-2">{cue.role ?? cue.source} · {cue.category} · {cue.time.toFixed(2)}s</div>
 
                                     {/* Swap sound */}
                                     <div className="flex items-center justify-between gap-1 mb-2">
                                         <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Sound</span>
                                         <div className="flex gap-1">
                                             <button onClick={() => { onSwapSfxCue?.(cue.id, -1); setTimeout(() => onPreviewSfxCue?.(cue.id), 30); }} className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/70 text-[10px] font-bold">‹ Prev</button>
-                                            <button onClick={() => { onPreviewSfxCue?.(cue.id); }} className="px-2 py-0.5 rounded bg-green-700/40 hover:bg-green-600/60 text-green-100 text-[10px] font-bold">▶</button>
+                                            <button onClick={() => { onPreviewSfxCue?.(cue.id); }} className="px-2 py-0.5 rounded bg-[var(--cc-blue-dim)] hover:bg-blue-600/40 text-[var(--cc-blue-light)] text-[10px] font-bold">▶</button>
                                             <button onClick={() => { onSwapSfxCue?.(cue.id, 1); setTimeout(() => onPreviewSfxCue?.(cue.id), 30); }} className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/70 text-[10px] font-bold">Next ›</button>
                                         </div>
                                     </div>
@@ -864,16 +866,16 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                         <input
                                             type="range" min={0} max={1} step={0.05} value={cue.gain}
                                             onChange={e => onAdjustSfxCueGain?.(cue.id, parseFloat(e.target.value))}
-                                            className="flex-1 accent-green-500 cursor-pointer"
+                                            className="flex-1 accent-blue-500 cursor-pointer"
                                         />
-                                        <span className="text-[9px] text-green-300 w-7 text-right">{Math.round(cue.gain * 100)}</span>
+                                        <span className="text-[9px] text-gray-300 w-7 text-right">{Math.round(cue.gain * 100)}</span>
                                     </div>
 
                                     {/* Mute + Delete */}
                                     <div className="flex gap-1.5">
                                         <button
                                             onClick={() => onToggleSfxCueMuted?.(cue.id)}
-                                            className={`flex-1 text-[9px] font-bold rounded-lg py-1.5 transition-colors ${cue.muted ? 'bg-yellow-600/30 text-yellow-200' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'}`}
+                                            className={`flex-1 text-[9px] font-bold rounded-lg py-1.5 transition-colors ${cue.muted ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'}`}
                                         >
                                             {cue.muted ? 'Unmute' : 'Mute'}
                                         </button>
@@ -908,7 +910,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                         <div
                                             key={wIdx}
                                             data-word-block="true"
-                                            className={`absolute top-0.5 rounded border cursor-grab active:cursor-grabbing group ${isHigh ? 'bg-orange-500/35 border-orange-500/50' : 'bg-gray-700/60 border-gray-600/70'}`}
+                                            className={`absolute top-0.5 rounded border cursor-grab active:cursor-grabbing group ${isHigh ? 'bg-blue-500/25 border-blue-500/40' : 'bg-gray-700/60 border-gray-600/70'}`}
                                             style={{ left: `${left}%`, width: `${Math.max(width, 0.4)}%`, height: 22 }}
                                             onMouseDown={(e) => handleWordMouseDown(e, selCap, wIdx, 'move')}
                                         >
@@ -940,7 +942,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                         return (
                             <div className="relative mx-4 mt-1" style={{ height: 28 }}>
                                 <div className="absolute -left-0 top-1/2 -translate-y-1/2 pointer-events-none z-10">
-                                    <span className="text-[7px] font-black text-violet-700 uppercase tracking-widest">keys</span>
+                                    <span className="text-[7px] font-semibold text-gray-500 uppercase tracking-widest">keys</span>
                                 </div>
                                 {/* Clickable track background to add a keyframe */}
                                 <div
@@ -961,7 +963,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                             key={kf.time}
                                             title={`Keyframe @ ${kf.time.toFixed(2)}s — drag to move, click to edit`}
                                             className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rotate-45 cursor-grab active:cursor-grabbing z-20 transition-colors ${
-                                                isEditing ? 'bg-white border-2 border-violet-400' : 'bg-violet-500 border border-violet-300 hover:bg-violet-300'
+                                                isEditing ? 'bg-white border-2 border-blue-400' : 'bg-blue-500 border border-blue-300 hover:bg-blue-300'
                                             }`}
                                             style={{ left: `${leftPct}%` }}
                                             onMouseDown={e => {
@@ -1003,7 +1005,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                             return (
                                 <div key={field} className="flex items-center gap-1.5">
                                     <button
-                                        className={`w-2 h-2 rounded-sm border flex-shrink-0 ${active ? 'bg-violet-500 border-violet-400' : 'bg-transparent border-white/30'}`}
+                                        className={`w-2 h-2 rounded-sm border flex-shrink-0 ${active ? 'bg-blue-500 border-blue-400' : 'bg-transparent border-white/30'}`}
                                         onClick={() => updateKf({ [field]: active ? undefined : def })}
                                     />
                                     <span className="text-[9px] text-white/50 w-10 flex-shrink-0">{label}</span>
@@ -1012,7 +1014,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                         value={val ?? def}
                                         disabled={!active}
                                         onChange={e => updateKf({ [field]: parseFloat(e.target.value) })}
-                                        className="flex-1 h-0.5 accent-violet-500 disabled:opacity-30"
+                                        className="flex-1 h-0.5 accent-blue-500 disabled:opacity-30"
                                     />
                                     <span className="text-[9px] text-white/40 w-7 text-right">{(val ?? def).toFixed(step < 1 ? 2 : 0)}</span>
                                 </div>
@@ -1020,13 +1022,13 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                         };
                         return (
                             <div
-                                className="fixed z-[200] bg-[#13111a] border border-violet-500/30 rounded-xl shadow-2xl p-3 w-52"
+                                className="fixed z-[200] bg-[var(--cc-surface-3)] border border-[var(--cc-border-mid)] rounded-xl shadow-2xl p-3 w-52"
                                 style={{ left: Math.min(screenX, window.innerWidth - 220), top: Math.max(8, screenY - 220) }}
                                 onClick={e => e.stopPropagation()}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-1.5">
-                                        <Diamond size={10} className="text-violet-400" />
+                                        <Diamond size={10} className="text-[var(--cc-blue-light)]" />
                                         <span className="text-[10px] font-semibold text-white">@ {kf.time.toFixed(2)}s</span>
                                     </div>
                                     <button onClick={() => setEditingKf(null)} className="text-white/30 hover:text-white text-xs">✕</button>
@@ -1046,7 +1048,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                             onClick={() => updateKf({ easing: curve })}
                                             className={`flex-1 text-[8px] py-1 rounded transition-colors font-mono ${
                                                 (kf.easing ?? 'linear') === curve
-                                                    ? 'bg-violet-500 text-white'
+                                                    ? 'bg-blue-500 text-white'
                                                     : 'bg-white/5 text-white/40 hover:bg-white/10'
                                             }`}
                                         >

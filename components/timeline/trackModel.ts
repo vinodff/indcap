@@ -19,12 +19,14 @@ export interface TrackMeta {
   color: string;
 }
 
+// Muted, desaturated track accents — hue keeps track identity readable while
+// staying quiet next to the single blue UI accent (pro-NLE convention).
 export const TRACK_META: Record<TimelineObjectKind, TrackMeta> = {
-  caption: { name: 'Captions', color: '#60a5fa' },
-  camera:  { name: 'Camera',   color: '#22d3ee' },
-  sfx:     { name: 'SFX',      color: '#22c55e' },
-  broll:   { name: 'B-Roll',   color: '#a78bfa' },
-  sticker: { name: 'Stickers', color: '#f472b6' },
+  caption: { name: 'Captions', color: '#5b8def' },
+  camera:  { name: 'Camera',   color: '#4fa3a5' },
+  sfx:     { name: 'SFX',      color: '#5fa97f' },
+  broll:   { name: 'B-Roll',   color: '#8b7ec8' },
+  sticker: { name: 'Stickers', color: '#b57d9d' },
 };
 
 export function sameSelection(a: TimelineSelection | null, b: TimelineSelection | null): boolean {
