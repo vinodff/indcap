@@ -811,7 +811,13 @@ const App: React.FC = () => {
         }
       ];
       resetCaptionsHistory(mockCaptions);
-      selectPreset(CaptionStyle.HYPER_IMPACT_BOLD);
+      // Parity with the real flow: handleFileUpload resets these and generation
+      // never forces a style — sandbox must not either, or templates applied
+      // afterwards render differently than the real preview (size/pos/style).
+      setFontScale(1);
+      setVerticalPos(82);
+      setHorizontalPos(50);
+      selectPreset(CaptionStyle.CLEAN_WHITE);
       setStatus('READY');
       soundEngineRef.current.init();
       return;
