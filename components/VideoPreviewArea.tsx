@@ -102,9 +102,6 @@ interface VideoPreviewAreaProps {
   fontScale?: number;
   verticalPos?: number;
   horizontalPos?: number;
-  isSandboxMode?: boolean;
-  onSandboxModeToggle?: (val: boolean) => void;
-
   // Stickers integration
   stickers?: StickerItem[];
   onUpdateSticker?: (id: string, updates: Partial<StickerItem>) => void;
@@ -147,8 +144,6 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   fontScale = 1,
   verticalPos = 82,
   horizontalPos = 50,
-  isSandboxMode = false,
-  onSandboxModeToggle,
   stickers = [],
   onUpdateSticker,
   isStickersTabActive = false,
@@ -277,7 +272,7 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
 
   return (
     <>
-      {!videoSrc && !isSandboxMode && status !== 'READY' ? (
+      {!videoSrc && status !== 'READY' ? (
         <div 
           className={`relative max-w-sm w-full text-center p-1 rounded-[32px] overflow-hidden transition-all duration-300 ${
             isDragging ? 'scale-105 shadow-2xl shadow-blue-500/20' : ''
@@ -326,33 +321,13 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
                 <Zap size={16} className="text-yellow-500 group-hover:scale-110 transition-transform" />
                 Use Sample Video
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (onSandboxModeToggle) {
-                    onSandboxModeToggle(true);
-                  }
-                }}
-                className="group w-full bg-gradient-to-r from-amber-600/20 to-yellow-600/20 hover:from-amber-600/30 hover:to-yellow-600/30 text-yellow-300 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-yellow-500/20 hover:border-yellow-500/30"
-              >
-                <span>🧪</span>
-                Sandbox Preview Mode
-              </button>
             </div>
           </div>
         </div>
       ) : (
         /* Bug 6 Fix: Add `group` class so group-hover:opacity-100 on controls works.
            Bug 16 Fix: Apply dynamically chosen aspect ratio class or inline style. */
-        <div 
-          ref={(node) => {
-            // If no video is present, force canvas initialization once the element mounts
-            if (node && !videoSrc && canvasRef.current && canvasRef.current.width === 300) {
-              canvasRef.current.width = 1080;
-              canvasRef.current.height = 1920;
-              if (setVideoIntrinsicRatio) setVideoIntrinsicRatio(1080 / 1920);
-            }
-          }}
+        <div
           className={`group relative h-full max-h-[85vh] max-w-full ${aspectClass} bg-black rounded-[2rem] shadow-2xl overflow-hidden border-[6px] border-[#222] ring-1 ring-white/10 z-20 transition-all duration-300`}
           style={inlineStyle}
         >

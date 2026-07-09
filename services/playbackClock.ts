@@ -3,8 +3,7 @@
 // The caption canvas is redrawn every animation frame at `currentTime`. That
 // time has to come from somewhere. Two sources exist:
 //   1. A real <video> element, when one is loaded AND actually playing.
-//   2. A synthetic clock, for "black screen" / sandbox testing where there is
-//      no video, or when a video element is mounted but isn't advancing yet
+//   2. A synthetic clock, for when a video element is mounted but isn't advancing yet
 //      (autoplay blocked, still buffering, or the load/play race in
 //      startPreviewMode where play() is called before the element mounts).
 //

@@ -152,7 +152,6 @@ const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [captions, setCaptions, undoCaptions, redoCaptions, resetCaptionsHistory, canUndo, canRedo] = useUndoableState<Caption[]>([]);
   const [status, setStatus] = useState<ProcessingStatus>('IDLE');
-  const [isSandboxMode, setIsSandboxMode] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const currentTimeRef = useRef(0);
   const [stats, setStats] = useState<ProcessingStats | null>(null);
@@ -765,7 +764,6 @@ const App: React.FC = () => {
       videoObjectUrlRef.current = url;
       setVideoSrc(url);
       setVideoFile(file);
-      setIsSandboxMode(false);
       resetCaptionsHistory([]); setStatus('IDLE'); setStats(null);
       setExportProgress(0);
       setPlaybackRate(1);
@@ -782,47 +780,6 @@ const App: React.FC = () => {
   // handleTestWithSampleText removed per user request
 
   const handleGenerateCaptions = async () => {
-    if (isSandboxMode) {
-      const mockCaptions: Caption[] = [
-        {
-          id: 'mock-1',
-          startTime: 0.0,
-          endTime: 1.5,
-          text: "UNLOCK",
-          words: [{ text: "UNLOCK", start: 0.0, end: 1.5 }]
-        },
-        {
-          id: 'mock-2',
-          startTime: 1.5,
-          endTime: 3.0,
-          text: "CLAUDE",
-          words: [{ text: "CLAUDE", start: 1.5, end: 3.0 }]
-        },
-        {
-          id: 'mock-3',
-          startTime: 3.0,
-          endTime: 5.0,
-          text: "$200 PLAN FREE",
-          words: [
-            { text: "$200", start: 3.0, end: 3.6 },
-            { text: "PLAN", start: 3.6, end: 4.3 },
-            { text: "FREE", start: 4.3, end: 5.0 }
-          ]
-        }
-      ];
-      resetCaptionsHistory(mockCaptions);
-      // Parity with the real flow: handleFileUpload resets these and generation
-      // never forces a style — sandbox must not either, or templates applied
-      // afterwards render differently than the real preview (size/pos/style).
-      setFontScale(1);
-      setVerticalPos(82);
-      setHorizontalPos(50);
-      selectPreset(CaptionStyle.CLEAN_WHITE);
-      setStatus('READY');
-      soundEngineRef.current.init();
-      return;
-    }
-
     if (!videoFile) return;
     const runId = ++generationRunRef.current;
     setStatus('UPLOADING');
@@ -1816,8 +1773,6 @@ const App: React.FC = () => {
                   fontScale={fontScale}
                   verticalPos={verticalPos}
                   horizontalPos={horizontalPos}
-                  isSandboxMode={isSandboxMode}
-                  onSandboxModeToggle={setIsSandboxMode}
                   stickers={stickers}
                   onUpdateSticker={handleUpdateSticker}
                   isStickersTabActive={activeTab === 'STICKERS'}
@@ -2053,7 +2008,7 @@ const App: React.FC = () => {
           <div className="w-full h-auto md:h-full flex-shrink-0 z-20 flex flex-col bg-[var(--cc-surface)] md:overflow-hidden border-t md:border-t-0 md:border-l border-[var(--cc-border)] md:w-[var(--panel-width)]">
 
             {/* Bug 2 Fix: Upload prompt when no video is loaded */}
-            {!videoSrc && !isSandboxMode && (status === 'IDLE') && (
+            {!videoSrc && (status === 'IDLE') && (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-[var(--cc-blue-dim)] border border-[rgba(0,112,243,0.15)] flex items-center justify-center">
                   <Upload size={28} className="text-[var(--cc-blue)]" />
@@ -2089,7 +2044,7 @@ const App: React.FC = () => {
             )}
 
             {/* Initial Generation State */}
-            {(videoSrc || isSandboxMode) && status === 'IDLE' && (
+            {videoSrc && status === 'IDLE' && (
               <InitialGenerationState
                 languageMode={languageMode}
                 setLanguageMode={setLanguageMode}
@@ -2101,8 +2056,6 @@ const App: React.FC = () => {
                 setIconCaptionsEnabled={setIconCaptionsEnabled}
                 handleGenerateCaptions={handleGenerateCaptions}
                 detectedLanguage={detectedLanguage}
-                isSandboxMode={isSandboxMode}
-                setIsSandboxMode={setIsSandboxMode}
               />
             )}
 
