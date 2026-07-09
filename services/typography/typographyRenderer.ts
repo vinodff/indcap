@@ -20,6 +20,7 @@ import type {
 
 import { animatedIconService } from './animatedIconService';
 import { animatedEmojiService } from './animatedEmojiService';
+import { keywordIconService } from './keywordIconService';
 import { TypographyReelImageIntegrator } from '../imageAssets';
 import type { TypographyReelImageIntegration } from '../imageAssets';
 
@@ -101,12 +102,16 @@ export class TypographyRenderer {
 
   private noisePattern: CanvasPattern | null = null;
   private lastActiveWordId: string | null = null;
+  // Playback clock (seconds) for hold-phase micro-motion — timeline-driven so
+  // exported frames are reproducible, but shared across words so the whole
+  // collage breathes together instead of freezing per-word.
+  private nowSec = 0;
   // Linger/hold state
   private lastRenderedIdx = -1;
   private lastRenderedEnd = 0;
-  // Reduced to just the exit animation window — longer lingers caused old phrases
-  // to hold frozen on-screen until the new phrase started (visual overlap).
-  private static readonly LINGER_HOLD_SEC = 0.17; // one exit-animation window only
+  // The phrase block-exit window: slide-up + fade duration after the last word
+  // ends (research range 150–250ms for block exits).
+  private static readonly LINGER_HOLD_SEC = 0.2;
   // Slate-wipe state — enforces a clean blank screen between phrase blocks.
   private lastActivePhraseStartIdx = -1;
   private slateWipeUntil = 0; // playbackTime before which new phrase is blocked
@@ -134,7 +139,9 @@ export class TypographyRenderer {
   private static readonly TEXT_CACHE_MAX = 512;
 
   private measureTextCached(text: string): number {
-    const key = `${this.ctx.font}|${text}`;
+    // letterSpacing changes measured width — must be part of the key or
+    // spaced/unspaced variants of the same font collide in the cache.
+    const key = `${this.ctx.font}|${(this.ctx as any).letterSpacing ?? ''}|${text}`;
     const cached = this.textWidthCache.get(key);
     if (cached !== undefined) return cached;
     const width = this.ctx.measureText(text).width;
@@ -339,6 +346,9 @@ export class TypographyRenderer {
       }
     }
 
+    // Shared micro-motion clock (timeline-driven → reproducible export)
+    this.nowSec = playbackTime;
+
     // Clear canvas with background color
     this.ctx.fillStyle = this.layout.backgroundColor || '#000000';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -411,17 +421,26 @@ export class TypographyRenderer {
       playbackTime - this.lastRenderedEnd >= 0 &&
       playbackTime - this.lastRenderedEnd < TypographyRenderer.LINGER_HOLD_SEC
     ) {
-      // Brief linger = exactly one exit-animation window after the phrase ends.
-      // Keeps the phrase visible while it plays its slide-down exit — after which
-      // the screen goes blank until the next phrase's slate-wipe window clears.
+      // BLOCK EXIT — the phrase leaves as one unit: slide-up ~34px + fade over
+      // the linger window with power2.in (exits accelerate; research: 150–250ms,
+      // always faster-feeling than entries). Replaces the old freeze-then-hard-
+      // blank, which was the single biggest "amateur tell" in the reel.
       const heldAnim = this.sequence.animations[this.lastRenderedIdx];
       if (heldAnim) {
+        const exitP = Math.min(
+          1,
+          (playbackTime - this.lastRenderedEnd) / TypographyRenderer.LINGER_HOLD_SEC
+        );
+        const exitEase = exitP * exitP; // power2.in
         const holdTime = heldAnim.startTime + heldAnim.duration * 0.85;
         const phrase = this.findPhraseForWord(this.lastRenderedIdx);
         if (phrase && phrase.endIdx > phrase.startIdx) {
-          this.renderPhraseStack(phrase, this.lastRenderedIdx, holdTime);
+          this.renderPhraseStack(phrase, this.lastRenderedIdx, holdTime, exitEase);
         } else {
-          this.renderWordAnimation(heldAnim, holdTime, 1.0, { x: 0, y: 0 });
+          this.renderWordAnimation(heldAnim, holdTime, 1 - exitEase, {
+            x: 0,
+            y: -34 * this.scaleFactor * exitEase,
+          });
         }
       }
     } else {
@@ -597,17 +616,27 @@ export class TypographyRenderer {
 
     const effScale = scaleMultiplier * sizeBoost;
     if (phase === 'entry') {
-      // Spring pop: start at 30%, overshoot to ~114%, settle at 100%
-      const springScale = 0.30 + 0.70 * this.punchEaseOut(easedProgress);
-      // Opacity fast-ramp: fully opaque by the time the overshoot peaks
+      // Pro-spec spring (ζ≈0.75): scale 0.80 → ~1.06 → 1.00. Research: entries
+      // overshoot 4–8%, never 15%+ — the old 0.30→1.14 slam read as amateur
+      // "elastic everywhere". c1=3.4 peaks the easing at +30%, which across the
+      // 0.20 range = +6% scale overshoot, settling in the back half of entry.
+      const springScale = 0.80 + 0.20 * this.punchEaseOut(easedProgress, 3.4);
+      // Opacity resolves in the first ~40% of the entry window
       const fastOpacity = Math.min(1, easedProgress * 2.5);
       properties.scale = Math.max(0, springScale) * effScale;
       properties.opacity = fastOpacity;
     } else if (phase === 'hold') {
-      // Gentle sinusoidal breathing — ±1.5% pulse over the hold window
-      const breathe = 1.0 + Math.sin(totalWordProgress * Math.PI * 2) * 0.015;
+      // Live hold: ≤1.2% breathing on a fixed 2.8s cycle + ±0.6° wobble at
+      // 0.35Hz. Clock-driven (nowSec) with a per-word phase so the collage
+      // feels hand-held — the old per-word-duration cycle made short words
+      // pulse fast (jitter) and long words look frozen.
+      const wobblePhase = deterministicNoise(anim.wordId, 0) * Math.PI * 2;
+      const breathe = 1.0 + Math.sin((this.nowSec * Math.PI * 2) / 2.8 + wobblePhase * 0.3) * 0.012;
       properties.scale = breathe * effScale;
       properties.opacity = 1.0;
+      properties.rotation =
+        (properties.rotation || 0) +
+        Math.sin(this.nowSec * Math.PI * 2 * 0.35 + wobblePhase) * 0.01;
     } else {
       // EXIT — words hold FULLY SOLID: no zoom-out, no opacity fade. Text stays
       // at 100% until the phrase clears as a unit. (Opacity reduction removed per
@@ -626,7 +655,8 @@ export class TypographyRenderer {
     // so each word arrives with both a pop AND a motivated direction. Exit and
     // hold add no slide — the word rests where the layout placed it.
     if (phase === 'entry' && entryDirection !== 'fade' && entryDirection !== 'pop') {
-      const travel = 130 * this.scaleFactor;
+      // 90px reads as motivated motion; the old 130px whip fought the spring
+      const travel = 90 * this.scaleFactor;
       const d = (1 - easedProgress) * travel; // full at start → 0 at settle
       switch (entryDirection) {
         case 'top': properties.y -= d; break; // drops down from above
@@ -639,27 +669,57 @@ export class TypographyRenderer {
     // Tell renderText which side to place the emoji / animated icon
     properties.iconSide = slot.iconSide ?? 'right';
 
+    // Fit-to-frame inputs: the settled draw scale (sizeBoost) and how much
+    // horizontal room this slot actually has (frame minus padding minus the
+    // slot's X lean). renderText shrinks the font if the word would clip.
+    const framePad = this.layout.padding ?? 54;
+    properties.settleScale = effScale;
+    properties.maxTextWidth = Math.max(
+      120,
+      this.layout.width - 2 * framePad - 2 * Math.abs(offset.x)
+    );
+
     // ── ANIMATED LOTTIE ICON (hero words only) ─────────────────────────────
     // For the primary keyword of each phrase, draw an emotion-keyed Lottie
     // animation beside the word. It appears at the same spring timing as the
     // text, on the opposite side from the emoji so they don't collide.
     const isHeroWord = (anim.style.fontWeight || 0) >= 900;
-    if (isHeroWord && slot.emotion) {
-      const iconCanvas = animatedIconService.getFrame(
-        slot.emotion,
-        anim.startTime + (anim.duration * totalWordProgress)
-      );
+    if (isHeroWord) {
+      // Keyword-matched icon fetched live from the internet (Iconify: glossy
+      // fluent-emoji/noto art) wins; the emotion-keyed Lottie icon remains the
+      // offline / no-match fallback so a hero word never loses its accent.
+      const kwIcon = keywordIconService.getIcon(anim.text);
+      const iconCanvas =
+        kwIcon ||
+        (slot.emotion
+          ? animatedIconService.getFrame(
+              slot.emotion,
+              anim.startTime + anim.duration * totalWordProgress
+            )
+          : null);
       if (iconCanvas) {
         const iconSize = (anim.style.fontSize || 80) * this.scaleFactor * (slot.sizeBoost ?? 1) * 0.65;
         const iconX = properties.x;
-        const iconY = (properties.y || this.layout.height / 2) - iconSize / 2;
+        // Clock-driven bob (±3% of size, 0.5Hz) keeps static keyword art alive
+        const bob = Math.sin(this.nowSec * Math.PI * 2 * 0.5) * iconSize * 0.03;
+        const iconY = (properties.y || this.layout.height / 2) - iconSize / 2 + bob;
         // Place icon on the opposite side from the slot's iconSide (emoji side)
         const iconOffsetX = (slot.iconSide === 'left')
           ? iconSize * 0.6   // icon goes right when emoji is left
           : -iconSize * 0.6; // icon goes left when emoji is right
+        // Icon shares the word's entry spring so they arrive as one object
+        const iconSpring =
+          phase === 'entry' ? 0.80 + 0.20 * this.punchEaseOut(easedProgress, 3.4) : 1;
+        const drawSize = iconSize * Math.max(0, iconSpring);
         this.ctx.save();
         this.ctx.globalAlpha = Math.min(1, easedProgress * 2.5) * globalOpacity;
-        this.ctx.drawImage(iconCanvas, iconX + iconOffsetX - iconSize / 2, iconY, iconSize, iconSize);
+        this.ctx.drawImage(
+          iconCanvas,
+          iconX + iconOffsetX - drawSize / 2,
+          iconY + (iconSize - drawSize) / 2,
+          drawSize,
+          drawSize
+        );
         this.ctx.restore();
       }
     }
@@ -1004,11 +1064,30 @@ export class TypographyRenderer {
     const effectiveFontSize = (isHeroWord && cleanText.length > 0 && cleanText.length <= 6)
       ? Math.max(fontSize, 230)
       : fontSize;
-    const fontSizeNum = Math.max(8, Math.min(400, effectiveFontSize * scaleFactor));
+    let fontSizeNum = Math.max(8, Math.min(400, effectiveFontSize * scaleFactor));
     this.ctx.font = `${fontStyle} ${fontWeightNum} ${fontSizeNum}px "${fontFamily}"`;
+
+    // letterSpacing must be active BEFORE measuring — measuring first made
+    // wide-tracked words report narrower than they draw (one overflow source).
+    if ('letterSpacing' in this.ctx) {
+      (this.ctx as any).letterSpacing = `${letterSpacing || 0}px`;
+    }
 
     let textWidth = 0;
     if (cleanText.length > 0) {
+      textWidth = this.measureTextCached(displayText);
+    }
+
+    // ── FIT-TO-FRAME ────────────────────────────────────────────────────────
+    // Layout rule: a word must never clip the frame. Shrink the font until the
+    // word at its SETTLED scale (incl. sizeBoost) fits the slot's horizontal
+    // room. ponytail: the ~6% entry-overshoot may still kiss the padding zone
+    // for a beat — that reads as punch, not breakage.
+    const maxTextWidth = properties.maxTextWidth || (this.layout.width - 108);
+    const settleScale = properties.settleScale || 1;
+    if (textWidth > 0 && textWidth * settleScale > maxTextWidth) {
+      fontSizeNum = Math.max(8, fontSizeNum * (maxTextWidth / (textWidth * settleScale)));
+      this.ctx.font = `${fontStyle} ${fontWeightNum} ${fontSizeNum}px "${fontFamily}"`;
       textWidth = this.measureTextCached(displayText);
     }
 
@@ -1025,11 +1104,6 @@ export class TypographyRenderer {
     this.ctx.fillStyle = textFillStyle;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-
-    // Apply letterSpacing if supported
-    if ('letterSpacing' in this.ctx) {
-      (this.ctx as any).letterSpacing = `${letterSpacing || 0}px`;
-    }
 
     // Determine highlight box styling
     const isBgBox = this.layout.emphasisStyle === 'bg-box' && fontSizeNum >= 80 && cleanText.length > 0;
@@ -1277,7 +1351,8 @@ export class TypographyRenderer {
   private renderPhraseStack(
     phrase: { startIdx: number; endIdx: number },
     activeIdx: number,
-    playbackTime: number
+    playbackTime: number,
+    exitProgress = 0 // 0 = fully on stage, 1 = fully exited (block slide-up+fade)
   ): void {
     const anims = this.sequence.animations;
     const phraseWords = anims.slice(phrase.startIdx, phrase.endIdx + 1);
@@ -1337,26 +1412,38 @@ export class TypographyRenderer {
       const isHero = phraseWordIdx === heroIdx;
       const isSecondary = phraseWordIdx === secondaryIdx;
 
+      // Rotation: template value wins; else the script-accent tilt for the
+      // secondary and a hand-placed ±1.4° for connectives (deterministic).
+      const rotation =
+        plan.rotation ??
+        (isSecondary
+          ? -0.10
+          : (deterministicNoise('rot' + anim.wordId, 0) - 0.5) * 0.05);
+
+      // Block exit: whole stack lifts and fades together
+      const blockAlpha = 1 - exitProgress;
+      const blockLift = -34 * sf * exitProgress;
+
       const slot: SlotPlan = {
         x: (plan.x ?? 0) * sf,
-        y: yOffsets[phraseWordIdx] ?? 0,
+        y: (yOffsets[phraseWordIdx] ?? 0) + blockLift,
         sizeBoost: plan.sizeBoost ?? 1,
         entryDirection: plan.entryDirection ?? 'fade',
         iconSide: plan.iconSide ?? 'right',
         colorOverride: isHero ? undefined : (isSecondary ? secColor : conColor),
-        rotation: isSecondary ? -0.10 : 0,
+        rotation,
         emotion: anim.emotion,
         is3D: isHero, // ONLY the single most-important word gets 3D extrusion
       };
 
       if (isActive) {
-        this.renderWordAnimation(anim, playbackTime, 1.0, slot);
+        this.renderWordAnimation(anim, playbackTime, blockAlpha, slot);
       } else if (hasAppeared) {
-        // Already-spoken words stay at FULL opacity (no dimming) — they build the
-        // collage. Rendered at their hold frame so they sit static beside the
-        // active word.
+        // Already-spoken words stay at FULL opacity (no dimming) — they build
+        // the collage. Rendered at their hold frame beside the active word
+        // (hold-phase micro-motion keeps them alive via the shared clock).
         const finalTime = anim.startTime + anim.duration * 0.8;
-        this.renderWordAnimation(anim, finalTime, 1.0, slot);
+        this.renderWordAnimation(anim, finalTime, blockAlpha, slot);
       }
     });
   }
@@ -1394,7 +1481,7 @@ export class TypographyRenderer {
     startIdx: number,
     size: number,
     heroIdx: number
-  ): Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number }> {
+  ): Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number; rotation?: number }> {
     // Seeded pseudo-random picker — varied across phrases yet DETERMINISTIC for a
     // given phrase (so exported video matches preview). Uses the FNV noise hash
     // with a salt so different decisions decorrelate. Replaces the old
@@ -1414,6 +1501,10 @@ export class TypographyRenderer {
         // Vertical drop/rise
         [{ x: 18, entryDirection: 'top' as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 1 },
         { x: -18, entryDirection: 'bottom' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1 }],
+        // TILTED KNOCKOUT — two near-equal punches, second tilts −5° and tucks
+        // into the first (the "NO EXCUSES" pattern from the research set)
+        [{ x: -12, entryDirection: 'left' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1, rotation: 0 },
+        { x: 14, entryDirection: 'bottom' as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 0.95, rotation: -0.09 }],
       ];
       return pick(two, 'two');
     }
@@ -1442,7 +1533,8 @@ export class TypographyRenderer {
     // 3-word templates. When a clear hero exists, favor focus/split layouts —
     // these recreate the reference collages: a huge hero with small words tucked
     // into its negative space (strong X offset so they sit beside, not over it).
-    const focusTemplates: Array<Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number }>> = [
+    type Plan = { x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number; rotation?: number };
+    const focusTemplates: Plan[][] = [
       // HERO_FOCUS — hero dominates center; others tuck to opposite corners, small
       [0, 1, 2].map((i) => i === heroIdx
         ? { x: 0, entryDirection: 'pop' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.3 }
@@ -1451,8 +1543,18 @@ export class TypographyRenderer {
       [0, 1, 2].map((i) => i === heroIdx
         ? { x: 30, entryDirection: 'bottom' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.22 }
         : { x: -88, entryDirection: 'left' as EntryDirection, iconSide: 'left' as IconSide, sizeBoost: 0.95 }),
+      // HERO_KICKER — centered stack, supports read as tiny kickers around the
+      // huge hero (0.55/1.35 ≈ 0.4 of hero, ~2.5× contrast — research: ≥2.5×)
+      [0, 1, 2].map((i) => i === heroIdx
+        ? { x: 0, entryDirection: 'pop' as EntryDirection, iconSide: 'right' as IconSide, sizeBoost: 1.35 }
+        : { x: 0, entryDirection: (i < heroIdx ? 'top' : 'bottom') as EntryDirection, iconSide: (i % 2 === 0 ? 'left' : 'right') as IconSide, sizeBoost: 0.55 }),
     ];
-    const flowTemplates: Array<Array<{ x: number; entryDirection: EntryDirection; iconSide: IconSide; sizeBoost: number }>> = [
+    const flowTemplates: Plan[][] = [
+      // STAIR_STEP — each line steps right; whole flight leans −3.5° (approx.
+      // of the research block-tilt via uniform per-word rotation)
+      [{ x: -70, entryDirection: 'top', iconSide: 'right', sizeBoost: 1, rotation: -0.06 },
+      { x: -15, entryDirection: 'top', iconSide: 'right', sizeBoost: 0.8, rotation: -0.06 },
+      { x: 45, entryDirection: 'top', iconSide: 'left', sizeBoost: 0.9, rotation: -0.06 }],
       // DIAGONAL_RIGHT — staircase down-right
       [{ x: -55, entryDirection: 'left', iconSide: 'right', sizeBoost: 1 },
       { x: 0, entryDirection: 'bottom', iconSide: 'right', sizeBoost: 1 },
@@ -1486,8 +1588,9 @@ export class TypographyRenderer {
    * of the entry (~frame 3 of an 8-frame entry), then eases back down.
    * c1=2.59 is tuned so the overshoot peak ≈ 1.20.
    */
-  private punchEaseOut(t: number): number {
-    const c1 = 2.59; // overshoot peak ≈ 1.20 (vs 1.70158 → ~1.10)
+  private punchEaseOut(t: number, c1 = 2.59): number {
+    // c1=2.59 → easing peak ≈ +20% (legacy pop types); c1=3.4 → ≈ +30%,
+    // used by the hybrid entry across a 0.20 scale range (net +6% overshoot).
     const c3 = c1 + 1;
     return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
   }

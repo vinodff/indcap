@@ -52,6 +52,7 @@ import type {
   PipelineStage,
 } from '../services/typography';
 import { TypographyRenderer } from '../services/typography/typographyRenderer';
+import { keywordIconService } from '../services/typography/keywordIconService';
 import { SoundEngine } from '../services/soundEngine';
 import {
   exportMotionVideo,
@@ -387,6 +388,20 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
 
       setAnimationSequence(sequence);
 
+      // Dynamic keyword icons (Iconify, fetched from the internet per hero
+      // word). Soft 5s cap: a slow network never blocks generation — late
+      // icons still land in the cache and pop into the live preview.
+      const bgHex = (theme.backgroundColor || '#000000').replace('#', '');
+      const bgLum = bgHex.length === 6
+        ? (0.2126 * parseInt(bgHex.slice(0, 2), 16) +
+           0.7152 * parseInt(bgHex.slice(2, 4), 16) +
+           0.0722 * parseInt(bgHex.slice(4, 6), 16)) / 255
+        : 0;
+      await Promise.race([
+        keywordIconService.prefetch(sequence, bgLum > 0.5 ? '#1A1A1A' : '#FFFFFF'),
+        new Promise((resolve) => setTimeout(resolve, 5000)),
+      ]);
+
       // Stage 4: Process images via backend API (if enabled)
       if (import.meta.env.VITE_IMAGE_ASSET_ENABLED === 'true') {
         setStage('image-processing');
@@ -442,9 +457,10 @@ const TypographyReelStudio: React.FC<Props> = ({ onBack }) => {
               console.warn('[reel] image processing response not successful:', data);
             }
           } else {
-            const error = await response.json();
-            console.error('[reel] image processing failed:', error);
-            setErrorMsg(`Image processing failed: ${error.error}`);
+            // Optional enhancement stage — an unconfigured/unavailable image
+            // backend must not surface a user-facing error, just skip images.
+            const error = await response.json().catch(() => ({}));
+            console.warn('[reel] image processing unavailable, skipping:', error);
           }
         } catch (imgError) {
           console.error('[reel] image API call error:', imgError);
