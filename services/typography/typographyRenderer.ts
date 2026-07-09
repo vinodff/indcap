@@ -101,6 +101,7 @@ export class TypographyRenderer {
   private measureCanvas: HTMLCanvasElement;
 
   private noisePattern: CanvasPattern | null = null;
+  private isLightBg = false;
   private lastActiveWordId: string | null = null;
   // Playback clock (seconds) for hold-phase micro-motion — timeline-driven so
   // exported frames are reproducible, but shared across words so the whole
@@ -170,6 +171,14 @@ export class TypographyRenderer {
 
     this.sequence = sequence;
     this.layout = sequence.layout;
+
+    // Perceived background luminance — flash/vignette/spotlight adapt to theme
+    const bgHex = (this.layout.backgroundColor || '#000000').replace('#', '');
+    this.isLightBg =
+      bgHex.length === 6 &&
+      (0.2126 * parseInt(bgHex.slice(0, 2), 16) +
+        0.7152 * parseInt(bgHex.slice(2, 4), 16) +
+        0.0722 * parseInt(bgHex.slice(4, 6), 16)) / 255 > 0.5;
 
     // Setup offscreen canvas for text measurement
     this.measureCanvas = document.createElement('canvas');
@@ -353,12 +362,6 @@ export class TypographyRenderer {
     this.ctx.fillStyle = this.layout.backgroundColor || '#000000';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Apply texture overlay if configured
-    if (this.noisePattern) {
-      this.ctx.fillStyle = this.noisePattern;
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
     if (this.sequence.animations.length === 0) {
       return; // Nothing to render
     }
@@ -377,6 +380,28 @@ export class TypographyRenderer {
           activeIdx = i;
         }
       }
+    }
+
+    // ── LIVING BACKGROUND ──────────────────────────────────────────────────
+    // Emotion-tinted spotlight + vignette + drifting grain behind everything.
+    const heldForBg =
+      this.lastRenderedIdx >= 0 ? this.sequence.animations[this.lastRenderedIdx] : null;
+    this.drawLivingBackground(playbackTime, (activeAnimation ?? heldForBg)?.emotion);
+
+    // ── VIRTUAL CAMERA ─────────────────────────────────────────────────────
+    // Slow per-phrase push-in + hero snap-punch + micro drift, applied around
+    // the text stage only (images/watermark/badges stay screen-fixed).
+    const camIdx = activeAnimation && activeIdx !== -1 ? activeIdx : this.lastRenderedIdx;
+    const hasStage = camIdx >= 0;
+    if (hasStage) {
+      const cam = this.cameraFor(playbackTime, camIdx, activeAnimation);
+      const cx = this.layout.width / 2;
+      const cy = this.layout.height / 2;
+      this.ctx.save();
+      this.ctx.translate(cx + cam.dx, cy + cam.dy);
+      this.ctx.rotate(cam.rot);
+      this.ctx.scale(cam.scale, cam.scale);
+      this.ctx.translate(-cx, -cy);
     }
 
     // ── Phrase-stacking render ─────────────────────────────────────────────
@@ -447,6 +472,28 @@ export class TypographyRenderer {
       this.lastActiveWordId = null;
     }
 
+    if (hasStage) this.ctx.restore(); // end virtual camera
+
+    // ── HERO IMPACT FLASH ──────────────────────────────────────────────────
+    // One-beat full-frame flash as a hero word lands. Drawn outside the camera
+    // so it fills the frame; inverts on light themes so it always reads.
+    if (
+      activeAnimation &&
+      (activeAnimation.style.fontWeight || 0) >= 900 &&
+      playbackTime >= this.slateWipeUntil // never flash the slate-wipe blank
+    ) {
+      const heroElapsed = playbackTime - activeAnimation.startTime;
+      const FLASH_SEC = 0.1;
+      if (heroElapsed >= 0 && heroElapsed < FLASH_SEC) {
+        this.ctx.save();
+        this.ctx.globalAlpha =
+          (this.isLightBg ? 0.07 : 0.14) * (1 - heroElapsed / FLASH_SEC);
+        this.ctx.fillStyle = this.isLightBg ? '#000000' : '#FFFFFF';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.restore();
+      }
+    }
+
     // Render image overlays if available
     if (this.imageAssets.length > 0) {
       this.renderImageOverlays(playbackTime);
@@ -470,6 +517,130 @@ export class TypographyRenderer {
     // Persistent spatial anchor (bottom-left) — gives the empty background depth.
     // Driven by playbackTime (not wall-clock) so export frames are reproducible.
     this.drawSpatialAnchor(playbackTime);
+  }
+
+  // ─── Cinematic frame (Tier 1) ──────────────────────────────────────────
+  // Everything here is a pure function of playbackTime → export === preview.
+
+  /**
+   * Emotion → spotlight tint ("r,g,b"), hue-aligned with themeColors'
+   * emotionHue(). Typed against the SegmentEmotion union so a future emotion
+   * rename fails compilation instead of silently falling back to gray.
+   */
+  private static readonly EMOTION_GLOW: Record<SegmentEmotion, string> = {
+    joy: '255,220,60',
+    shock: '255,64,64',
+    awe: '80,220,255',
+    anger: '255,72,48',
+    sadness: '190,140,220',
+    tension: '200,80,60',
+    inspiration: '60,220,255',
+    humor: '255,220,60',
+    authority: '255,210,40',
+    neutral: '160,160,180',
+  };
+
+  /** Emotion-tinted spotlight + vignette + drifting film grain. */
+  private drawLivingBackground(t: number, emotion?: SegmentEmotion): void {
+    const w = this.layout.width;
+    const h = this.layout.height;
+
+    // Spotlight sways slowly so the set never reads as a static slab
+    const cx = w / 2 + Math.sin(t * 0.23) * w * 0.02;
+    const cy = h * 0.44 + Math.cos(t * 0.17) * h * 0.015;
+    const glow = TypographyRenderer.EMOTION_GLOW[emotion ?? 'neutral'];
+    const spot = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.55);
+    spot.addColorStop(0, `rgba(${glow},${this.isLightBg ? 0.07 : 0.11})`);
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    this.ctx.fillStyle = spot;
+    this.ctx.fillRect(0, 0, w, h);
+
+    // Vignette — pulls the eye center-frame, adds the "graded" look
+    const vig = this.ctx.createRadialGradient(
+      w / 2, h / 2, Math.min(w, h) * 0.45,
+      w / 2, h / 2, Math.max(w, h) * 0.75
+    );
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, this.isLightBg ? 'rgba(60,50,40,0.14)' : 'rgba(0,0,0,0.30)');
+    this.ctx.fillStyle = vig;
+    this.ctx.fillRect(0, 0, w, h);
+
+    // Film grain — the pre-generated tile drifts so it reads as grain, not print
+    if (this.noisePattern) {
+      this.ctx.save();
+      const drift = (t * 24) % 256;
+      this.ctx.translate(-drift, drift * 0.7);
+      this.ctx.fillStyle = this.noisePattern;
+      this.ctx.fillRect(-256, -256, w + 512, h + 512);
+      this.ctx.restore();
+    }
+  }
+
+  /** Peak camera zoom (push 3.5% + punch 2.8%) — fit-to-frame divides by this. */
+  public static readonly CAM_MAX_ZOOM = 1.035 + 0.028;
+
+  /** Virtual camera: slow per-phrase push-in + hero snap-punch + micro drift. */
+  private cameraFor(
+    t: number,
+    renderIdx: number,
+    active: WordAnimation | null
+  ): { scale: number; dx: number; dy: number; rot: number } {
+    const anims = this.sequence.animations;
+    const phrase =
+      this.findPhraseForWord(renderIdx) ?? { startIdx: renderIdx, endIdx: renderIdx };
+    const first = anims[phrase.startIdx];
+    const last = anims[phrase.endIdx];
+    const span = Math.max(0.001, last.startTime + last.duration - first.startTime);
+    const phraseP = Math.min(1, Math.max(0, (t - first.startTime) / span));
+
+    // ponytail: linear 3.5% push; an eased curve reads identically at this size
+    let scale = 1 + 0.035 * phraseP;
+    let dx = 0;
+    let dy = 0;
+
+    // Hero snap-punch: +2.8% kick decaying over 220ms with a dying shake
+    if (active && (active.style.fontWeight || 0) >= 900) {
+      const e = t - active.startTime;
+      const PUNCH_SEC = 0.22;
+      if (e >= 0 && e < PUNCH_SEC) {
+        const k = 1 - e / PUNCH_SEC;
+        scale += 0.028 * k * k;
+        const amp = 3.5 * this.scaleFactor * k * k;
+        dx = Math.sin(e * 93) * amp;
+        dy = Math.cos(e * 71) * amp * 0.6;
+      }
+    }
+
+    return { scale, dx, dy, rot: Math.sin(t * 0.5) * 0.004 };
+  }
+
+  /** Radial burst lines snapping outward behind a hero word entry. */
+  private drawHeroBurst(
+    x: number,
+    y: number,
+    p: number,
+    color: string,
+    seed: string,
+    size: number,
+    globalOpacity: number
+  ): void {
+    const LINES = 10;
+    const baseAngle = deterministicNoise(seed + 'burst', 0) * Math.PI;
+    const inner = size * (0.9 + p * 0.9); // lines fly outward…
+    const len = size * 0.34 * (1 - p * 0.55); // …and shorten as they go
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.55 * (1 - p) * globalOpacity;
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = Math.max(2, size * 0.03);
+    this.ctx.lineCap = 'round';
+    for (let i = 0; i < LINES; i++) {
+      const a = baseAngle + (i / LINES) * Math.PI * 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + Math.cos(a) * inner, y + Math.sin(a) * inner);
+      this.ctx.lineTo(x + Math.cos(a) * (inner + len), y + Math.sin(a) * (inner + len));
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
   }
 
   private renderImageOverlays(playbackTime: number): void {
@@ -664,6 +835,20 @@ export class TypographyRenderer {
         case 'left': properties.x -= d; break; // slides in from the left
         case 'right': properties.x += d; break; // slides in from the right
       }
+
+      // Motion-blur ghosts trail back along the travel vector while moving fast
+      if (d > 8) {
+        const dir = { top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0] }[
+          entryDirection
+        ];
+        if (dir) {
+          properties.motionBlur = {
+            x: dir[0] * d * 0.7,
+            y: dir[1] * d * 0.7,
+            strength: Math.min(1, d / travel),
+          };
+        }
+      }
     }
 
     // Tell renderText which side to place the emoji / animated icon
@@ -674,9 +859,12 @@ export class TypographyRenderer {
     // slot's X lean). renderText shrinks the font if the word would clip.
     const framePad = this.layout.padding ?? 54;
     properties.settleScale = effScale;
+    // Divide by the camera's peak zoom so push+punch cannot shove an
+    // edge-fitted word past the frame — the clamp's guarantee survives the camera.
     properties.maxTextWidth = Math.max(
       120,
-      this.layout.width - 2 * framePad - 2 * Math.abs(offset.x)
+      (this.layout.width - 2 * framePad - 2 * Math.abs(offset.x)) /
+        TypographyRenderer.CAM_MAX_ZOOM
     );
 
     // ── ANIMATED LOTTIE ICON (hero words only) ─────────────────────────────
@@ -757,6 +945,21 @@ export class TypographyRenderer {
     properties.shadowColor = anim.style.shadowColor;
     properties.shadowBlur = anim.style.shadowBlur;
     properties.is3D = slot.is3D; // only the phrase hero gets 3D extrusion
+
+    // HERO IMPACT BURST — radial accent lines snap outward behind the word
+    // during its entry (heroes land on beats via the choreographer, so this
+    // reads as beat-synced punctuation)
+    if (isHeroWord && phase === 'entry' && easedProgress > 0.05) {
+      this.drawHeroBurst(
+        properties.x,
+        properties.y,
+        easedProgress,
+        typeof properties.color === 'string' ? properties.color : '#FFFFFF',
+        anim.wordId,
+        (anim.style.fontSize || 80) * this.scaleFactor * (slot.sizeBoost ?? 1),
+        globalOpacity
+      );
+    }
 
     // Render text with styling
     this.renderText(anim.text, properties, globalOpacity);
@@ -1153,6 +1356,22 @@ export class TypographyRenderer {
 
     // Draw text if any
     if (cleanText.length > 0) {
+      // ── MOTION-BLUR GHOSTS ──────────────────────────────────────────────
+      // Two fading copies trail the travel vector during fast entry frames —
+      // cheap directional blur that vanishes as the word settles.
+      const mb = properties.motionBlur;
+      if (mb && mb.strength > 0) {
+        const baseAlpha = Math.max(0, Math.min(1, opacity * globalOpacity));
+        this.ctx.save();
+        this.ctx.shadowColor = 'transparent';
+        this.ctx.fillStyle = textFillStyle;
+        this.ctx.globalAlpha = baseAlpha * 0.16 * mb.strength;
+        this.ctx.fillText(displayText, mb.x, mb.y);
+        this.ctx.globalAlpha = baseAlpha * 0.3 * mb.strength;
+        this.ctx.fillText(displayText, mb.x * 0.5, mb.y * 0.5);
+        this.ctx.restore();
+      }
+
       // ── 3D EXTRUSION (the single most-important word only) ─────────────────
       // Gated on properties.is3D, which renderPhraseStack sets true ONLY for the
       // phrase hero slot. For the lone single-word render path (no flag), fall

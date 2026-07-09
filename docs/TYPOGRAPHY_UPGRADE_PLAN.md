@@ -1,6 +1,6 @@
 # Typography Reel Studio — Pro Visual Upgrade
 
-Date: 2026-07-07 · Status: implemented · Research: 3 parallel agents (motion spec, asset APIs, layout patterns) — findings verified live before use.
+Date: 2026-07-07 · Status: implemented (Phase 1 + Phase 2) · Research: 3 parallel agents (motion spec, asset APIs, layout patterns) — findings verified live before use.
 
 ## Problem
 
@@ -41,6 +41,21 @@ User verdict on the previous output: "very basic". Three concrete gaps:
 - Exit window: `LINGER_HOLD_SEC` (0.2s) and the −34px lift in the linger branch.
 - Hold life: 0.012 breathe amplitude / 2.8s cycle / 0.35Hz wobble in the hold branch.
 - Icon sets & order: `ICON_PREFIXES` in keywordIconService.
+
+## Phase 2 — Cinematic frame (Tier 1, 2026-07-09)
+
+Verdict driving it: "output is $10, I want $100." Diagnosis: the words moved well but the *frame* was dead — static camera, flat background, no impact punctuation, no motion blur. All four systems live in `typographyRenderer.ts`, are pure functions of `playbackTime` (export === preview), and stay off the per-frame allocation-heavy path.
+
+| System | Where | Spec |
+|---|---|---|
+| Virtual camera | `cameraFor()` + transform around the text stage in `render()` | 3.5% linear push-in per phrase; hero snap-punch +2.8% decaying over 220ms with dying 3.5px shake; ±0.23° sinusoidal drift. Images/watermark/badges stay screen-fixed. |
+| Living background | `drawLivingBackground()` | Emotion-tinted radial spotlight (EMOTION_GLOW map, swaying center), vignette (30% dark / 14% warm on light themes), film-grain tile drifting at 24px/s. |
+| Impact accents | `drawHeroBurst()` + flash block in `render()` | Hero entry: 10 radial lines snap outward + fade (deterministic angle per word); 1-beat full-frame flash (14% white on dark, 7% black on light). |
+| Motion blur | `properties.motionBlur` in `renderWordAnimation()` → ghosts in `renderText()` | Directional entries >8px displacement draw 2 trailing copies (16%/30% alpha × strength) along the travel vector; gone at settle. |
+
+Tuning knobs: push 0.035 / punch 0.028 / PUNCH_SEC 0.22 in `cameraFor`; spotlight+vignette alphas in `drawLivingBackground`; FLASH_SEC 0.1; burst LINES 10; ghost alphas 0.16/0.3.
+
+Tier 2 backlog (not built): per-letter stagger, energyCurve-reactive scale, gold-foil/chrome hero fills, whip-pan phrase transitions, ffmpeg.wasm H.264 export, full-bleed B-roll cutaways.
 
 ## Deliberate limits (ponytail)
 
