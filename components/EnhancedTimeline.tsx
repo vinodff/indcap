@@ -58,7 +58,7 @@ interface EnhancedTimelineProps {
     onSelectObject?: (sel: TimelineSelection | null) => void;
 }
 
-const TRACK_HEIGHT = 36;
+const TRACK_HEIGHT = 28;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 8;
 
@@ -552,10 +552,10 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                     </div>
 
                     {/* Waveform + beat markers — shown when beat analysis is ready */}
-                    <div className="relative mx-4 mt-0.5" style={{ height: 32 }}>
+                    <div className="relative mx-4 mt-0.5" style={{ height: 24 }}>
                         <canvas
                             ref={waveformCanvasRef}
-                            height={32}
+                            height={24}
                             className="absolute inset-0 w-full h-full rounded"
                             style={{ display: beatGrid ? 'block' : 'none' }}
                         />
@@ -638,13 +638,13 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                         </div>
                     </div>
 
-                    {/* ── RESOURCES TRACK ── B-roll, SFX, Animation per caption ── */}
-                    {(autoMotionEnabled || autoSfxEnabled || (entryAnimation && entryAnimation !== 'NONE') || (wordHighlight && wordHighlight !== 'NONE')) && captions.length > 0 && (
+                    {/* ── RESOURCES TRACK ── B-roll, SFX ── */}
+                    {(autoMotionEnabled || autoSfxEnabled) && captions.length > 0 && (
                         <div className="mx-4 mt-1 space-y-0.5">
 
                             {/* B-roll track */}
                             {autoMotionEnabled && (
-                                <div className="relative flex items-center" style={{ height: 26 }}>
+                                <div className="relative flex items-center" style={{ height: 20 }}>
                                     <span className="absolute -left-0 text-[7px] font-semibold text-gray-500 uppercase tracking-widest z-10 pointer-events-none">B-Roll</span>
                                     <div className="absolute inset-0 rounded bg-gray-900/30" />
                                     {captions.map(cap => {
@@ -658,7 +658,7 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                                 key={cap.id}
                                                 title={disabled ? 'B-roll disabled — click to edit' : `B-roll: ${meta.label} — click to edit`}
                                                 className={`absolute top-0.5 rounded border cursor-pointer group transition-all ${disabled ? 'bg-gray-800/60 border-gray-700/50 opacity-40' : `${meta.bg} ${meta.border}`} ${isSel ? 'ring-2 ring-white z-10' : ''}`}
-                                                style={{ left: `${left}%`, width: `${Math.max(width, 0.5)}%`, height: 22 }}
+                                                style={{ left: `${left}%`, width: `${Math.max(width, 0.5)}%`, height: 16 }}
                                                 onClick={e => {
                                                     e.stopPropagation();
                                                     onSelectObject?.({ kind: 'broll', id: cap.id });
@@ -759,29 +759,6 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                                     })}
                                 </div>
                             )}
-
-                            {/* Animation / Word-highlight track */}
-                            {(entryAnimation && entryAnimation !== 'NONE') || (wordHighlight && wordHighlight !== 'NONE') ? (
-                                <div className="relative flex items-center" style={{ height: 20 }}>
-                                    <span className="absolute -left-0 text-[7px] font-semibold text-gray-500 uppercase tracking-widest z-10 pointer-events-none">Anim</span>
-                                    <div className="absolute inset-0 rounded bg-gray-900/20" />
-                                    {captions.map(cap => {
-                                        const left = (cap.startTime / effectiveDuration) * 100;
-                                        const width = ((cap.endTime - cap.startTime) / effectiveDuration) * 100;
-                                        return (
-                                            <div
-                                                key={cap.id}
-                                                title={`Entry: ${entryAnimation ?? 'none'} · Highlight: ${wordHighlight ?? 'none'}`}
-                                                className="absolute top-0.5 rounded border bg-blue-500/15 border-blue-500/25 flex items-center justify-center gap-0.5 overflow-hidden"
-                                                style={{ left: `${left}%`, width: `${Math.max(width, 0.4)}%`, height: 16 }}
-                                            >
-                                                {entryAnimation && entryAnimation !== 'NONE' && <Zap size={7} className="text-gray-400 flex-shrink-0" />}
-                                                {wordHighlight && wordHighlight !== 'NONE' && <span className="text-[7px] text-gray-400 font-semibold truncate hidden sm:inline">{wordHighlight}</span>}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : null}
                         </div>
                     )}
 
