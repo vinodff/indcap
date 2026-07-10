@@ -21,6 +21,7 @@ import type {
 import { animatedIconService } from './animatedIconService';
 import { animatedEmojiService } from './animatedEmojiService';
 import { keywordIconService } from './keywordIconService';
+import { sampleEnergy } from './energy';
 import { TypographyReelImageIntegrator } from '../imageAssets';
 import type { TypographyReelImageIntegration } from '../imageAssets';
 
@@ -582,31 +583,9 @@ export class TypographyRenderer {
   /** Peak camera zoom (push 3.5% + punch 2.8%) — fit-to-frame divides by this. */
   public static readonly CAM_MAX_ZOOM = 1.035 + 0.028;
 
-  /**
-   * Audio energy 0–1 at playback time t (energyCurve is 100Hz, normalized).
-   * Sequences without a curve (old saves, demo cache) read as a neutral 0.5
-   * so every energy-scaled effect lands mid-range, not dead.
-   */
+  /** Audio energy 0–1 at playback time t — pure sampler in ./energy.ts. */
   private energyAt(t: number): number {
-    const curve = this.sequence.energyCurve;
-    if (!curve || curve.length === 0) return 0.5;
-    const center = Math.min(curve.length - 1, Math.max(0, Math.floor(t * 100)));
-    // ±40ms box average — raw 100Hz RMS sampled at 30fps aliases into visible
-    // scale flicker on percussive audio; a deterministic window keeps it calm.
-    // Also absorbs the silent-audio NaN curve (analyzer divides by maxEnergy
-    // 0): non-finite samples are skipped, and an all-NaN window reads neutral.
-    let sum = 0;
-    let count = 0;
-    const from = Math.max(0, center - 4);
-    const to = Math.min(curve.length - 1, center + 4);
-    for (let i = from; i <= to; i++) {
-      const v = curve[i];
-      if (Number.isFinite(v)) {
-        sum += v;
-        count++;
-      }
-    }
-    return count > 0 ? sum / count : 0.5;
+    return sampleEnergy(this.sequence.energyCurve, t);
   }
 
   /** Virtual camera: slow per-phrase push-in + hero snap-punch + micro drift. */
@@ -696,7 +675,10 @@ export class TypographyRenderer {
     const winDur = Math.max(0.001, 1 - stagger * (n - 1));
     const baseAlpha = this.ctx.globalAlpha;
     const mainFill = this.ctx.fillStyle; // string OR the word's gradient
-    const depth = Math.max(4, Math.round(fontSizeNum * 0.07));
+    // Depth capped at 18: per-glyph extrusion multiplies fillText calls by
+    // glyph count, and a 400px hero at 0.07 depth would spike to ~390 draws
+    // per entry frame on low-end devices. 18px depth reads identical.
+    const depth = Math.min(18, Math.max(4, Math.round(fontSizeNum * 0.07)));
     const sideColor = apply3D
       ? this.darkenColor(
           typeof properties.color === 'string' ? properties.color : '',
@@ -1499,15 +1481,18 @@ export class TypographyRenderer {
       // bypassed, so the settled frame is pixel-identical to the classic path.
       const cascadeP =
         typeof properties.letterCascade === 'number' ? properties.letterCascade : 1;
-      // ASCII-only gate: complex scripts (Telugu/Hindi/Tamil — supported by
-      // the transcriber) shape combining marks across code units; drawing
-      // text[i] in isolation garbles them. Non-ASCII heroes keep the classic
-      // whole-string entry, which shapes correctly.
+      // Simple-script gate: complex scripts (Telugu/Hindi/Tamil — supported
+      // by the transcriber) shape combining marks across code units; drawing
+      // text[i] in isolation garbles them. Allowed: ASCII + precomposed
+      // Latin-1/Extended letters + curly quotes/dashes (Gemini transcripts
+      // emit U+2019 apostrophes — DON'T must not silently lose its cascade).
+      // Everything else keeps the classic whole-string entry, which shapes
+      // correctly.
       if (
         cascadeP < 1 &&
         displayText.length > 1 &&
         displayText.length <= 14 &&
-        /^[\x20-\x7E]+$/.test(displayText)
+        /^[\x20-\x7EÀ-ɏ‘’“”–—]+$/.test(displayText)
       ) {
         this.drawLetterCascade(
           displayText, textWidth, fontSizeNum, cascadeP, apply3D, properties, scaleFactor
