@@ -143,6 +143,49 @@ async function main(): Promise<void> {
 
   document.getElementById('status')!.textContent =
     'Typography renderer harness — 6 frames rendered (deterministic, zero-token)';
+
+  // Offline-export self-test: encodes the fixture (no voice, SFX only) via
+  // WebCodecs + mp4-muxer and reports the result. Decode check is best-effort:
+  // vanilla Chromium builds often lack H.264 *decode* while encode works.
+  const btn = document.createElement('button');
+  btn.id = 'export-test';
+  btn.textContent = 'Run offline export self-test';
+  btn.style.cssText = 'margin-top:12px;padding:8px 14px;';
+  btn.onclick = async () => {
+    const s = document.getElementById('status')!;
+    try {
+      const { exportTypographyReelOffline, supportsOfflineExport } = await import(
+        './services/typography/offlineExport'
+      );
+      if (!supportsOfflineExport()) {
+        s.textContent = 'EXPORT SKIPPED: WebCodecs unavailable in this browser';
+        return;
+      }
+      s.textContent = 'EXPORT: encoding…';
+      const t0 = performance.now();
+      const { blob } = await exportTypographyReelOffline({ sequence, fps: 30 });
+      const secs = ((performance.now() - t0) / 1000).toFixed(1);
+      const head = new Uint8Array(await blob.slice(4, 8).arrayBuffer());
+      const boxName = String.fromCharCode(...head); // 'ftyp' for a valid MP4
+      let decodeNote = 'decode: n/a';
+      try {
+        const v = document.createElement('video');
+        v.src = URL.createObjectURL(blob);
+        await new Promise<void>((res, rej) => {
+          v.onloadedmetadata = () => res();
+          v.onerror = () => rej(new Error('no H.264 decoder'));
+          setTimeout(() => rej(new Error('decode timeout')), 5000);
+        });
+        decodeNote = `decode: ${v.videoWidth}x${v.videoHeight}, ${v.duration.toFixed(2)}s`;
+      } catch (e) {
+        decodeNote = `decode: ${(e as Error).message} (encode still valid)`;
+      }
+      s.textContent = `EXPORT OK: ${(blob.size / 1e6).toFixed(2)} MB in ${secs}s, box=${boxName}, ${decodeNote}`;
+    } catch (e) {
+      s.textContent = 'EXPORT FAILED: ' + (e instanceof Error ? e.message : String(e));
+    }
+  };
+  document.body.appendChild(btn);
 }
 
 main().catch((err) => {
