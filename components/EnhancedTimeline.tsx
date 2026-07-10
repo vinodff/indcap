@@ -115,6 +115,56 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
     const [resourcePopover, setResourcePopover] = useState<{ captionId: string; type: 'broll' | 'sfx' | 'anim'; screenX: number; screenY: number } | null>(null);
     // SFX cue edit popover — click a cue marker to swap sound / volume / mute / delete.
     const [sfxCuePopover, setSfxCuePopover] = useState<{ id: string; screenX: number; screenY: number } | null>(null);
+    // Video filmstrip — ~10 frame thumbnails extracted from an offscreen clone
+    // of the video (never seeks the real element, so playback is untouched).
+    const [filmstrip, setFilmstrip] = useState<string[]>([]);
+    const videoSrcForThumbs = videoRef.current?.src ?? null;
+
+    useEffect(() => {
+        if (!videoSrcForThumbs) { setFilmstrip([]); return; }
+        let cancelled = false;
+        const v = document.createElement('video');
+        v.src = videoSrcForThumbs;
+        v.muted = true;
+        v.preload = 'auto';
+        v.crossOrigin = 'anonymous';
+
+        const FRAMES = 10;
+        (async () => {
+            await new Promise<void>((res, rej) => {
+                v.onloadedmetadata = () => res();
+                v.onerror = () => rej(new Error('video load failed'));
+            });
+            const dur = v.duration;
+            if (!isFinite(dur) || dur <= 0 || cancelled) return;
+            const h = 52;
+            const w = Math.max(16, Math.round(h * ((v.videoWidth / v.videoHeight) || 0.5625)));
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            if (!ctx) return;
+            const out: string[] = [];
+            for (let i = 0; i < FRAMES; i++) {
+                if (cancelled) return;
+                const t = ((i + 0.5) / FRAMES) * dur;
+                await new Promise<void>((res, rej) => {
+                    v.onseeked = () => res();
+                    v.onerror = () => rej(new Error('seek failed'));
+                    v.currentTime = t;
+                });
+                if (cancelled) return;
+                ctx.drawImage(v, 0, 0, w, h);
+                out.push(c.toDataURL('image/jpeg', 0.5));
+                setFilmstrip([...out]); // progressive fill while extracting
+            }
+        })().catch(() => { /* filmstrip is optional — row hides when empty */ });
+
+        return () => {
+            cancelled = true;
+            v.removeAttribute('src');
+            v.load();
+        };
+    }, [videoSrcForThumbs]);
 
     // Compute virtual duration: max of video duration and latest caption endTime
     // This ensures the timeline covers all captions even when using a short/blank video
@@ -550,6 +600,29 @@ const EnhancedTimeline: React.FC<EnhancedTimelineProps> = ({
                     <div className="relative h-7 border-b border-gray-800/50 mx-4">
                         {generateTicks()}
                     </div>
+
+                    {/* Video filmstrip track — frame thumbnails, click to seek */}
+                    {filmstrip.length > 0 && (
+                        <div
+                            className="relative mx-4 mt-1 rounded overflow-hidden cursor-pointer border border-white/5"
+                            style={{ height: 26 }}
+                            onClick={e => {
+                                const r = e.currentTarget.getBoundingClientRect();
+                                onSeek(Math.max(0, Math.min(effectiveDuration, ((e.clientX - r.left) / r.width) * effectiveDuration)));
+                            }}
+                            title="Video — click to seek"
+                        >
+                            <span className="absolute left-0 top-0 text-[7px] font-semibold text-gray-400 uppercase tracking-widest z-10 pointer-events-none bg-black/50 px-1 rounded-br">
+                                video
+                            </span>
+                            <div className="flex w-full h-full">
+                                {filmstrip.map((src, i) => (
+                                    <img key={i} src={src} draggable={false} alt=""
+                                        className="h-full flex-1 min-w-0 object-cover pointer-events-none select-none" />
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Waveform + beat markers — shown when beat analysis is ready */}
                     <div className="relative mx-4 mt-0.5" style={{ height: 24 }}>
