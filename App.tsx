@@ -2122,17 +2122,18 @@ const App: React.FC = () => {
                   flexShrink: 0, overflowX: 'auto',
                 }}>
                   {
+                    // 4 groups (DESIGN.md layout spec). Text covers both the
+                    // Customize editor and the Transcript — sub-toggle below.
                     [
-                      { id: 'PRESETS', label: 'Templates' },
-                      { id: 'DESIGN', label: 'Customize' },
-                      { id: 'ANIMATE', label: 'Animate' },
-                      { id: 'STICKERS', label: 'Stickers' },
-                      { id: 'TRANSCRIPT', label: 'Transcript' },
+                      { id: 'PRESETS', label: 'Style', match: ['PRESETS'] },
+                      { id: 'DESIGN', label: 'Text', match: ['DESIGN', 'TRANSCRIPT'] },
+                      { id: 'ANIMATE', label: 'Motion', match: ['ANIMATE'] },
+                      { id: 'STICKERS', label: 'Assets', match: ['STICKERS'] },
                     ].map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`cc-tab ${activeTab === tab.id ? 'active' : ''}`}
+                        className={`cc-tab ${tab.match.includes(activeTab) ? 'active' : ''}`}
                       >
                         {tab.label}
                       </button>

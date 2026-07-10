@@ -138,9 +138,8 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
   }, [activeTab]);
 
   /* ─── TAB BAR ─── */
-  // Internal Styles/Customize toggle. "Styles" opens the 75-style label browser;
-  // "Customize" opens the manual font/colour/position controls. Transcript is
-  // owned by the App-level tab, so it isn't duplicated here.
+  // Internal sub-nav for the App-level "Text" group: 75-style label browser,
+  // manual font/colour/position controls, and the transcript editor.
   const TabBar = () => (
     <div style={{
       display: 'flex',
@@ -148,7 +147,7 @@ const StyleCustomizer: React.FC<StyleCustomizerProps> = ({
       background: 'var(--cc-surface)',
       flexShrink: 0,
     }}>
-      {([['PRESETS', 'Styles'], ['DESIGN', 'Customize']] as const).map(([t, label]) => (
+      {([['PRESETS', 'Styles'], ['DESIGN', 'Customize'], ['TRANSCRIPT', 'Transcript']] as const).map(([t, label]) => (
         <button
           key={t}
           onClick={() => setView(t)}
