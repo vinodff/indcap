@@ -140,6 +140,7 @@ export function choreograph(params: {
     animations,
     layout: finalLayout,
     durationMs: Math.ceil(transcript.duration * 1000),
+    energyCurve: beatGrid.energyCurve,
   };
 }
 

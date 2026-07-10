@@ -55,7 +55,14 @@ Verdict driving it: "output is $10, I want $100." Diagnosis: the words moved wel
 
 Tuning knobs: push 0.035 / punch 0.028 / PUNCH_SEC 0.22 in `cameraFor`; spotlight+vignette alphas in `drawLivingBackground`; FLASH_SEC 0.1; burst LINES 10; ghost alphas 0.16/0.3.
 
-Tier 2 backlog (not built): per-letter stagger, energyCurve-reactive scale, gold-foil/chrome hero fills, whip-pan phrase transitions, ffmpeg.wasm H.264 export, full-bleed B-roll cutaways.
+## Phase 3 — Tier 2 slice (2026-07-09)
+
+| System | Where | Spec |
+|---|---|---|
+| Audio-reactive motion | `energyAt()` (renderer) + `AnimationSequence.energyCurve` (types) + choreograph attach | BeatGrid's normalized 0–1 @100Hz energy envelope now rides the sequence. Spotlight alpha 0.06→0.13 dark / 0.04→0.11 light with voice energy; hold-breathe amplitude 0.8%→1.8%. Missing curve (old saves/demo cache) → neutral 0.5. |
+| Hero letter cascade | `drawLetterCascade()` + `properties.letterCascade` | Hero words only, entry only: glyphs start left→right across the first 55% of the entry window, each drops 0.25em with cubic ease-out + fade. Settled frame falls back to the classic single-string draw (pixel-identical rest state). Guards: 2–14 chars. |
+
+Still deferred: gold-foil/chrome hero fills, whip-pan phrase transitions (needs two-phrase rendering), ffmpeg.wasm H.264 export (~30MB wasm dep — needs buy-in), full-bleed B-roll cutaways (needs image backend configured).
 
 ## Deliberate limits (ponytail)
 

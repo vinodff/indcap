@@ -549,8 +549,11 @@ export class TypographyRenderer {
     const cx = w / 2 + Math.sin(t * 0.23) * w * 0.02;
     const cy = h * 0.44 + Math.cos(t * 0.17) * h * 0.015;
     const glow = TypographyRenderer.EMOTION_GLOW[emotion ?? 'neutral'];
+    // AUDIO-REACTIVE: spotlight brightens with the voice's energy (0–1@100Hz)
+    const energy = this.energyAt(t);
+    const spotAlpha = (this.isLightBg ? 0.04 : 0.06) + 0.07 * energy;
     const spot = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.55);
-    spot.addColorStop(0, `rgba(${glow},${this.isLightBg ? 0.07 : 0.11})`);
+    spot.addColorStop(0, `rgba(${glow},${spotAlpha})`);
     spot.addColorStop(1, 'rgba(0,0,0,0)');
     this.ctx.fillStyle = spot;
     this.ctx.fillRect(0, 0, w, h);
@@ -578,6 +581,33 @@ export class TypographyRenderer {
 
   /** Peak camera zoom (push 3.5% + punch 2.8%) — fit-to-frame divides by this. */
   public static readonly CAM_MAX_ZOOM = 1.035 + 0.028;
+
+  /**
+   * Audio energy 0–1 at playback time t (energyCurve is 100Hz, normalized).
+   * Sequences without a curve (old saves, demo cache) read as a neutral 0.5
+   * so every energy-scaled effect lands mid-range, not dead.
+   */
+  private energyAt(t: number): number {
+    const curve = this.sequence.energyCurve;
+    if (!curve || curve.length === 0) return 0.5;
+    const center = Math.min(curve.length - 1, Math.max(0, Math.floor(t * 100)));
+    // ±40ms box average — raw 100Hz RMS sampled at 30fps aliases into visible
+    // scale flicker on percussive audio; a deterministic window keeps it calm.
+    // Also absorbs the silent-audio NaN curve (analyzer divides by maxEnergy
+    // 0): non-finite samples are skipped, and an all-NaN window reads neutral.
+    let sum = 0;
+    let count = 0;
+    const from = Math.max(0, center - 4);
+    const to = Math.min(curve.length - 1, center + 4);
+    for (let i = from; i <= to; i++) {
+      const v = curve[i];
+      if (Number.isFinite(v)) {
+        sum += v;
+        count++;
+      }
+    }
+    return count > 0 ? sum / count : 0.5;
+  }
 
   /** Virtual camera: slow per-phrase push-in + hero snap-punch + micro drift. */
   private cameraFor(
@@ -641,6 +671,75 @@ export class TypographyRenderer {
       this.ctx.stroke();
     }
     this.ctx.restore();
+  }
+
+  /**
+   * HERO LETTER CASCADE — draws each glyph with its own staggered pop:
+   * letters start left→right across the first 55% of the entry window, each
+   * dropping ~0.25em with a cubic ease-out and fading in. Runs ONLY while
+   * entry progress < 1; the settled frame uses the classic single-string
+   * draw, so the resting render is pixel-identical to the pre-cascade look.
+   * ponytail: per-glyph advances ignore kerning — over the ~6 entry frames
+   * the drift is invisible and the settle frame is exact.
+   */
+  private drawLetterCascade(
+    text: string,
+    totalWidth: number,
+    fontSizeNum: number,
+    p: number,
+    apply3D: boolean,
+    properties: any,
+    scaleFactor: number
+  ): void {
+    const n = text.length;
+    const stagger = 0.55 / n;
+    const winDur = Math.max(0.001, 1 - stagger * (n - 1));
+    const baseAlpha = this.ctx.globalAlpha;
+    const mainFill = this.ctx.fillStyle; // string OR the word's gradient
+    const depth = Math.max(4, Math.round(fontSizeNum * 0.07));
+    const sideColor = apply3D
+      ? this.darkenColor(
+          typeof properties.color === 'string' ? properties.color : '',
+          0.55
+        )
+      : '';
+
+    let advance = 0;
+    for (let i = 0; i < n; i++) {
+      const ch = text[i];
+      const chW = this.measureTextCached(ch);
+      const gx = -totalWidth / 2 + advance + chW / 2; // center of this glyph
+      advance += chW;
+
+      const gp = Math.max(0, Math.min(1, (p - i * stagger) / winDur));
+      if (gp <= 0) continue; // this letter hasn't started yet
+      const gEase = 1 - Math.pow(1 - gp, 3); // cubic ease-out
+      const gy = -(1 - gEase) * fontSizeNum * 0.25; // drops in from above
+
+      this.ctx.save();
+      this.ctx.globalAlpha = baseAlpha * gEase;
+      if (apply3D) {
+        this.ctx.save();
+        this.ctx.shadowColor = 'transparent';
+        this.ctx.fillStyle = sideColor;
+        for (let j = depth; j >= 1; j--) {
+          this.ctx.fillText(ch, gx + j, gy + j);
+        }
+        this.ctx.restore();
+      }
+      if (properties.strokeColor && properties.strokeWidth) {
+        this.ctx.save();
+        this.ctx.shadowColor = 'transparent';
+        this.ctx.strokeStyle = properties.strokeColor;
+        this.ctx.lineWidth = properties.strokeWidth * scaleFactor;
+        this.ctx.lineJoin = 'round';
+        this.ctx.strokeText(ch, gx, gy);
+        this.ctx.restore();
+      }
+      this.ctx.fillStyle = mainFill;
+      this.ctx.fillText(ch, gx, gy);
+      this.ctx.restore();
+    }
   }
 
   private renderImageOverlays(playbackTime: number): void {
@@ -802,7 +901,9 @@ export class TypographyRenderer {
       // feels hand-held — the old per-word-duration cycle made short words
       // pulse fast (jitter) and long words look frozen.
       const wobblePhase = deterministicNoise(anim.wordId, 0) * Math.PI * 2;
-      const breathe = 1.0 + Math.sin((this.nowSec * Math.PI * 2) / 2.8 + wobblePhase * 0.3) * 0.012;
+      // AUDIO-REACTIVE breathe: amplitude 0.8%→1.8% follows the voice's energy
+      const breatheAmp = 0.008 + 0.010 * this.energyAt(this.nowSec);
+      const breathe = 1.0 + Math.sin((this.nowSec * Math.PI * 2) / 2.8 + wobblePhase * 0.3) * breatheAmp;
       properties.scale = breathe * effScale;
       properties.opacity = 1.0;
       properties.rotation =
@@ -945,6 +1046,12 @@ export class TypographyRenderer {
     properties.shadowColor = anim.style.shadowColor;
     properties.shadowBlur = anim.style.shadowBlur;
     properties.is3D = slot.is3D; // only the phrase hero gets 3D extrusion
+
+    // HERO LETTER CASCADE — hero glyphs pop in left→right across the entry
+    // window instead of arriving as one block (the "typed by the beat" look)
+    if (isHeroWord && phase === 'entry') {
+      properties.letterCascade = easedProgress;
+    }
 
     // HERO IMPACT BURST — radial accent lines snap outward behind the word
     // during its entry (heroes land on beats via the choreographer, so this
@@ -1379,6 +1486,28 @@ export class TypographyRenderer {
       // Draws the glyphs repeatedly, stepping down-right in a darkened shade, to
       // build a solid extruded block behind the front face.
       const apply3D = properties.is3D !== undefined ? properties.is3D : isHeroWord;
+
+      // ── HERO LETTER CASCADE (entry frames only) ─────────────────────────
+      // While a hero word is entering, delegate to the per-glyph cascade and
+      // skip the single-string draws below. At progress 1 this branch is
+      // bypassed, so the settled frame is pixel-identical to the classic path.
+      const cascadeP =
+        typeof properties.letterCascade === 'number' ? properties.letterCascade : 1;
+      // ASCII-only gate: complex scripts (Telugu/Hindi/Tamil — supported by
+      // the transcriber) shape combining marks across code units; drawing
+      // text[i] in isolation garbles them. Non-ASCII heroes keep the classic
+      // whole-string entry, which shapes correctly.
+      if (
+        cascadeP < 1 &&
+        displayText.length > 1 &&
+        displayText.length <= 14 &&
+        /^[\x20-\x7E]+$/.test(displayText)
+      ) {
+        this.drawLetterCascade(
+          displayText, textWidth, fontSizeNum, cascadeP, apply3D, properties, scaleFactor
+        );
+      } else {
+
       if (apply3D) {
         const depth = Math.max(4, Math.round(fontSizeNum * 0.07));
         const sideColor = this.darkenColor(typeof color === 'string' ? color : '', 0.55);
@@ -1405,6 +1534,8 @@ export class TypographyRenderer {
 
       // Front face fill — sits on top of the extrusion, casts the depth shadow
       this.ctx.fillText(displayText, 0, 0);
+
+      } // end classic single-string draw (else of letter cascade)
     }
 
     // ── DYNAMIC ICON SOLVER ────────────────────────────────────────────────

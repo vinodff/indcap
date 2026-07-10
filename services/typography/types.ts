@@ -173,6 +173,9 @@ export interface AnimationSequence {
   animations: WordAnimation[];
   layout: LayoutConfiguration;
   durationMs: number;
+  /** Normalized 0–1 audio energy envelope @100Hz (from BeatGrid) — drives
+   *  audio-reactive motion. Optional: older saved sequences don't carry it. */
+  energyCurve?: number[];
 }
 
 // ─── Theme/Style Profile ────────────────────────────────────────────────────
