@@ -78,8 +78,9 @@ interface VideoPreviewAreaProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onLoadSampleVideo?: () => void;
   onTestWithSampleText?: () => void;
+  /** One-click demo: bundled clip + pre-generated captions, zero API tokens. */
+  onLoadDemoProject?: () => void;
   setVideoSrc: (src: string) => void;
   setVideoFile: (file: File) => void;
   setStatus: (status: ProcessingStatus) => void;
@@ -121,8 +122,8 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
   videoRef,
   canvasRef,
   handleFileUpload,
-  onLoadSampleVideo,
   onTestWithSampleText,
+  onLoadDemoProject,
   setVideoSrc,
   setVideoFile,
   setStatus,
@@ -310,17 +311,17 @@ export const VideoPreviewArea: React.FC<VideoPreviewAreaProps> = ({
                 Select File
                 <input type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
               </label>
-              <button
-                onClick={async () => {
-                  if (onLoadSampleVideo) {
-                    onLoadSampleVideo();
-                  }
-                }}
-                className="group w-full bg-[#1a1a1a] hover:bg-[#222] text-gray-300 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/5 hover:border-white/10"
-              >
-                <Zap size={16} className="text-yellow-500 group-hover:scale-110 transition-transform" />
-                Use Sample Video
-              </button>
+              {onLoadDemoProject && (
+                <button
+                  type="button"
+                  onClick={onLoadDemoProject}
+                  className="group w-full bg-[#1a1a1a] hover:bg-[#222] text-gray-300 py-3 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/5 hover:border-white/10"
+                  title="Demo video + pre-generated captions — test every feature without uploading or using API tokens"
+                >
+                  <Zap size={16} className="text-[var(--cc-blue-light)] group-hover:scale-110 transition-transform" />
+                  Load Demo Project
+                </button>
+              )}
             </div>
           </div>
         </div>

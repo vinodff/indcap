@@ -41,6 +41,8 @@ import { generateCaptionsFromVideo } from './services/geminiService';
 import { extractAudioFromVideo } from './services/audioUtils';
 import { CaptionRenderer } from './services/captionRenderer';
 import { nextPlayheadTime } from './services/playbackClock';
+import { resolveDemoVideoUrl, getDemoCaptions, captureDemoCaptions, getCachedTranscript, cacheTranscript } from './services/demoProject';
+import { FlaskConical } from 'lucide-react';
 import { SoundEngine } from './services/soundEngine';
 import { SoundEffectsLibrary } from './services/audio/soundEffectsLibrary';
 import { SfxPlayer } from './services/audio/sfxPlayer';
@@ -623,63 +625,32 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [selection, selectTimelineObject]);
 
-  const startPreviewMode = async () => {
-    // 1. Load sample video if none exists
-    if (!videoSrc) {
-      // Revoke old URL if it exists
-      if (videoObjectUrlRef.current) {
-        URL.revokeObjectURL(videoObjectUrlRef.current);
-      }
-      try {
-        setStatus('IDLE');
-        let response = await fetch('/test video.mp4');
-        if (!response.ok) throw new Error('Local sample not found');
-        const blob = await response.blob();
-        const file = new File([blob], "test video.mp4", { type: "video/mp4" });
-        setVideoFile(file);
-        const url = URL.createObjectURL(file);
-        videoObjectUrlRef.current = url;
-        setVideoSrc(url);
-      } catch (e) {
-        console.error("Local sample failed, trying remote", e);
-        try {
-          const response = await fetch('https://storage.googleapis.com/generativeai-downloads/images/test%20video.mp4');
-          if (response.ok) {
-            const blob = await response.blob();
-            const file = new File([blob], "test video.mp4", { type: "video/mp4" });
-            setVideoFile(file);
-            const url = URL.createObjectURL(file);
-            videoObjectUrlRef.current = url;
-            setVideoSrc(url);
-          }
-        } catch (err) {
-          console.error("Sample video load failed completely", err);
-        }
-      }
+  // Demo project: bundled clip + pre-generated captions → READY instantly.
+  // No upload, no Gemini call. Same resets as a real upload so templates and
+  // features behave identically to the production flow.
+  const loadDemoProject = async () => {
+    const url = await resolveDemoVideoUrl();
+    if (videoObjectUrlRef.current) {
+      URL.revokeObjectURL(videoObjectUrlRef.current);
+      videoObjectUrlRef.current = null;
     }
+    setVideoSrc(url);
+    setVideoFile(null);
+    setStats(null);
+    setExportProgress(0);
+    setPlaybackRate(1);
+    setAspectRatio('ORIGINAL');
+    setFontScale(1);
+    setVerticalPos(82);
+    setHorizontalPos(50);
+    setCurrentStyle(CaptionStyle.CLEAN_WHITE);
+    resetCaptionsHistory(getDemoCaptions());
+    setStatus('READY');
+    soundEngineRef.current.init();
+  };
 
-    // 2. Add sample captions if empty
-    if (captions.length === 0) {
-      setCaptions([
-        {
-          id: 'preview-1',
-          startTime: 0,
-          endTime: 3,
-          text: "Live preview activated! Look at these captions.",
-          words: [
-            { text: "Live", start: 0, end: 0.5 },
-            { text: "preview", start: 0.5, end: 1.0 },
-            { text: "activated!", start: 1.0, end: 1.6 },
-            { text: "Look", start: 1.6, end: 2.0 },
-            { text: "at", start: 2.0, end: 2.3 },
-            { text: "these", start: 2.3, end: 2.6 },
-            { text: "captions.", start: 2.6, end: 3.0 }
-          ]
-        }
-      ]);
-    }
-
-    // 3. Play video
+  const startPreviewMode = () => {
+    // Play video
     setIsPlaying(true);
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
@@ -781,6 +752,28 @@ const App: React.FC = () => {
 
   const handleGenerateCaptions = async () => {
     if (!videoFile) return;
+
+    // Transcript cache: same file already transcribed → load instantly, zero
+    // Gemini tokens. Cached AFTER post-processing, so hits skip that too.
+    const cached = getCachedTranscript(videoFile);
+    if (cached) {
+      resetCaptionsHistory(cached.captions);
+      if (cached.language) setDetectedLanguage(cached.language);
+      setStats(null);
+      setStatus('READY');
+      soundEngineRef.current.init();
+      showToast('Loaded cached transcript — no tokens used', 'info');
+      if (videoFile.size < 50 * 1024 * 1024) {
+        analyzeBeats(videoFile)
+          .then(grid => {
+            soundLibraryRef.current?.setBeatGrid(grid);
+            setBeatGrid(grid);
+          })
+          .catch(() => { /* beat analysis is optional */ });
+      }
+      return;
+    }
+
     const runId = ++generationRunRef.current;
     setStatus('UPLOADING');
     const startTime = Date.now();
@@ -815,6 +808,7 @@ const App: React.FC = () => {
       }
 
       resetCaptionsHistory(finalCaps);
+      cacheTranscript(videoFile, finalCaps, language);
       const avgConfidence = finalCaps.length > 0
         ? Math.round(finalCaps.reduce((acc, c) => acc + (c.confidence || 0), 0) / finalCaps.length)
         : 0;
@@ -1607,6 +1601,15 @@ const App: React.FC = () => {
           <button onClick={resetApiKey} className="cc-btn cc-btn-ghost !px-2 !py-2" title="Reset API Key">
             <Key size={12} style={{ color: 'var(--cc-text-3)' }} />
           </button>
+          {status === 'READY' && captions.length > 0 && (
+            <button
+              onClick={() => { captureDemoCaptions(captions); showToast('Saved as demo — Load Demo Project now uses these captions', 'info'); }}
+              className="cc-btn cc-btn-ghost !px-2 !py-2"
+              title="Save current captions as the demo project dataset (zero-token testing)"
+            >
+              <FlaskConical size={12} style={{ color: 'var(--cc-text-3)' }} />
+            </button>
+          )}
           {status === 'READY' && (
             <>
               {/* TEMPORARILY HIDDEN — SEO & Publish features
@@ -1747,7 +1750,7 @@ const App: React.FC = () => {
                   videoRef={videoRef}
                   canvasRef={canvasRef}
                   handleFileUpload={handleFileUpload}
-                  onLoadSampleVideo={startPreviewMode}
+                  onLoadDemoProject={loadDemoProject}
                   setVideoSrc={setVideoSrc}
                   setVideoFile={setVideoFile}
                   setStatus={(s) => {
