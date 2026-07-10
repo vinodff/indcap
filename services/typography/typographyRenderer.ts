@@ -1048,9 +1048,15 @@ export class TypographyRenderer {
     properties.is3D = slot.is3D; // only the phrase hero gets 3D extrusion
 
     // HERO LETTER CASCADE — hero glyphs pop in left→right across the entry
-    // window instead of arriving as one block (the "typed by the beat" look)
+    // window instead of arriving as one block (the "typed by the beat" look).
+    // Driven by LINEAR entry time, not easedProgress: overshoot easings hit
+    // ~0.8 in the first quarter of the entry, which collapsed the stagger to
+    // ~1 frame. The cascade eases each glyph itself, so linear is correct.
     if (isHeroWord && phase === 'entry') {
-      properties.letterCascade = easedProgress;
+      properties.letterCascade = Math.min(
+        1,
+        Math.max(0, elapsed / Math.max(0.001, anim.timing.entryDuration))
+      );
     }
 
     // HERO IMPACT BURST — radial accent lines snap outward behind the word
