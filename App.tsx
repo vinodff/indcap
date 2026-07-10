@@ -1620,6 +1620,7 @@ const App: React.FC = () => {
                 <UploadCloud size={13} /> Publish
               </button>
               */}
+              <div className="h-4 w-px mx-0.5 hidden sm:block" style={{ background: 'var(--cc-border-mid)' }} />
               <button
                 onClick={() => setIsClipPickerOpen(v => !v)}
                 className={`cc-btn ${isClipPickerOpen ? 'cc-btn-primary' : 'cc-btn-ghost'}`}
@@ -1644,6 +1645,7 @@ const App: React.FC = () => {
                 <Diamond size={13} />
                 <span className="hidden sm:inline">Keys</span>
               </button>
+              <div className="h-4 w-px mx-0.5 hidden sm:block" style={{ background: 'var(--cc-border-mid)' }} />
               <button onClick={() => setIsExportPanelOpen(true)} className="cc-btn cc-btn-white">
                 <Download size={14} /> <span className="hidden sm:inline">Export</span>
               </button>
@@ -1884,22 +1886,6 @@ const App: React.FC = () => {
                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${autoSfxEnabled ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
                     >
                       <Music size={11} /> SFX
-                    </button>
-                    {/* Word Highlight */}
-                    <button
-                      onClick={() => setWordHighlight(w => w === 'NONE' ? 'COLOR_POP' : 'NONE')}
-                      title={wordHighlight !== 'NONE' ? `Word Highlight: ${wordHighlight} — click to disable` : 'Word Highlight OFF — click to enable'}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${wordHighlight !== 'NONE' ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
-                    >
-                      <Sparkles size={11} /> Highlight
-                    </button>
-                    {/* Entry Animation */}
-                    <button
-                      onClick={() => setEntryAnimation(a => a === 'NONE' ? 'SLIDE_UP' : 'NONE')}
-                      title={entryAnimation !== 'NONE' ? `Entry: ${entryAnimation} — click to disable` : 'Entry animation OFF — click to enable'}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${entryAnimation !== 'NONE' ? 'bg-[var(--cc-blue-dim)] text-[var(--cc-blue-light)]' : 'text-[var(--cc-text-3)] hover:bg-white/5 hover:text-[var(--cc-text-2)]'}`}
-                    >
-                      <Zap size={11} /> Anim
                     </button>
                   </div>
                 )}
@@ -2160,12 +2146,6 @@ const App: React.FC = () => {
                   {activeTab === 'ANIMATE' ? (
                     <Suspense fallback={<div className="flex-1 flex items-center justify-center p-6"><Loader2 className="animate-spin text-blue-500" /></div>}>
                     <AnimationPanel
-                      entryAnimation={entryAnimation}
-                      setEntryAnimation={setEntryAnimation}
-                      exitAnimation={exitAnimation}
-                      setExitAnimation={setExitAnimation}
-                      wordHighlight={wordHighlight}
-                      setWordHighlight={setWordHighlight}
                       animationSpeed={animationSpeed}
                       setAnimationSpeed={setAnimationSpeed}
                       kineticMode={kineticMode}
